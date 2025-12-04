@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LABOCONNECT — Municipality of Labo, Camarines Norte</title>
+  <meta name="description" content="Investment opportunities in Labo — streamlined permits, growing community, BPLO support." />
+
+  <!-- GLOBAL + PAGE CSS -->
+<link rel="stylesheet" href="/css/global.css">
+<link rel="stylesheet" href="/css/home.css">
+
+</head>
+
+<body>
+
+<!-- HEADER -->
+<div id="header-import"></div>
+
+<!-- CONTENT -->
+<!-- MAIN -->
+  <main class="wrap">
+
+    <!-- HERO -->
+    <section class="hero reveal" id="hero">
+      <div class="hero-left">
+        <span class="kicker">Labo, Camarines Norte</span>
+        <h1>WELCOME to LaboConnect</h1>
+        <p class="lead">Looking for the perfect place to grow your business? You’ve found it! Labo is rapidly emerging as a premier investment destination with growing commercial establishments, booming tourism, and a business-friendly government that’s here to support your success every step of the way.</p>
+
+        <div class="cta-row">
+          <button class="btn btn-primary" onclick="scrollToSection('#opportunities')">Explore Opportunities</button>
+          <button class="btn btn-ghost" onclick="downloadGuide()">Download Investment Guide</button>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:12px">
+          <div style="display:flex;gap:8px;align-items:center"><div style="width:10px;height:10px;border-radius:50%;background:var(--accent)"></div><div class="small muted">Streamlined Permits</div></div>
+          <div style="display:flex;gap:8px;align-items:center"><div style="width:10px;height:10px;border-radius:50%;background:var(--accent-2)"></div><div class="small muted">Thriving Community</div></div>
+          <div style="display:flex;gap:8px;align-items:center"><div style="width:10px;height:10px;border-radius:50%;background:var(--accent)"></div><div class="small muted">Growing Community</div></div>
+        </div>
+      </div>
+
+      <aside class="hero-right">
+        <figure class="hero-image" aria-hidden="false">
+          <img src="/assets/img/Labo.png" alt="Labo — Investment image (replace hero.jpg with the original image file)" onerror="this.style.display='block'; this.parentElement.style.background='linear-gradient(180deg,#eafbf0,#dff7e9)';">
+        </figure>
+
+        <div class="stat">
+          <div>
+            <div class="small muted">Growing Business Hub</div>
+            <div style="font-weight:800;color:var(--accent)">700+ businesses</div>
+          </div>
+          <div class="small muted">Join now</div>
+        </div>
+
+        <div class="stat">
+          <div>
+            <div class="small muted">Fast BPLO Response</div>
+            <div style="font-weight:800;color:var(--accent)">Initial in 24 hrs</div>
+          </div>
+          <div class="small muted">Free consult</div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- WHY / OPPORTUNITIES -->
+    <section id="why" class="reveal why-section">
+      <div class="why-top">
+        <h2 class="section-title">Why Choose Labo for your Business?</h2>
+        <div class="kicker-pill">YOUR SUCCESS STORY STARTS HERE</div>
+        <p class="lead">Thinking about expanding or starting a new business? Labo, Camarines Norte offers everything you need to succeed — from strategic location to supportive community and growing economy.</p>
+      </div>
+
+      <div class="why-grid" aria-hidden="false">
+        <article class="why-card" style="background-image:url('/assets/img/WhyLabo/strategic.png')">
+          <div class="card-overlay">
+            <div class="card-title">Strategic Location</div>
+            <p class="muted card-desc">Labo sits at the heart of Camarines Norte, offering excellent connectivity to major cities and ports.</p>
+          </div>
+        </article>
+
+        <article class="why-card" style="background-image:url('/assets/img/WhyLabo/market.png')">
+          <div class="card-overlay">
+            <div class="card-title">Growing Population & Market</div>
+            <p class="muted card-desc">A steadily growing population and increasing purchasing power mean more customers for your business.</p>
+          </div>
+        </article>
+
+        <article class="why-card" style="background-image:url('/assets/img/WhyLabo/friendly.png')">
+          <div class="card-overlay">
+            <div class="card-title">Business‑Friendly Environment</div>
+            <p class="muted card-desc">Our streamlined BPLO system and supportive local government make starting a business hassle‑free.</p>
+          </div>
+        </article>
+
+        <article class="why-card" style="background-image:url('/assets/img/WhyLabo/tourism.png')">
+          <div class="card-overlay">
+            <div class="card-title">Tourism & Economic Growth</div>
+            <p class="muted card-desc">Labo's growing tourism sector creates opportunities across hospitality, retail, and services.</p>
+          </div>
+        </article>
+      </div>
+
+      <div class="why-callout">
+        <h3>Still Exploring your options? That's smart business!</h3>
+        <p class="muted">Every successful business owner did their research. We're offering more than a location — we're offering a partnership for growth.</p>
+        <div class="callout-actions">
+          <button class="btn btn-primary" onclick="scrollToSection && scrollToSection('#contact')">Contact BPLO Now</button>
+          <button class="btn btn-ghost" onclick="downloadGuide()">Download Investment Guide</button>
+        </div>
+        <div class="callout-note">Did You Know? Labo has seen a XX increase in new business registrations in the past two years!</div>
+      </div>
+    </section>
+
+    <section id="opportunities" class="reveal">
+      <h2 class="section-title">Investment Opportunities in Labo</h2>
+      <p class="lead">Where will you make your mark? From tourism and hospitality to manufacturing and tech — explore opportunities tailored to your goals.</p>
+
+      <div class="grid" style="margin-top:12px" id="opportunitiesGrid">
+        
+      </div>
+
+      <div style="text-align:center;margin-top:18px">
+        <button class="btn btn-primary" onclick="loadMoreOpportunities()" id="viewMoreBtn">View More Opportunities</button>
+      </div>
+    </section>
+
+    <section id="submitListing" class="card" style="max-width:500px;margin:20px auto">
+  <form id="listingForm" enctype="multipart/form-data">
+    <label>Title:</label>
+    <input type="text" name="title" required>
+
+    <label>Description:</label>
+    <textarea name="description" required></textarea>
+
+    <label>Type:</label>
+    <select name="type">
+      <option value="Property for Rent">Property for Rent</option>
+      <option value="Property for Sale">Property for Sale</option>
+    </select>
+
+    <label>Price:</label>
+    <input type="text" name="price" required>
+
+    <label>Size:</label>
+    <input type="text" name="size">
+
+    <label>Image:</label>
+    <input type="file" name="image" accept="image/*">
+
+    <button type="submit">Submit Listing</button>
+  </form>
+</section>
+
+
+<p id="listingMessage"></p>
+</section>
+
+    <!-- PROCESS -->
+    <section id="process" class="reveal process-section">
+      <div class="process-grid">
+        <div class="process-left">
+          <h2 class="section-title">Starting Your Business in Labo</h2>
+          <p class="lead">Made simple and clear — no bureaucratic runaround. Our step-by-step process gets you from idea to operation quickly.</p>
+
+          <div class="process-steps">
+            <div class="step">
+              <div class="step-index">01</div>
+              <div class="step-body">
+                <div class="step-title">Explore Investment Opportunities</div>
+                <div class="muted step-desc">Browse our database of opportunities — real estate, tourism ventures, and more.</div>
+              </div>
+            </div>
+
+            <div class="step">
+              <div class="step-index">02</div>
+              <div class="step-body">
+                <div class="step-title">Connect with Our BPLO Team</div>
+                <div class="muted step-desc">We guide you through requirements, permits, and licensing with personalized support.</div>
+              </div>
+            </div>
+
+            <div class="step">
+              <div class="step-index">03</div>
+              <div class="step-body">
+                <div class="step-title">Get Your Permits Fast</div>
+                <div class="muted step-desc">Efficient processing so you can open and operate without delay.</div>
+              </div>
+            </div>
+
+            <div class="step">
+              <div class="step-index">04</div>
+              <div class="step-body">
+                <div class="step-title">Launch & Grow</div>
+                <div class="muted step-desc">Ongoing support to help your business thrive in Labo.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="process-right">
+          <div class="process-visual">
+            <!--<picture>
+              <source srcset="assets/img/Labo-Process.jpg" type="image/jpeg">
+              <img src="assets/img/Labo.png" alt="Labo — Camarines Norte visual" />
+            </picture>-->
+
+            <div class="cta-card" role="note" aria-label="Call to action">
+              <div style="font-weight:800;font-size:18px">Ready to Start Your Business in Labo?</div>
+              <div class="muted" style="margin-top:8px">Hundreds of businesses have already chosen Labo. Let BPLO help you start.</div>
+              <div style="margin-top:12px">
+                <button class="btn btn-primary" onclick="scrollToSection && scrollToSection('#contact')">Contact BPLO Today</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Success Stories -->
+    <section id="stories" class="reveal stories-section">
+      <h2 class="section-title">Success Stories from Labo</h2>
+      <p class="lead">Real businesses, real growth. Click a card to learn more about each success story or ongoing project.</p>
+
+      <h3 class="stories-heading">Established Businesses</h3>
+      <div class="stories-grid" id="stories-established" role="list" aria-label="Established businesses">
+        <article class="story-card" role="button" tabindex="0" data-id="lcc" aria-pressed="false">
+          <div class="card-media" style="background-image:url('/assets/img/success/lcc.jpg')"></div>
+          <div class="card-caption">
+            <div class="card-title">LCC</div>
+            <div class="card-sub">Supermarket — Maharlika Highway, Pinyahan</div>
+          </div>
+        </article>
+
+        <article class="story-card" role="button" tabindex="0" data-id="jfm" aria-pressed="false">
+          <div class="card-media" style="background-image:url('/assets/img/success/jf-mall.jpg')"></div>
+          <div class="card-caption">
+            <div class="card-title">J&amp;F MALL</div>
+            <div class="card-sub">Mall — Dalis, Labo</div>
+          </div>
+        </article>
+
+        <article class="story-card" role="button" tabindex="0" data-id="mrdiy" aria-pressed="false">
+          <div class="card-media" style="background-image:url('/assets/img/success/mr-diy.jpg')"></div>
+          <div class="card-caption">
+            <div class="card-title">Mr. DIY</div>
+            <div class="card-sub">Hardware & Retail — Maharlika Hwy</div>
+          </div>
+        </article>
+
+        <article class="story-card" role="button" tabindex="0" data-id="maria" aria-pressed="false">
+          <div class="card-media" style="background-image:url('/assets/img/success/maria-fatima.jpg')"></div>
+          <div class="card-caption">
+            <div class="card-title">Maria Fatima</div>
+            <div class="card-sub">Farm Resort — Purok 2, Bautista</div>
+          </div>
+        </article>
+
+        <article class="story-card" role="button" tabindex="0" data-id="villa" aria-pressed="false">
+          <div class="card-media" style="background-image:url('/assets/img/success/villa-asuncion.jpg')"></div>
+          <div class="card-caption">
+            <div class="card-title">Villa Asuncion</div>
+            <div class="card-sub">Resort — San Antonio</div>
+          </div>
+        </article>
+
+        <article class="story-card" role="button" tabindex="0" data-id="hutspot" aria-pressed="false">
+          <div class="card-media" style="background-image:url('/assets/img/success/hutspot.jpg')"></div>
+          <div class="card-caption">
+            <div class="card-title">HutSpot</div>
+            <div class="card-sub">Hotel & Restaurant — Tulay na Lipa</div>
+          </div>
+        </article>
+      </div>
+
+      <!--<h3 class="stories-heading" style="margin-top:28px">Under Construction</h3>
+      <div class="stories-grid" id="stories-construction" role="list" aria-label="Projects under construction">
+        <article class="story-card" role="button" tabindex="0" data-id="munichall" aria-pressed="false">
+          <div class="card-media" style="background-image:url('assets/img/success/munhall.jpg')"></div>
+          <div class="card-caption">
+            <div class="card-title">Municipal Hall (New)</div>
+            <div class="card-sub">Government Project — Dalis</div>
+          </div>
+        </article>
+
+        <article class="story-card" role="button" tabindex="0" data-id="centralplaza" aria-pressed="false">
+          <div class="card-media" style="background-image:url('assets/img/success/central-plaza.jpg')"></div>
+          <div class="card-caption">
+            <div class="card-title">Central Plaza</div>
+            <div class="card-sub">Mall — Dalis</div>
+          </div>
+        </article>-->
+      </div>
+    </section>
+
+    <!-- Story detail modal (hidden until opened) -->
+    <div id="storyModal" class="story-modal" aria-hidden="true" role="dialog" aria-labelledby="storyModalTitle">
+      <div class="story-modal-backdrop" data-close="true"></div>
+      <div class="story-modal-panel" role="document">
+        <button class="modal-close" aria-label="Close story" title="Close">✕</button>
+        <div class="story-modal-media" id="modalImage" aria-hidden="true"></div>
+        <div class="story-modal-body">
+          <h3 id="storyModalTitle"></h3>
+          <div class="muted" id="storyModalSub"></div>
+          <p id="storyModalDesc" style="margin-top:12px"></p>
+          <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+            <button id="modalContact" class="btn btn-primary">Contact Business</button>
+            <button id="modalMore" class="btn btn-ghost">View More</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+<!-- Contact / Form -->
+    <section id="contact" class="reveal contact-section">
+      <h2 class="section-title">Ready to Start Your Investment Journey?</h2>
+      <p class="lead">Let's talk about your vision. Tell us about your investment goals and we'll connect you with the perfect opportunities in Labo.</p>
+
+      <div class="contact-grid" style="margin-top:18px">
+        <div class="contact-form-card">
+          <div class="form-card-inner">
+            <h3 style="margin:0 0 8px 0">Get Started Today</h3>
+            <p class="muted" style="margin:0 0 14px 0">Fill out this quick form and our team will prepare a customized investment package just for you.</p>
+
+            <form id="inquiryForm" onsubmit="handleSubmit(event)" aria-label="Investment Inquiry Form">
+              <div class="form-row">
+                <div class="field"><label for="fullname">Full Name *</label><input id="fullname" name="fullname" required placeholder="Your Full Name" autocomplete="name"></div>
+                <div class="field"><label for="email">Email Address *</label><input id="email" name="email" type="email" required placeholder="you@example.com" autocomplete="email"></div>
+              </div>
+
+              <div class="form-row">
+                <div class="field"><label for="phone">Phone Number</label><input id="phone" name="phone" placeholder="+63 000 000 0000" autocomplete="tel"></div>
+                <div class="field"><label for="company">Company/Organization</label><input id="company" name="company" placeholder="Your Company Name (Optional)"></div>
+              </div>
+
+              <div class="form-row">
+                <div class="field"><label for="range">Investment Range</label><select id="range" name="range"><option value="">Select Investment Range</option><option>Under ₱500k</option><option>₱500k - ₱2M</option><option>₱2M - ₱10M</option><option>Above ₱10M</option></select></div>
+                <div class="field"><label for="sector">Sector of Interest</label><select id="sector" name="sector"><option value="">Select Sector</option><option>Tourism & Hospitality</option><option>Retail</option><option>Manufacturing</option><option>Agriculture</option><option>Technology</option></select></div>
+              </div>
+
+              <div class="field"><label for="message">What are your goals? *</label><textarea id="message" name="message" rows="5" placeholder="What type of business are you interested in? Any specific questions about investing in Labo?" required></textarea></div>
+
+              <div style="display:flex;gap:12px;margin-top:12px;align-items:center">
+                <button class="btn btn-primary" type="submit">Send My inquiry to BPLO</button>
+                <button type="button" class="btn btn-ghost" onclick="resetForm()">Reset</button>
+                <div class="small muted" style="margin-left:auto">* Required fields. We respect your privacy.</div>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="contact-side">
+          <div class="side-card">
+            <h4 style="margin:0 0 8px 0">Contact BPLO Directly</h4>
+            <div class="muted small" style="margin-bottom:8px"><strong>Phone</strong> <br> +63 000 000 0000 <br><small>Monday - Friday, 8AM - 5PM</small></div>
+            <div class="muted small" style="margin-bottom:8px"><strong>Email</strong> <br> bplo@labo.gov.ph <br><small>We respond within 24 hours</small></div>
+            <div class="muted small"><strong>Visit</strong> <br> Municipal Building, Labo, Camarines Norte</div>
+          </div>
+
+          <div class="side-card quick-card">
+            <h4 style="margin:0 0 8px 0">Quick Response</h4>
+            <ul style="padding-left:18px;margin:0;color:var(--muted)">
+              <li>Initial response within 24 hours</li>
+              <li>Detailed investment package within 3 days</li>
+              <li>Free consultation call scheduling</li>
+              <li>Personalized support throughout the process</li>
+            </ul>
+            <div class="tip">Tip: The more details you provide, the better we can tailor our response to your needs.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- FAQ -->
+    <section id="faq" class="reveal">
+      <h2 class="section-title">Questions About Investing in Labo? We Have Answers</h2>
+      <p class="lead">Common questions from potential investors — answered honestly and clearly.</p>
+
+      <div class="accordion" style="margin-top:12px">
+        <div class="faq-item">
+          <button class="faq-question">How do I start a business in Labo?</button>
+          <div class="faq-answer">Visit the BPLO office or fill out our online inquiry form. Our team will guide you through every step, from registration to operation.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">What support does the local government provide?</button>
+          <div class="faq-answer">We offer streamlined permits, free consultations, and ongoing support for new and existing businesses.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">Are there incentives for new investors?</button>
+          <div class="faq-answer">Yes! Ask our BPLO team about tax breaks, priority processing, and other incentives for qualified investments.</div>
+        </div>
+      </div>
+    </section> <!-- end FAQ -->
+
+    <!-- FAQ - Followup CTAs -->
+    <section id="faq-cta" class="reveal" style="margin-top:18px;">
+      <div class="faq-cta-grid">
+        <div class="faq-cta-card">
+          <div class="cta-icon">❓</div>
+          <h4>Still Have Questions?</h4>
+          <p class="muted">We love questions! The more you understand about doing business in Labo, the more confident you'll feel about your investment decision.</p>
+          <div class="cta-actions">
+            <button class="btn btn-primary" onclick="scrollToSection && scrollToSection('#contact')">Contact BPLO Team</button>
+          </div>
+        </div>
+
+        <div class="faq-cta-card">
+          <div class="cta-icon">🚀</div>
+          <h4>Ready to Start?</h4>
+          <p class="muted">Hundreds of businesses have already chosen Labo. Your success story could be next — let's make it happen!</p>
+          <div class="cta-actions">
+            <button class="btn btn-ghost" onclick="scrollToSection && scrollToSection('#process')">Start Your Business in Labo</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="final-thought">
+        <h3>One Final Thought...</h3>
+        <p class="muted">The best business opportunities are often found in emerging markets before they become obvious to everyone else. Labo is at that perfect sweet spot right now — growing rapidly but still accessible. Your future success story starts with taking action today.</p>
+      </div>
+    </section>
+  </main>
+
+
+<div id="footer-placeholder"></div>
+
+
+
+
+
+<script>
+  (async () => {
+    try {
+      const resp = await fetch("../components/footer.html");
+      if (!resp.ok) throw new Error(`Failed to load footer (status ${resp.status})`);
+      document.getElementById("footer-placeholder").innerHTML = await resp.text();
+    } catch (err) {
+      console.error("Could not load footer:", err);
+      document.getElementById("footer-placeholder").innerHTML =
+        '<footer style="padding:20px;text-align:center;color:var(--muted)">© Municipality of Labo — Footer not loaded</footer>';
+    }
+  })();
+
+
+const listingForm = document.getElementById("listingForm");
+const listingMessage = document.getElementById("listingMessage");
+
+listingForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const formData = new FormData(listingForm);
+
+  try {
+    const response = await fetch("/submit-listing", {
+      method: "POST",
+      body: formData // send as multipart/form-data
+    });
+
+    const result = await response.json();
+
+    if (response.ok) {
+      listingMessage.style.color = "green";
+      listingMessage.textContent = "Listing submitted! Waiting for admin approval.";
+      listingForm.reset();
+    } else {
+      listingMessage.style.color = "red";
+      listingMessage.textContent = result.error || "Failed to submit listing";
+    }
+  } catch (err) {
+    listingMessage.style.color = "red";
+    listingMessage.textContent = "Server error: " + err.message;
+  }
+});
+
+
+</script>
+
+<!-- JAVASCRIPT -->
+<script src="/js/global.js"></script>
+<script src="/js/home.js"></script>
+
+
+<script>
+async function loadApprovedListings() {
+    try {
+        const res = await fetch("/api/approved-listings");
+        const listings = await res.json();
+        console.log("Fetched Listings:", listings);
+
+        const container = document.getElementById("opportunitiesGrid");
+        container.innerHTML = "";
+
+        listings.forEach(item => {
+            const card = document.createElement("article");
+            card.classList.add("card");
+
+  const imagePath = item.image_url && item.image_url !== ""
+    ? item.image_url    // the URL from DB already has "/uploads/filename" or whatever you saved
+    : "/assets/default.jpg";
+
+            card.innerHTML = `
+                <div class="property-photo">
+                    <img src="${imagePath}" style="width:100%;height:180px;object-fit:cover;border-radius:8px;">
+                </div>
+
+                <div class="tags">
+                    <span class="tag">${item.category || "Listing"}</span>
+                    <span class="tag">Approved</span>
+                </div>
+
+                <div style="font-weight:800">${item.title}</div>
+
+                <div class="muted" style="margin-top:6px;font-size:13px">
+                    ${item.description}
+                </div>
+
+                <div style="font-weight:800;color:var(--accent);margin-top:8px">
+                    ₱${item.price} · ${item.size} sqm
+                </div>
+
+                <div style="display:flex;gap:8px;margin-top:12px">
+                    <button class="btn btn-primary">Send Inquiry</button>
+                    <button class="btn btn-ghost">View Details</button>
+                </div>
+            `;
+
+            container.appendChild(card);
+        });
+
+    } catch (error) {
+        console.error("Error loading listings:", error);
+    }
+}
+
+loadApprovedListings();
+</script>
+
+</body>
+</html>
