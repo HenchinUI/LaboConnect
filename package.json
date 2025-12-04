@@ -1,4 +1,8 @@
 {
+"scripts": {
+  "start": "node server.js"
+}
+
   "name": "laboconnect",
   "version": "1.0.0",
   "description": "",
