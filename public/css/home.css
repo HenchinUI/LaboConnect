@@ -27,8 +27,20 @@ section{padding:26px 0;border-bottom:1px solid rgba(15,23,42,0.02)}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 .card{background:var(--card);padding:12px;border-radius:12px;box-shadow:var(--shadow)}
 .property-photo{height:150px;border-radius:8px;background:linear-gradient(180deg,#dff7e9,#eafbf0);margin-bottom:10px}
+/* ensure background images fill and are centered */
+.property-photo{background-size:cover;background-position:center}
 .tags{display:flex;gap:8px;margin-bottom:8px}
 .tag{background:rgba(111,207,151,0.12);padding:6px 8px;border-radius:999px;color:var(--accent);font-weight:700}
+
+/* Listing-specific tweaks */
+.listing-card { display:flex; flex-direction:column; gap:8px; }
+.listing-card .title{ font-weight:800; font-size:16px; margin-top:4px }
+.listing-card .description{ margin-top:6px; font-size:13px }
+.listing-meta{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:8px }
+.listing-price{ font-weight:800; color:var(--accent) }
+.listing-stats{ font-size:13px }
+.listing-actions{ display:flex; gap:10px; margin-top:12px }
+.listing-actions .btn{ padding:8px 14px; border-radius:10px; font-size:14px }
 
 /* Responsive */
 @media(max-width:1000px){.hero{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr)}}

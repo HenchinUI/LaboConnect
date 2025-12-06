@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Listing Details — LaboConnect</title>
+  <link rel="stylesheet" href="/css/global.css">
+  <link rel="stylesheet" href="/css/home.css">
+</head>
+<body>
+  <div id="header-import"></div>
+  <main class="wrap">
+    <section style="padding:22px 0">
+      <button class="btn btn-ghost" onclick="history.back()">← Back</button>
+      <div id="listingContainer" style="margin-top:12px"></div>
+      <div id="listingError" class="muted" style="margin-top:12px;display:none"></div>
+    </section>
+  </main>
+  <div id="footer-placeholder"></div>
+
+  <script src="/js/global.js"></script>
+  <script src="/js/home.js"></script>
+  <script>
+    function getQueryParam(name) {
+      const url = new URL(window.location.href);
+      return url.searchParams.get(name);
+    }
+
+    async function loadListing(id) {
+      const container = document.getElementById('listingContainer');
+      const err = document.getElementById('listingError');
+      container.innerHTML = '';
+      err.style.display = 'none';
+      if (!id) {
+        err.textContent = 'Listing id missing.';
+        err.style.display = 'block';
+        return;
+      }
+      try {
+        const resp = await fetch('/api/listing/' + encodeURIComponent(id));
+        if (resp.status === 404) {
+          err.textContent = 'Listing not found.';
+          err.style.display = 'block';
+          return;
+        }
+        if (!resp.ok) throw new Error('Failed to fetch');
+        const item = await resp.json();
+
+        const imgStyle = item.image_url ? `style="background-image:url('${item.image_url}')"` : '';
+
+        container.innerHTML = `
+          <div class="card" style="padding:18px">
+            <div class="property-photo" aria-hidden="true" ${imgStyle} style="height:260px;background-size:cover;background-position:center;border-radius:10px"></div>
+            <div style="margin-top:12px;display:flex;gap:12px;align-items:start;flex-wrap:wrap">
+              <div style="flex:1">
+                <h2 style="margin:0">${item.title || 'Untitled'}</h2>
+                <div class="muted" style="margin-top:6px">${item.type || ''} · ${item.size_sqm ? (item.size_sqm + ' sqm') : ''}</div>
+                <div style="font-weight:800;color:var(--accent);margin-top:8px">${item.price || 'Price on request'}</div>
+                <p class="muted" style="margin-top:12px">${item.description || ''}</p>
+              </div>
+              <div style="width:320px;min-width:240px">
+                <div class="side-card" style="padding:12px">
+                  <div style="font-weight:800">Owner</div>
+                  <div class="muted">${item.owner_first_name || ''} ${item.owner_last_name || ''}</div>
+                  <hr style="margin:12px 0;border:none;border-top:1px solid rgba(15,23,42,0.04)">
+                  <div class="muted" style="font-size:14px">Status: <strong>${item.status || item.approved ? 'Approved' : 'Pending'}</strong></div>
+                  <div class="muted" style="margin-top:8px;font-size:13px">Created: ${item.created_at ? new Date(item.created_at).toLocaleString() : ''}</div>
+                  <div style="margin-top:12px;display:flex;gap:8px">
+                    <button class="btn btn-primary" onclick="openInquiry(${item.id}, '${(item.title||'Listing').replace(/'/g, "\\'")}')">Contact Owner</button>
+                    <a class="btn btn-ghost" href="${item.image_url || '#'}" target="_blank">Open Image</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+                <div style="margin-top:16px">
+                  <h4 style="margin:0 0 6px 0">Documents</h4>
+                  <ul id="documentsList" style="padding-left:18px;margin:6px 0;color:var(--muted)"></ul>
+                </div>
+          </div>
+        `;
+
+            // Build documents list: if file is an image, show image preview; otherwise show download link
+            const docs = [
+              { url: item.oct_tct_url, label: 'OCT / TCT' },
+              { url: item.tax_declaration_url, label: 'Tax Declaration' },
+              { url: item.doas_url, label: 'Deed of Absolute Sale' },
+              { url: item.government_id_url, label: 'Government ID (seller)' }
+            ];
+            const listEl = document.getElementById('documentsList');
+            listEl.innerHTML = '';
+            const isImage = (u) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(u);
+            docs.forEach(d => {
+              if (!d.url) return;
+              const filename = d.url.split('/').pop();
+              const li = document.createElement('li');
+              if (isImage(filename)) {
+                const img = document.createElement('img');
+                img.src = d.url;
+                img.style.maxWidth = '360px';
+                img.style.borderRadius = '8px';
+                img.style.display = 'block';
+                img.style.marginTop = '8px';
+                li.appendChild(document.createTextNode(d.label + ': '));
+                li.appendChild(img);
+              } else {
+                const a = document.createElement('a');
+                a.href = d.url.replace('/uploads/','/download/');
+                a.target = '_blank';
+                a.download = filename;
+                a.textContent = d.label + ' — Download';
+                li.appendChild(a);
+              }
+              listEl.appendChild(li);
+            });
+
+      } catch (err) {
+        console.error(err);
+        err.textContent = 'Could not load listing.';
+        err.style.display = 'block';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const id = getQueryParam('id');
+      loadListing(id);
+    });
+  </script>
+</body>
+</html>

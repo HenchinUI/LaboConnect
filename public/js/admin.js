@@ -5,8 +5,8 @@ let pendingListings = [];
 
 // ---------------- DOMContentLoaded ----------------
 document.addEventListener('DOMContentLoaded', () => {
-  // Inject admin header
-  fetch('../components/header.html')
+  // Inject admin header (use absolute path)
+  fetch('/components/header.html')
     .then(r => { if (!r.ok) throw r; return r.text(); })
     .then(html => { 
       document.getElementById('header-import').innerHTML = html; 
@@ -24,8 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ---------------- Header & Logout ----------------
 function attachHeaderListeners() {
-  const logoutBtn = document.querySelector('#header-import .labo-btn.logout, #header-import .logout');
-  if (logoutBtn) logoutBtn.addEventListener('click', logout);
+  // logout button already wired via onclick in HTML; admin.logout() is the custom handler
 }
 
 function logout() {
@@ -74,16 +73,38 @@ function openAppDetails(id){
   const modal = document.getElementById('adminModal');
   const body = document.getElementById('modalBody');
 
-  if (app) {
+    if (app) {
     document.getElementById('modalTitle').textContent = app.title;
+    const ownerName = `${escapeHtml(app.owner_first_name || '')} ${escapeHtml(app.owner_last_name || '')}`.trim();
+    // helper to render document: inline image if image file, otherwise link
+    function renderDocumentHTML(url, label) {
+      if (!url) return '';
+      const cleanUrl = escapeHtml(url);
+      const lower = cleanUrl.toLowerCase();
+      if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.gif')) {
+        return `<p><strong>${label}:</strong><br><img src="${cleanUrl}" alt="${label}" style="max-width:320px; height:auto; border-radius:6px; cursor:pointer"></p>`;
+      }
+      // default to link for PDFs and other types
+      return `<p><a href="${cleanUrl}" target="_blank">${label} (view)</a></p>`;
+    }
+
     body.innerHTML = `
+      <p><strong>Owner:</strong> ${ownerName || '-'}</p>
       <p><strong>Type:</strong> ${escapeHtml(app.type)}</p>
       <p><strong>Status:</strong> ${escapeHtml(app.status)}</p>
       <p><strong>Price:</strong> ${escapeHtml(app.price)}</p>
       <p><strong>Size:</strong> ${escapeHtml(app.size || '-')}</p>
+      <p><strong>Views:</strong> ${escapeHtml(app.views || 0)}</p>
+      <p><strong>Inquiries:</strong> ${escapeHtml(app.inquiries || 0)}</p>
       <p><strong>Description:</strong> ${escapeHtml(app.description)}</p>
       ${app.image_url ? `<p><img id="appImagePreview" src="${escapeHtml(app.image_url)}" 
-           style="max-width:300px; height:auto; cursor:pointer; border-radius:6px;"></p>` : ''}
+           style="max-width:300px; height:auto; border-radius:6px;"></p>` : ''}
+      <div style="margin-top:8px">
+        ${renderDocumentHTML(app.oct_tct_url, 'OCT / TCT')}
+        ${renderDocumentHTML(app.tax_declaration_url, 'Tax Declaration')}
+        ${renderDocumentHTML(app.doas_url, 'DOAS')}
+        ${renderDocumentHTML(app.government_id_url, 'Government ID')}
+      </div>
     `;
 
     // Add click to open full-screen preview

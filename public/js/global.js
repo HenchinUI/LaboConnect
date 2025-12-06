@@ -2,6 +2,27 @@ function scrollToSection(section){
   document.querySelector(section).scrollIntoView({behavior:'smooth'});
 }
 
+// Handle Opportunities link: on homepage scroll to section, on other pages go to listings page
+function handleOpportunitiesClick(e) {
+    try {
+        const p = (location.pathname || '').toLowerCase();
+        const href = (location.href || '').toLowerCase();
+        const isHome = p.endsWith('/') || p.endsWith('/index.html') || href.includes('index.html');
+        if (isHome) {
+            // stay on page and scroll
+            e && e.preventDefault();
+            scrollToSection('#opportunities');
+            return;
+        }
+        // not on home — navigate to listings (full page view)
+        e && e.preventDefault();
+        // prefer the dedicated listings page
+        window.location.href = '/components/listings.html';
+    } catch (err) {
+        console.error('handleOpportunitiesClick error:', err);
+    }
+}
+
 // --- USER MANAGEMENT / AUTH LOGIC ---
 
 const USER_DB_KEY = 'laboUsers';
@@ -22,104 +43,213 @@ function saveUsers(users) {
 }
 
 // Check for existing session and set user role on page load
-function loadSession() {
-    const user = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
-    if (user && user.role) {
-        setUserRole(user.role, user);
-    } else {
+async function loadSession() {
+    try {
+        // Validate session with server
+        const res = await fetch('/api/session');
+        const data = await res.json();
+        if (data.authenticated && data.user) {
+            setUserRole(data.user.role, data.user);
+        } else {
+            setUserRole('guest');
+        }
+    } catch (e) {
+        console.warn('Session check failed:', e);
         setUserRole('guest');
     }
 }
 
-// Login Handler
-function handleLogin(e) {
-    e.preventDefault();
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value;
-    const errorEl = document.getElementById('login-error');
-    errorEl.textContent = '';
-    
-    const users = getUsers();
-    const user = users.find(u => u.email === email && u.password === password);
-
-    if (user) {
-        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
-        setUserRole(user.role, user);
-        closeAuthModal();
-        
-        if (user.role === 'admin') {
-             window.location.href = '../components/admin-dashboard.html'; 
-        } else if (window.location.pathname.includes('/admin/')) {
-            window.location.href = '../admin-dashboard.htm';
+// --- Notifications (simple polling) ---
+function updateNotifBadge(count){
+    const unreadDot = document.getElementById('unreadDot');
+    const notifBtn = document.getElementById('notifBtn');
+    // Show dot if count > 0
+    if (unreadDot) {
+        if (!count || count <= 0) { unreadDot.style.display = 'none'; }
+        else { unreadDot.style.display = 'block'; }
+    }
+    // Update button title/aria label with count
+    if (notifBtn) {
+        if (!count || count <= 0) {
+            notifBtn.title = 'Notifications';
+            notifBtn.setAttribute('aria-label', 'Notifications');
+        } else {
+            notifBtn.title = `Notifications (${count})`;
+            notifBtn.setAttribute('aria-label', `Notifications (${count})`);
         }
-
-        alert(`Welcome back, ${user.name}! You are logged in as a ${user.role}.`);
-
-    } else {
-        errorEl.textContent = 'Invalid email or password.';
     }
 }
 
-// Register Handler
-function handleRegister(e) {
+async function fetchNotifCountForUser(){
+    try {
+        const user = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
+        if (!user) return updateNotifBadge(0);
+        // Query by owner_id (user.id)
+        const url = '/api/inquiries/count?owner_id=' + encodeURIComponent(user.id);
+        const r = await fetch(url);
+        const data = await r.json();
+        updateNotifBadge(data.count || 0);
+    } catch (e) {
+        console.warn('Notif fetch failed', e);
+    }
+}
+
+function initNotifications(){
+        // initial fetch
+        fetchNotifCountForUser();
+        // poll every 20s
+        setInterval(fetchNotifCountForUser, 20000);
+}
+
+function openNotifications(){
+        // navigate to inquiries page (owner/admin view)
+        window.location.href = '/components/inquiries.html';
+}
+
+// --- Register Handler ---
+async function handleRegister(e) {
     e.preventDefault();
     const name = document.getElementById('reg-name').value.trim();
     const email = document.getElementById('reg-email').value.trim();
     const password = document.getElementById('reg-password').value;
-    const role = document.getElementById('reg-role').value;
+    const role = document.getElementById('reg-role') ? document.getElementById('reg-role').value : 'user';
     const errorEl = document.getElementById('register-error');
-    errorEl.textContent = '';
-    
-    const users = getUsers();
+    if (errorEl) errorEl.textContent = '';
 
-    if (users.some(u => u.email === email)) {
-        errorEl.textContent = 'An account with this email already exists.';
+    try {
+        const res = await fetch('/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: name, email, password, role })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            if (errorEl) errorEl.textContent = data.error || 'Registration failed';
+            return;
+        }
+        alert(`Registration successful! Welcome, ${data.user.username}.`);
+        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(data.user));
+        setUserRole(data.user.role, data.user);
+        closeAuthModal();
+    } catch (err) {
+        console.error(err);
+        if (errorEl) errorEl.textContent = 'An error occurred during registration.';
+    }
+
+}
+
+// --- Login Handler ---
+async function handleLogin(e) {
+    e.preventDefault();
+    const email = document.getElementById('login-email')?.value.trim();
+    const password = document.getElementById('login-password')?.value;
+    const errorEl = document.getElementById('login-error');
+    if (errorEl) errorEl.textContent = '';
+
+    if (!email || !password) {
+        if (errorEl) errorEl.textContent = 'Please enter email and password.';
         return;
     }
 
-    const newUser = {
-        id: Date.now(),
-        name: name,
-        email: email,
-        password: password,
-        role: role
-    };
+    try {
+        const res = await fetch('/login', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
 
-    users.push(newUser);
-    saveUsers(users);
+        const data = await res.json();
+        if (!res.ok) {
+            if (errorEl) errorEl.textContent = data.error || 'Login failed.';
+            return;
+        }
 
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser));
-    setUserRole(newUser.role, newUser);
-    closeAuthModal();
+        // Save minimal client copy for quick UI, but rely on server session for authoritative state
+        try { localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(data.user)); } catch (e) { }
 
-    alert(`Registration successful! Welcome, ${newUser.name}. You are logged in as a ${newUser.role}.`);
-    
-    if (newUser.role === 'admin') {
-         window.location.href = 'components/admin-dashboard.html'; 
+        // Refresh UI from server-side session to avoid mismatch
+        await loadSession();
+
+        closeAuthModal();
+        alert(`Welcome back, ${data.user.username}!`);
+
+        if (data.user.role === 'admin') {
+            // Navigate to admin dashboard if admin
+            window.location.href = '/components/admin-dashboard.html';
+        }
+
+    } catch (err) {
+        console.error('Login error:', err);
+        if (errorEl) errorEl.textContent = 'Server error, please try again later.';
     }
 }
 
+
+
+
 // Logout Handler
-function logoutUser() {
+async function logoutUser() {
+    try {
+        await fetch('/logout', { method: 'POST' });
+    } catch (e) {
+        console.warn('Logout request failed:', e);
+    }
     localStorage.removeItem(CURRENT_USER_KEY);
     setUserRole('guest');
     alert('You have been logged out.');
     if (!window.location.pathname.endsWith('index.html')) {
-        window.location.href = '../components/index.html';
+        window.location.href = '/components/index.html';
     }
 }
 
 // Set UI based on role
 function setUserRole(role, user) {
   const isGuest = role === 'guest';
-  const headerBtn = document.getElementById('profileBtn');
+  
+  // Show/hide guest login button vs logged-in section
+  const guestLoginBtn = document.getElementById('guestLoginBtn');
+  const loggedInSection = document.getElementById('loggedInSection');
+  const profileBtn = document.getElementById('profileBtn');
+  
+  if (isGuest) {
+      console.log('Setting UI for GUEST state');
+      if (guestLoginBtn) guestLoginBtn.style.display = '';
+      if (loggedInSection) loggedInSection.style.display = 'none';
+  } else {
+      console.log('Setting UI for LOGGED IN state');
+      if (guestLoginBtn) guestLoginBtn.style.display = 'none';
+      if (loggedInSection) {
+        loggedInSection.style.display = 'flex';
+      }
+      
+      // Update profile display
+      const nameEl = document.getElementById('profileName');
+      const avatar = document.getElementById('profileAvatar');
+      
+      if (nameEl) nameEl.textContent = user?.username || (role === 'admin' ? 'BPLO Admin' : 'Business Owner');
+      if (avatar) avatar.src = user?.avatar || 'assets/img/user-profile-placeholder.jpg';
+      
+      if (profileBtn) {
+        profileBtn.onclick = (ev) => {
+          try {
+            ev && ev.preventDefault && ev.preventDefault();
+          } catch(e){}
+          try {
+            const stored = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
+            if (stored && stored.role === 'admin') { window.location.href = '/components/admin-dashboard.html'; return; }
+          } catch (e) { /* ignore */ }
+          window.location.href = '/components/business/index.html';
+        };
+      }
+  }
 
   // Query admin/business link **inside loaded header**
   const adminNav = document.querySelector('#header-import a[href="#admin"]');
   if (adminNav) {
       if (role === 'admin') {
           adminNav.style.display = '';
-          adminNav.href = '../components/admin-dashboard.html';
+          adminNav.href = '/components/admin-dashboard.html';
           adminNav.textContent = 'Admin Panel';
       } else if (role === 'business') {
           adminNav.style.display = '';
@@ -133,19 +263,6 @@ function setUserRole(role, user) {
   }
 
   document.querySelectorAll('.role-admin').forEach(el => el.style.display = role === 'admin' ? '' : 'none');
-
-  const nameEl = document.getElementById('profileName');
-  const avatar = document.getElementById('profileAvatar');
-
-  if (isGuest) {
-      nameEl.textContent = 'Guest';
-      avatar.src = 'assets/img/user-profile-placeholder.jpg';
-      if (headerBtn) headerBtn.onclick = openGuest;
-  } else {
-      nameEl.textContent = user?.name || (role === 'admin' ? 'BPLO Admin' : 'Business Owner');
-      avatar.src = user?.avatar || 'assets/img/user-profile-placeholder.jpg';
-      if (headerBtn) headerBtn.onclick = () => alert(`You are logged in as: ${role}. Click Logout in the Admin or Business dashboard to log out.`);
-  }
 }
 
 // Modal functions
@@ -172,19 +289,60 @@ function closeAuthModal() {
     }
 }
 
-// Load header dynamically
-fetch("../components/header.html")
-  .then(res => res.text())
+// Load header dynamically (use absolute paths so it works from any page)
+fetch("/components/header.html")
+  .then(res => {
+    console.log('Header fetch response:', res.status);
+    return res.text();
+  })
   .then(data => {
+    console.log('Header HTML loaded, length:', data.length);
     document.querySelector("#header-import").innerHTML = data;
+    console.log('Header HTML injected into #header-import');
 
     // **Header loaded, safe to update roles**
     loadSession();
+    initNotifications();
 
-    const profileBtn = document.querySelector('#header-import #profileBtn') || document.querySelector('#header-import .labo-user');
-    if (profileBtn && !profileBtn.onclick) {
-      profileBtn.onclick = openGuest;
+    const profileBtn = document.querySelector('#header-import #profileBtn');
+    const notifBtn = document.querySelector('#header-import #notifBtn');
+    const logoutBtn = document.querySelector('#header-import #logoutBtn');
+
+    console.log('Profile button found:', !!profileBtn);
+    console.log('Notif button found:', !!notifBtn);
+    console.log('Logout button found:', !!logoutBtn);
+
+    // Wire simple header actions for logged-in users
+    if (notifBtn) {
+      notifBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        openNotifications();
+      });
     }
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        logoutUser();
+      });
+    }
+
+    if (profileBtn) {
+      profileBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        try {
+          const stored = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
+          if (stored && stored.role === 'admin') {
+            window.location.href = '/components/admin-dashboard.html';
+            return;
+          }
+        } catch (e) { /* ignore */ }
+        // fallback to business dashboard
+        window.location.href = '/components/business/index.html';
+      });
+    }
+
+    
 
     const headerRow2 = document.querySelector('#header-import .labo-row-2');
     if (headerRow2) {
@@ -193,17 +351,27 @@ fetch("../components/header.html")
         const isHome = p.endsWith('/') || p.endsWith('/index.html') || href.includes('index.html');
         headerRow2.style.display = isHome ? '' : 'none';
     }
-  });
+  })
+  .catch(err => console.error("Header fetch error:", err));
 
 // Load auth modal dynamically
 function openGuest() {
-    if (document.getElementById('authModal')) {
+    console.log('openGuest() called');
+    const existingModal = document.getElementById('authModal');
+    if (existingModal) {
+        console.log('Auth modal already exists, opening it');
         openAuthModal();
         return;
     }
-    fetch("../components/authModal.html")
-      .then(res => res.text())
+    
+    console.log('Fetching auth modal HTML...');
+    fetch("/components/authModal.html")
+      .then(res => {
+          console.log('Auth modal HTML fetched, status:', res.status);
+          return res.text();
+      })
       .then(data => {
+          console.log('Auth modal HTML loaded, length:', data.length);
           const tempDiv = document.createElement('div');
           tempDiv.innerHTML = data;
           tempDiv.childNodes.forEach(node => {
@@ -215,13 +383,38 @@ function openGuest() {
                       } else {
                           newScript.textContent = node.textContent;
                       }
-                      document.body.appendChild(newScript).parentNode.removeChild(newScript);
+                      document.body.appendChild(newScript);
                   } else {
                       document.body.appendChild(node.cloneNode(true));
                   }
               }
           });
-          openAuthModal();
+          console.log('Auth modal HTML injected into DOM');
+          // Give DOM time to settle and wire up form handlers
+          setTimeout(() => {
+              console.log('Wiring up form handlers...');
+              const modal = document.getElementById('authModal');
+              const loginForm = document.getElementById('loginForm');
+              const registerForm = document.getElementById('registerForm');
+              
+              console.log('Modal found:', !!modal, 'LoginForm found:', !!loginForm, 'RegisterForm found:', !!registerForm);
+              
+              if (loginForm && !loginForm.onsubmit) {
+                  console.log('Attaching handleLogin to loginForm');
+                  loginForm.onsubmit = handleLogin;
+              }
+              if (registerForm && !registerForm.onsubmit) {
+                  console.log('Attaching handleRegister to registerForm');
+                  registerForm.onsubmit = handleRegister;
+              }
+              
+              if (modal) {
+                  console.log('Opening auth modal');
+                  openAuthModal();
+              } else {
+                  console.warn('Auth modal not found after load');
+              }
+          }, 100);
       })
       .catch(err => console.error("Could not load auth modal:", err));
 }

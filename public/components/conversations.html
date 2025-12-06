@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>My Conversations</title>
+  <link rel="stylesheet" href="/css/global.css" />
+  <link rel="stylesheet" href="/css/home.css" />
+</head>
+<body>
+  <div id="header-import"></div>
+  <main class="wrap" style="padding-top:28px;">
+    <h2>My Conversations</h2>
+    <div id="threadsContainer" style="margin-top:18px;display:flex;flex-direction:column;gap:12px;">
+      <div class="small muted">Loading conversations...</div>
+    </div>
+  </main>
+
+  <script src="/js/global.js"></script>
+  <script src="/js/home.js"></script>
+  <script>
+    async function loadConversations(){
+      const container = document.getElementById('threadsContainer');
+      container.innerHTML = '<div class="small muted">Loading conversations...</div>';
+      try {
+        const user = JSON.parse(localStorage.getItem('laboCurrentUser'));
+        if (!user) { container.innerHTML = '<div class="small muted">Please log in to view your conversations.</div>'; return; }
+
+        const [ownerRes, senderRes] = await Promise.all([
+          fetch('/api/inquiries?owner_id=' + encodeURIComponent(user.id)),
+          fetch('/api/inquiries?sender_user_id=' + encodeURIComponent(user.id))
+        ]);
+        const ownerData = await ownerRes.json();
+        const senderData = await senderRes.json();
+        const items = (ownerData.inquiries || []).concat(senderData.inquiries || []);
+        const map = new Map();
+        items.forEach(i => { if (i && i.id) map.set(i.id, i); });
+        const threads = Array.from(map.values()).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+
+        if (!threads.length) { container.innerHTML = '<div class="small muted">No conversations yet.</div>'; return; }
+        container.innerHTML = '';
+
+        threads.forEach(t => {
+          const card = document.createElement('div');
+          card.className = 'side-card';
+          card.style.display = 'flex';
+          card.style.justifyContent = 'space-between';
+          card.style.alignItems = 'center';
+
+          const left = document.createElement('div');
+          left.innerHTML = `<div style="font-weight:800">${t.first_name} ${t.last_name} <span class="small muted">(${t.created_at? new Date(t.created_at).toLocaleString():''})</span></div>
+            <div class="small muted">Listing: ${t.listing_id} — ${t.message? t.message.substring(0,120):''}</div>`;
+
+          const right = document.createElement('div');
+          right.style.display = 'flex';
+          right.style.flexDirection = 'column';
+          right.style.gap = '8px';
+
+          const openBtn = document.createElement('button');
+          openBtn.className = 'btn btn-primary';
+          openBtn.textContent = 'Open Chat';
+          openBtn.onclick = () => { if (window.openChat) openChat(t.id, t.first_name + ' ' + t.last_name); else alert('Chat not available'); };
+
+          const viewBtn = document.createElement('button');
+          viewBtn.className = 'btn btn-ghost';
+          viewBtn.textContent = 'View Listing';
+          viewBtn.onclick = () => { window.location.href = '/components/listing-detail.html?id=' + t.listing_id };
+
+          right.appendChild(openBtn);
+          right.appendChild(viewBtn);
+
+          card.appendChild(left);
+          card.appendChild(right);
+
+          container.appendChild(card);
+        });
+
+      } catch (e) {
+        container.innerHTML = '<div class="small muted">Error loading conversations</div>';
+        console.error(e);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => setTimeout(loadConversations, 200));
+  </script>
+</body>
+</html>

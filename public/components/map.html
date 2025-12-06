@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map</title>
+
+  <!-- GLOBAL + PAGE CSS -->
+<link rel="stylesheet" href="/css/global.css">
+<link rel="stylesheet" href="/css/home.css">
+
+</head>
+
+<body>
+
+    <!-- HEADER -->
+<div id="header-import"></div>
+
+
+        <section id="map" style="display: flex; justify-content: center;">
+            <div style="width: 80%; height: auto; display: flex; flex-direction: column;">
+                
+                <!-- Location Management Section -->
+                <div style="outline-style: solid; display: flex; flex-direction: column; padding: 15px; margin: 10px; border-radius: 20px; background-color: #f9f9f9;">
+                    <h3 style="margin-top: 0;">Select Location from Database</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label for="locationDropdown" style="display: block; margin-bottom: 5px; font-weight: bold;">Choose a Location:</label>
+                            <select id="locationDropdown" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc;">
+                                <option value="">-- Select a location --</option>
+                            </select>
+                        </div>
+                        <button type="button" id="loadLocationBtn" style="padding: 8px 16px; background-color: #9BBB92; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Load Location</button>
+                    </div>
+                    <hr style="margin: 15px 0;">
+                    
+                    <h3 style="margin-top: 0; margin-bottom: 0;">Select Approved Land Listing</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-top: 10px;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label for="approvedListingDropdown" style="display: block; margin-bottom: 5px; font-weight: bold;">Choose an Approved Listing:</label>
+                            <select id="approvedListingDropdown" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc;">
+                                <option value="">-- Select an approved listing --</option>
+                            </select>
+                        </div>
+                        <button type="button" id="loadApprovedListingBtn" style="padding: 8px 16px; background-color: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Load Listing</button>
+                    </div>
+                    <hr style="margin: 15px 0;">
+                    
+                    <h3>Or Enter Location Manually</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 150px;">
+                            <label for="titleInput" style="display: block; margin-bottom: 5px; font-weight: bold;">Title:</label>
+                            <input type="text" id="titleInput" placeholder="Business name" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc;">
+                        </div>
+                        <div style="flex: 1; min-width: 150px;">
+                            <label for="latitudeInput" style="display: block; margin-bottom: 5px; font-weight: bold;">Latitude:</label>
+                            <input type="number" id="latitudeInput" placeholder="e.g., 14.1175" step="0.0001" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc;">
+                        </div>
+                        <div style="flex: 1; min-width: 150px;">
+                            <label for="longitudeInput" style="display: block; margin-bottom: 5px; font-weight: bold;">Longitude:</label>
+                            <input type="number" id="longitudeInput" placeholder="e.g., 122.3507" step="0.0001" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc;">
+                        </div>
+                        <div style="flex: 1; min-width: 150px;">
+                            <label for="typeInput" style="display: block; margin-bottom: 5px; font-weight: bold;">Type (Optional):</label>
+                            <input type="text" id="typeInput" placeholder="e.g., Government" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc;">
+                        </div>
+                        <button type="button" id="updateMapBtn" style="padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; align-self: flex-end;">Update Map</button>
+                        <button type="button" id="addLocationBtn" style="padding: 8px 16px; background-color: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; align-self: flex-end;">Add Location to Database</button>
+                    </div>
+                </div>
+
+                <!-- Filter Bar -->
+                <div style="outline-style: solid;display: flex;flex-direction: row;justify-content: center;margin: 10px;border-radius: 20px">
+ 
+                    </div>
+
+                    <div style="display: flex; align-items: flex-start; align-content: center; justify-content: center;">
+                        <div style="padding-top: 100px; outline-style: solid; background-color: #9BBB92; border-radius: 20px;">
+                            <iframe id="mapIframe" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d308255.50361146376!2d122.35069244631066!3d14.11750796469968!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3398a4b87f362efb%3A0x37ebd322e90733e9!2sLabo%2C%20Camarines%20Norte!5e1!3m2!1sen!2sph!4v1764661356353!5m2!1sen!2sph" width="1200" height="600" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                        </div>
+                        <div>
+                            <div>
+                                <div style="outline-style: solid; display: flex; flex-direction: column; justify-content: center; margin: 10px; border-radius: 20px; align-items: center;">
+                                    <img src="" alt="Location Icon">
+                                    <p id="selectedBusinessName">Select a Business</p>
+                                    
+                                </div>
+                                <div style="outline-style: solid;display: flex;flex-direction: column;justify-content: center;margin: 10px;border-radius: 20px;">
+                                    <p>Recent Locations</p>
+                                    <div id="recentListings" style="max-height: 300px; overflow-y: auto;">
+                                        <!-- Will be populated by JavaScript -->
+                                    </div>
+                                </div>
+                                    <div style="outline-style: solid;display: flex;flex-direction: column;justify-content: center;margin: 10px;border-radius: 20px;">
+                                        <p>Approved Listings (submitted land listings)</p>
+                                        <div id="approvedListings" style="max-height: 300px; overflow-y: auto;">
+                                            <!-- Approved listings with coordinates will be populated here -->
+                                        </div>
+                                    </div>
+                                <div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+            </div>
+       
+ 
+
+    </section>
+    </section>
+
+    <!-- Load global scripts that inject the header and handle auth -->
+    <script src="/js/global.js"></script>
+
+    <script>
+        let allLocations = []; // Store all locations globally
+
+        // Generate Google Maps embed URL from latitude and longitude
+        function generateMapEmbedUrl(latitude, longitude, businessName) {
+            const lat = parseFloat(latitude);
+            const lng = parseFloat(longitude);
+            
+            if (isNaN(lat) || isNaN(lng)) {
+                console.error("Invalid coordinates:", latitude, longitude);
+                return null;
+            }
+
+            // Google Maps embed URL format with coordinates and zoom level
+            const embedUrl = `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3000!2d${lng}!3d${lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0:0x0!2z${lat},${lng}!5e0!3m2!1sen!2sph!4v1704000000000`;
+            return embedUrl;
+        }
+
+        // Populate the dropdown with locations from database
+        async function populateLocationDropdown() {
+            try {
+                const response = await fetch('/api/locations');
+                allLocations = await response.json();
+
+                if (!Array.isArray(allLocations) || allLocations.length === 0) {
+                    console.log("No locations found for dropdown");
+                    return;
+                }
+
+                const dropdown = document.getElementById('locationDropdown');
+                dropdown.innerHTML = '<option value="">-- Select a location --</option>';
+
+                // Add each location to the dropdown
+                allLocations.forEach((location) => {
+                    const option = document.createElement('option');
+                    option.value = location.id;
+                    option.textContent = `${location.title} (${location.type || 'N/A'})`;
+                    dropdown.appendChild(option);
+                });
+            } catch (error) {
+                console.error("Error populating dropdown:", error);
+            }
+        }
+
+        // Load a location from dropdown selection
+        document.getElementById('loadLocationBtn')?.addEventListener('click', () => {
+            const dropdown = document.getElementById('locationDropdown');
+            const selectedId = dropdown.value;
+
+            if (!selectedId) {
+                alert('Please select a location');
+                return;
+            }
+
+            const selectedLocation = allLocations.find(loc => loc.id == selectedId);
+            if (selectedLocation) {
+                // Populate form fields
+                document.getElementById('titleInput').value = selectedLocation.title || '';
+                document.getElementById('latitudeInput').value = selectedLocation.latitude || '';
+                document.getElementById('longitudeInput').value = selectedLocation.longitude || '';
+
+                // Update the map
+                updateMapLocation(selectedLocation);
+            }
+        });
+
+        // Load an approved listing from dropdown selection
+        document.getElementById('loadApprovedListingBtn')?.addEventListener('click', () => {
+            const dropdown = document.getElementById('approvedListingDropdown');
+            const selectedId = dropdown.value;
+
+            if (!selectedId) {
+                alert('Please select an approved listing');
+                return;
+            }
+
+            const selectedOption = dropdown.options[dropdown.selectedIndex];
+            const listing = {
+                title: selectedOption.textContent.split(' (')[0],
+                latitude: parseFloat(selectedOption.dataset.latitude),
+                longitude: parseFloat(selectedOption.dataset.longitude)
+            };
+
+            updateMapLocation(listing);
+        });
+
+        // Update map with manual input
+        document.getElementById('updateMapBtn')?.addEventListener('click', () => {
+            const title = document.getElementById('titleInput').value;
+            const latitude = document.getElementById('latitudeInput').value;
+            const longitude = document.getElementById('longitudeInput').value;
+
+            if (!title || !latitude || !longitude) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            const manualLocation = {
+                title,
+                latitude: parseFloat(latitude),
+                longitude: parseFloat(longitude)
+            };
+
+            updateMapLocation(manualLocation);
+        });
+
+        // Add location to database
+        document.getElementById('addLocationBtn')?.addEventListener('click', async () => {
+            const title = document.getElementById('titleInput').value;
+            const latitude = document.getElementById('latitudeInput').value;
+            const longitude = document.getElementById('longitudeInput').value;
+            const type = document.getElementById('typeInput').value;
+
+            if (!title || !latitude || !longitude) {
+                alert('Please fill in Title, Latitude, and Longitude');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/locations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: title.trim(),
+                        latitude: parseFloat(latitude),
+                        longitude: parseFloat(longitude),
+                        type: type.trim() || null,
+                        description: null,
+                        price: 0
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    alert(`Error: ${data.error}`);
+                    return;
+                }
+
+                alert('Location added successfully to database!');
+                
+                // Clear form
+                document.getElementById('titleInput').value = '';
+                document.getElementById('latitudeInput').value = '';
+                document.getElementById('longitudeInput').value = '';
+                document.getElementById('typeInput').value = '';
+
+                // Reload locations
+                loadLocations();
+
+            } catch (error) {
+                console.error("Error adding location:", error);
+                alert('Failed to add location to database');
+            }
+        });
+
+        // Fetch locations from backend and populate the list
+        async function loadLocations() {
+            try {
+                const response = await fetch('/api/locations');
+                const locations = await response.json();
+
+                if (!Array.isArray(locations) || locations.length === 0) {
+                    console.log("No locations found");
+                    return;
+                }
+
+                const listingsContainer = document.getElementById('recentListings');
+                listingsContainer.innerHTML = '';
+
+                // Populate recent listings
+                locations.forEach((location, index) => {
+                    const listItem = document.createElement('div');
+                    listItem.style.cssText = 'padding: 10px; border-bottom: 1px solid #ccc; cursor: pointer; background-color: white;';
+                    listItem.innerHTML = `
+                        <strong>${location.title}</strong>
+                        <p style="font-size: 12px; color: #666; margin: 5px 0;">
+                            ${location.type || 'N/A'}
+                        </p>
+                    `;
+
+                    // Hover effect
+                    listItem.addEventListener('mouseenter', () => listItem.style.backgroundColor = '#f0f0f0');
+                    listItem.addEventListener('mouseleave', () => listItem.style.backgroundColor = 'white');
+
+                    // Click to update map
+                    listItem.addEventListener('click', () => updateMapLocation(location));
+                    listingsContainer.appendChild(listItem);
+
+                    // Auto-load first location on page load
+                    if (index === 0) {
+                        updateMapLocation(location);
+                    }
+                });
+
+                // Also populate the dropdown
+                populateLocationDropdown();
+            } catch (error) {
+                console.error("Error loading locations:", error);
+            }
+        }
+
+        // Fetch approved listings (submitted land listings) and show those with coordinates
+        async function loadApprovedListings() {
+            try {
+                const res = await fetch('/api/approved-listings');
+                const listings = await res.json();
+
+                if (!Array.isArray(listings) || listings.length === 0) return;
+
+                const container = document.getElementById('approvedListings');
+                container.innerHTML = '';
+
+                // Also populate the dropdown for approved listings
+                const dropdown = document.getElementById('approvedListingDropdown');
+                dropdown.innerHTML = '<option value="">-- Select an approved listing --</option>';
+
+                listings.forEach((item) => {
+                    // Only show listings that have valid coordinates
+                    if (item.latitude == null || item.longitude == null) return;
+
+                    const el = document.createElement('div');
+                    el.style.cssText = 'padding:10px;border-bottom:1px solid #ccc;cursor:pointer;background-color:white;';
+                    el.innerHTML = `
+                        <strong>${item.title}</strong>
+                        <p style="font-size:12px;color:#666;margin:5px 0;">${item.type || 'Listing'}</p>
+                    `;
+
+                    el.addEventListener('mouseenter', () => el.style.backgroundColor = '#f0f0f0');
+                    el.addEventListener('mouseleave', () => el.style.backgroundColor = 'white');
+                    el.addEventListener('click', () => {
+                        updateMapLocation({ title: item.title, latitude: item.latitude, longitude: item.longitude });
+                    });
+
+                    container.appendChild(el);
+
+                    // Add to dropdown
+                    const option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent = `${item.title} (${item.type || 'Listing'})`;
+                    option.dataset.latitude = item.latitude;
+                    option.dataset.longitude = item.longitude;
+                    dropdown.appendChild(option);
+                });
+            } catch (err) {
+                console.error('Error loading approved listings:', err);
+            }
+        }
+
+        // Update iframe and business info when a location is selected
+        function updateMapLocation(location) {
+            const mapIframe = document.getElementById('mapIframe');
+            const businessNameEl = document.getElementById('selectedBusinessName');
+
+            if (!mapIframe) {
+                console.error("Map iframe not found");
+                return;
+            }
+
+            // Update business name
+            if (businessNameEl) {
+                businessNameEl.textContent = location.title || 'Unknown Business';
+            }
+
+            // Generate new embed URL and update iframe
+            const newEmbedUrl = generateMapEmbedUrl(location.latitude, location.longitude, location.title);
+            if (newEmbedUrl) {
+                mapIframe.src = newEmbedUrl;
+            }
+        }
+
+        // Load locations and approved listings when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            loadLocations();
+            loadApprovedListings();
+        });
+    </script>
+    </body>
+</html>
