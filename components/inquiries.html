@@ -1,0 +1,193 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Inquiries</title>
+  <link rel="stylesheet" href="/css/global.css" />
+</head>
+<body>
+  <div id="header-import"></div>
+  <main class="wrap" style="padding-top:28px;">
+    <h2>Inquiries</h2>
+    <div id="inquiriesContainer" style="margin-top:18px;display:flex;flex-direction:column;gap:12px;">
+      <div class="small muted">Loading inquiries...</div>
+    </div>
+  </main>
+
+  <script src="/js/global.js"></script>
+  <script src="/js/home.js"></script>
+  <script>
+    // helper to render an array of inquiry items (used by admin view)
+    function renderItems(items) {
+      const container = document.getElementById('inquiriesContainer');
+      if (!container) return;
+      if (!Array.isArray(items) || items.length === 0) {
+        container.innerHTML = '<div class="small muted">No inquiries yet.</div>';
+        return;
+      }
+      // sort newest first
+      items = items.slice().sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+      container.innerHTML = '';
+      items.forEach(i => {
+        const card = document.createElement('div');
+        card.className = 'side-card';
+        card.style.display = 'flex';
+        card.style.justifyContent = 'space-between';
+        card.style.alignItems = 'center';
+
+        const left = document.createElement('div');
+        const unreadDot = i.is_read ? '' : '<span style="display:inline-block;width:8px;height:8px;background:#ff6b6b;border-radius:50%;margin-right:6px;vertical-align:middle"></span>';
+        left.innerHTML = `<div style="font-weight:800">${unreadDot}${i.first_name || ''} ${i.last_name || ''} <span class="small muted">(${i.created_at ? new Date(i.created_at).toLocaleString() : ''})</span></div>
+          <div class="small muted">Contact: ${i.contact_number || i.contact || ''} — ${i.email || ''}</div>
+          <div style="margin-top:6px">${i.message || i.note || ''}</div>`;
+
+        const right = document.createElement('div');
+        right.style.display = 'flex';
+        right.style.flexDirection = 'column';
+        right.style.gap = '8px';
+
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'btn btn-ghost';
+        viewBtn.textContent = 'View Listing';
+        viewBtn.onclick = () => { window.location.href = '/components/listing-detail.html?id=' + i.listing_id };
+
+        const chatBtn = document.createElement('button');
+        chatBtn.className = 'btn btn-primary';
+        chatBtn.textContent = 'Open Chat';
+        chatBtn.onclick = () => {
+          if (window.openChat) return openChat(i.id, (i.first_name||'') + ' ' + (i.last_name||''));
+          const s = document.createElement('script');
+          s.src = '/js/home.js';
+          s.onload = () => { if (window.openChat) openChat(i.id, (i.first_name||'') + ' ' + (i.last_name||'')); else alert('Chat not available'); };
+          s.onerror = () => alert('Failed to load chat support');
+          document.head.appendChild(s);
+        };
+
+        const markBtn = document.createElement('button');
+        markBtn.className = 'btn btn-ghost';
+        markBtn.textContent = i.is_read ? 'Read' : 'Mark as read';
+        markBtn.disabled = !!i.is_read;
+        markBtn.onclick = async () => {
+          await fetch('/api/inquiries/' + i.id + '/read', { method: 'PATCH' });
+          markBtn.textContent = 'Read';
+          markBtn.disabled = true;
+          if (window.fetchNotifCountForUser) fetchNotifCountForUser();
+        };
+
+        right.appendChild(viewBtn);
+        right.appendChild(chatBtn);
+        right.appendChild(markBtn);
+
+        card.appendChild(left);
+        card.appendChild(right);
+
+        container.appendChild(card);
+      });
+    }
+
+    async function loadInquiries(){
+      const container = document.getElementById('inquiriesContainer');
+      container.innerHTML = '<div class="small muted">Loading inquiries...</div>';
+      try{
+        const user = JSON.parse(localStorage.getItem('laboCurrentUser'));
+        if (!user) {
+          container.innerHTML = '<div class="small muted">Please log in to view inquiries.</div>';
+          return;
+        }
+
+        // Admin sees all inquiries
+        if (user.role === 'admin') {
+          const res = await fetch('/api/inquiries');
+          const data = await res.json();
+          const items = data.inquiries || data || [];
+          renderItems(items);
+          return;
+        }
+
+        // Non-admin: fetch inquiries where user is owner (owner_id) and where user is sender (sender_user_id)
+        const [ownerRes, senderRes] = await Promise.all([
+          fetch('/api/inquiries?owner_id=' + encodeURIComponent(user.id)),
+          fetch('/api/inquiries?sender_user_id=' + encodeURIComponent(user.id))
+        ]);
+        const ownerData = await ownerRes.json();
+        const senderData = await senderRes.json();
+        const ownerItems = ownerData.inquiries || [];
+        const senderItems = senderData.inquiries || [];
+
+        // merge and dedupe by inquiry id
+        const map = new Map();
+        ownerItems.concat(senderItems).forEach(i => { if (i && i.id) map.set(i.id, i); });
+        const items = Array.from(map.values()).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+        if (!items.length) { container.innerHTML = '<div class="small muted">No inquiries yet.</div>'; return; }
+        container.innerHTML = '';
+        items.forEach(i => {
+          const card = document.createElement('div');
+          card.className = 'side-card';
+          card.style.display = 'flex';
+          card.style.justifyContent = 'space-between';
+          card.style.alignItems = 'center';
+
+          const left = document.createElement('div');
+          const unreadDot = i.is_read ? '' : '<span style="display:inline-block;width:8px;height:8px;background:#ff6b6b;border-radius:50%;margin-right:6px;vertical-align:middle"></span>';
+          left.innerHTML = `<div style="font-weight:800">${unreadDot}${i.first_name} ${i.last_name} <span class="small muted">(${i.created_at ? new Date(i.created_at).toLocaleString() : ''})</span></div>
+            <div class="small muted">Contact: ${i.contact_number || i.contact || ''} — ${i.email}</div>
+            <div style="margin-top:6px">${i.message || i.note || ''}</div>`;
+
+          const right = document.createElement('div');
+          right.style.display = 'flex';
+          right.style.flexDirection = 'column';
+          right.style.gap = '8px';
+
+          const viewBtn = document.createElement('button');
+          viewBtn.className = 'btn btn-ghost';
+          viewBtn.textContent = 'View Listing';
+          viewBtn.onclick = () => { window.location.href = '/components/listing-detail.html?id=' + i.listing_id };
+
+          const chatBtn = document.createElement('button');
+          chatBtn.className = 'btn btn-primary';
+          chatBtn.textContent = 'Open Chat';
+          chatBtn.onclick = () => {
+            if (window.openChat) return openChat(i.id, i.first_name + ' ' + i.last_name);
+            // dynamic load of home.js then call openChat
+            const s = document.createElement('script');
+            s.src = '/js/home.js';
+            s.onload = () => { if (window.openChat) openChat(i.id, i.first_name + ' ' + i.last_name); else alert('Chat not available'); };
+            s.onerror = () => alert('Failed to load chat support');
+            document.head.appendChild(s);
+          };
+
+          const markBtn = document.createElement('button');
+          markBtn.className = 'btn btn-ghost';
+          markBtn.textContent = i.is_read ? 'Read' : 'Mark as read';
+          markBtn.disabled = !!i.is_read;
+          markBtn.onclick = async () => {
+            await fetch('/api/inquiries/' + i.id + '/read', { method: 'PATCH' });
+            markBtn.textContent = 'Read';
+            markBtn.disabled = true;
+            // refresh badge
+            if (window.fetchNotifCountForUser) fetchNotifCountForUser();
+          };
+
+          right.appendChild(viewBtn);
+          right.appendChild(chatBtn);
+          right.appendChild(markBtn);
+
+          card.appendChild(left);
+          card.appendChild(right);
+
+          container.appendChild(card);
+        });
+
+      } catch (e) {
+        container.innerHTML = '<div class="small muted">Error loading inquiries</div>';
+        console.error(e);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // header is loaded by global.js fetch; wait shortly then load inquiries
+      setTimeout(loadInquiries, 250);
+    });
+  </script>
+</body>
+</html>

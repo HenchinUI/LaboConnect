@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Economic Data of Labo</title>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
+<!-- Lucide Icons -->
+<link href="https://unpkg.com/lucide-static@0.0.1/font/lucide.css" rel="stylesheet">
+
+<style>
+  :root{
+    --bg:#fbfdfb;
+    --card:#ffffff;
+    --green-top:#c8f7d0;
+    --green-bottom:#a1dba4;
+    --accent:#15703a;
+    --muted:#6b7280;
+    --dark:#0f172a;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    font-family:"Inter",system-ui,Roboto,Arial;
+    margin:0;
+    background:var(--bg);
+    color:var(--dark);
+  }
+
+  .container{
+    max-width:1200px;
+    margin:28px auto;
+    padding:28px;
+  }
+
+  /* Header */
+  .header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+  }
+  .header-left h1{
+    font-size:30px;
+    font-weight:800;
+    margin:0 0 6px 0;
+  }
+  .subtitle{
+    margin:0;
+    color:var(--muted);
+    max-width:600px;
+  }
+  .header-right{
+    display:flex;
+    gap:12px;
+    align-items:center;
+  }
+
+  /* Buttons */
+  .btn{
+    padding:9px 16px;
+    border-radius:8px;
+    font-weight:600;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    border:none;
+    transition:0.2s;
+    font-size:14px;
+  }
+  .btn.primary{
+    background:#111;
+    color:#fff;
+  }
+  .btn.primary:hover{
+    opacity:0.85;
+  }
+  .btn.upload{
+    background:#fff;
+    border:1px solid var(--dark);
+    color:var(--dark);
+  }
+  .btn.upload:hover{
+    background:#f3f4f6;
+  }
+  .btn.outline{
+    background:#fff;
+    border:1px solid var(--dark);
+    color:var(--dark);
+  }
+  .file-info{
+    font-size:13px;
+    color:var(--muted);
+    margin-left:8px;
+    max-width:220px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .btn.small{ padding:6px 10px;font-size:13px }
+
+  /* Stats */
+  .stats{
+    margin-top:20px;
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:18px;
+  }
+  .stat-card{
+    background:linear-gradient(180deg,var(--green-top),var(--green-bottom));
+    padding:18px;
+    border-radius:14px;
+    box-shadow:0 6px 18px rgba(2,6,23,0.06);
+  }
+  .stat-header{
+    display:flex;
+    justify-content:space-between;
+    color:#064e34;
+    font-size:14px;
+  }
+  .stat-value{
+    margin-top:14px;
+    font-size:26px;
+    font-weight:800;
+  }
+  .stat-sub{
+    margin-top:6px;
+    color:#064e34;
+    font-weight:600;
+    font-size:13px;
+  }
+
+  /* Charts */
+  .charts{
+    margin-top:28px;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:22px;
+  }
+  .chart-card{
+    background:#fff;
+    border-radius:12px;
+    padding:20px;
+    border:1px solid rgba(0,0,0,0.06);
+    box-shadow:0 6px 12px rgba(0,0,0,0.03);
+    display:flex;
+    flex-direction:column;
+    min-height:420px;
+  }
+  .chart-title{
+    margin:0;
+    font-size:15px;
+    font-weight:700;
+  }
+  .chart-sub{
+    margin:2px 0 14px;
+    font-size:13px;
+    color:var(--muted);
+  }
+  .chart-wrapper {
+    flex:1;
+    position:relative;
+    min-height:300px;
+  }
+  canvas{
+    max-height:300px !important;
+    width:100% !important;
+  }
+
+  /* Download section */
+  .download{
+    margin-top:32px;
+    background:linear-gradient(180deg,#f1fbf3,#e6f7e8);
+    border-radius:12px;
+    padding:28px;
+    text-align:center;
+  }
+  .download h3{
+    margin:0 0 6px 0;
+  }
+  .download p{
+    margin:0 0 18px 0;
+    color:var(--muted);
+  }
+  .actions{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    gap:12px;
+  }
+
+  /* Overlay modal for upload metadata */
+  .overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(8,12,10,0.45);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:1200;
+    padding:20px;
+  }
+  .overlay.open{ display:flex; }
+  .modal{
+    width:100%;
+    max-width:720px;
+    background:var(--card);
+    border-radius:12px;
+    padding:22px;
+    box-shadow:0 10px 40px rgba(2,6,23,0.2);
+  }
+  .modal h3{ margin:0 0 8px 0; font-size:18px }
+  .modal p{ margin:0 0 14px 0; color:var(--muted) }
+  .form-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px }
+  .form-row.col{ grid-template-columns:1fr; }
+  label{ display:block; font-size:13px; color:#0f172a; margin-bottom:6px; font-weight:600 }
+  input[type="text"], input[type="email"], textarea, select{
+    width:100%;
+    padding:10px 12px;
+    border-radius:8px;
+    border:1px solid rgba(15,23,42,0.12);
+    background:#fbfdfb;
+    font-size:14px;
+  }
+  textarea{ min-height:96px; resize:vertical }
+  .modal-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:12px }
+  .meta-file{ font-size:13px; color:var(--muted); padding:8px 12px; background:#f7faf7; border-radius:8px; border:1px dashed rgba(15,23,42,0.06) }
+
+  /* Responsive */
+  @media(max-width:1000px){
+    .stats{grid-template-columns:repeat(2,1fr);}
+    .charts{grid-template-columns:1fr;}
+  }
+  @media(max-width:650px){
+    .stats{grid-template-columns:1fr;}
+    .header{flex-direction:column;}
+    .header-right{align-self:stretch;}
+    .form-row{ grid-template-columns:1fr; }
+  }
+</style>
+
+<!-- add site styles and scripts required by header -->
+  <!-- GLOBAL + PAGE CSS -->
+<link rel="stylesheet" href="/css/global.css">
+<link rel="stylesheet" href="/css/home.css">
+<script defer src="js/global.js"></script>
+</head>
+
+<body>
+  <div id="header-import"></div>
+
+  <div class="container">
+
+    <!-- HEADER -->
+    <div class="header">
+      <div class="header-left">
+        <h1>ECONOMIC DATA OF LABO</h1>
+        <p class="subtitle">Comprehensive economic data and insights to support your investment decisions in Labo Municipality.</p>
+      </div>
+
+      <div class="header-right">
+        <button class="btn primary" onclick="downloadDummy()">Download</button>
+        <!-- Upload controls removed for this page -->
+        <div id="fileName" class="file-info" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-header"><span>Population</span><span>👥</span></div>
+        <div class="stat-value">108,319</div>
+        <div class="stat-sub">-0.20 from 2020</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header"><span>Aggregated Land Area</span><span>📍</span></div>
+        <div class="stat-value">648.8 km²</div>
+        <div class="stat-sub">65% Agricultural, 25% Residential, 10% Commercial</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header"><span>Registered Businesses</span><span>🏢</span></div>
+        <div class="stat-value">905</div>
+        <div class="stat-sub">0.78% increase</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header"><span>Gross Income</span><span>💰</span></div>
+        <div class="stat-value">₱2,175,205,198.94</div>
+        <div class="stat-sub">New and renewal</div>
+      </div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="charts">
+      <div class="chart-card">
+        <h3 class="chart-title">Population Growth Trend</h3>
+        <p class="chart-sub">5-year population growth data</p>
+        <div class="chart-wrapper">
+          <canvas id="popChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h3 class="chart-title">Business Distribution by Sector</h3>
+        <p class="chart-sub">Percentage of businesses by industry</p>
+        <div class="chart-wrapper">
+          <canvas id="bizChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- DOWNLOAD 
+    <div class="download">
+      <h3>Download Detailed Economic Reports</h3>
+      <p>Access feasibility studies, demographic data, and investment guides.</p>
+      <div class="actions">
+        <button class="btn primary" onclick="downloadDummy()">Investment Guide 2024</button>
+        <button class="btn outline" onclick="downloadDummy()">Demographic Study</button>
+        <button class="btn outline" onclick="downloadDummy()">Economic Indicators</button>
+      </div>
+    </div>-->
+
+  </div>
+
+  <!-- CHART SCRIPTS + UPLOAD HANDLER -->
+  <script>
+    // POPULATION BAR CHART
+    new Chart(document.getElementById("popChart"), {
+      type: "bar",
+      data: {
+        labels: ['2015','2020','2024','2025','2026'],
+        datasets: [{
+          data: [101000,109000,108000,0,0],
+          backgroundColor:'#123b1c',
+          borderRadius:6,
+          barPercentage:0.55
+        }]
+      },
+      options:{
+        plugins:{legend:{display:false}},
+        scales:{
+          x:{grid:{display:false}},
+          y:{beginAtZero:true}
+        }
+      }
+    });
+
+    // BUSINESS PIE CHART — improved styling
+    new Chart(document.getElementById("bizChart"), {
+      type:"doughnut",
+      plugins:[ChartDataLabels],
+      data:{
+        labels:['Retail','Agriculture','Manufacturing','Services','Tourism'],
+        datasets:[{
+          data:[35,28,15,12,10],
+          borderWidth:2,
+          borderColor:'#fff',
+          backgroundColor:[
+            '#15703a',  // deep green (retail)
+            '#84cc16',  // lime (agriculture)
+            '#0891b2',  // cyan (manufacturing)
+            '#f43f5e',  // rose (services)
+            '#f59e0b'   // amber (tourism)
+          ],
+          borderRadius:8,
+          spacing:3
+        }]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:true,
+        plugins:{
+          legend:{
+            position:"bottom",
+            labels:{
+              font:{size:14,weight:'600'},
+              padding:18,
+              usePointStyle:true,
+              pointStyle:'circle',
+              color:'#0f172a'
+            }
+          },
+          datalabels:{
+            color:"#fff",
+            font:{size:13,weight:'700'},
+            formatter:(v,ctx)=> v + "%",
+            anchor:'center',
+            align:'center'
+          },
+          tooltip:{
+            backgroundColor:'rgba(15,23,42,0.8)',
+            padding:12,
+            titleFont:{size:14,weight:'600'},
+            bodyFont:{size:13},
+            displayColors:true,
+            callbacks:{
+              label:(ctx)=> ctx.label + ": " + ctx.parsed + "% of businesses"
+            }
+          }
+        }
+      }
+    });
+
+    // Dummy download
+    function downloadDummy(){
+      const a = document.createElement("a");
+      a.href = "data:text/plain;charset=utf-8," + encodeURIComponent("Sample Download File");
+      a.download = "report.txt";
+      a.click();
+    }
+
+    // Upload feature removed on this page: no file input, upload or send buttons.
+    // If you previously copied upload code here, it has been deleted to disable uploads.
+
+  </script>
+
+      <script src="/js/global.js"></script>
+
+</body>
+</html>

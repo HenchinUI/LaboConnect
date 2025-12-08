@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Listing Details — LaboConnect</title>
+  <link rel="stylesheet" href="/css/global.css">
+  <link rel="stylesheet" href="/css/home.css">
+</head>
+<body>
+  <div id="header-import"></div>
+  <main class="wrap">
+    <section style="padding:22px 0">
+      <button class="btn btn-ghost" onclick="history.back()">← Back</button>
+      <div id="listingContainer" style="margin-top:12px"></div>
+      <div id="listingError" class="muted" style="margin-top:12px;display:none"></div>
+    </section>
+  </main>
+  <div id="footer-placeholder"></div>
+
+  <script src="/js/global.js"></script>
+  <script src="/js/home.js"></script>
+  <script>
+    function getQueryParam(name) {
+      const url = new URL(window.location.href);
+      return url.searchParams.get(name);
+    }
+
+    async function loadListing(id) {
+      const container = document.getElementById('listingContainer');
+      const err = document.getElementById('listingError');
+      container.innerHTML = '';
+      err.style.display = 'none';
+      if (!id) {
+        err.textContent = 'Listing id missing.';
+        err.style.display = 'block';
+        return;
+      }
+      try {
+        const resp = await fetch('/api/listing/' + encodeURIComponent(id));
+        if (resp.status === 404) {
+          err.textContent = 'Listing not found.';
+          err.style.display = 'block';
+          return;
+        }
+        if (!resp.ok) throw new Error('Failed to fetch');
+        const item = await resp.json();
+
+        const imgStyle = item.image_url ? `style="background-image:url('${item.image_url}')"` : '';
+
+        container.innerHTML = `
+          <div class="card" style="padding:24px">
+            <div class="property-photo" aria-hidden="true" ${imgStyle} style="height:360px;background-size:cover;background-position:center;border-radius:12px;margin-bottom:20px"></div>
+            <div style="display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start">
+              <div>
+                <h2 style="margin:0 0 8px 0">${item.title || 'Untitled'}</h2>
+                <div class="muted" style="margin-bottom:12px">${item.type || ''} ${item.size_sqm ? ('· ' + item.size_sqm + ' sqm') : ''}</div>
+                <div style="font-weight:800;color:var(--accent);font-size:20px;margin-bottom:16px">${item.price || 'Price on request'}</div>
+                <p style="margin:0;line-height:1.6">${item.description || ''}</p>
+
+                <div style="margin-top:24px">
+                  <h4 style="margin:0 0 12px 0">Documents</h4>
+                  <ul id="documentsList" style="padding-left:18px;margin:0;color:var(--muted);line-height:1.8"></ul>
+                </div>
+              </div>
+
+              <div>
+                <div class="side-card" style="padding:16px;position:sticky;top:20px">
+                  <div style="font-weight:800;margin-bottom:12px">Owner Details</div>
+                  <div style="color:var(--text);font-weight:600">${item.owner_first_name || ''} ${item.owner_last_name || ''}</div>
+                  <hr style="margin:12px 0;border:none;border-top:1px solid rgba(15,23,42,0.1)">
+                  <div class="small muted" style="margin-bottom:8px"><strong>Status:</strong> ${item.status || (item.approved ? 'Approved' : 'Pending')}</div>
+                  <div class="small muted" style="margin-bottom:12px"><strong>Listed:</strong> ${item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'}</div>
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <button class="btn btn-primary" onclick="openInquiry(${item.id}, '${(item.title||'Listing').replace(/'/g, "\\'")}')">Contact Owner</button>
+                    <button class="btn btn-ghost" onclick="window.location.href='/components/map.html?listing=${item.id}'">View on Map</button>
+                    ${item.image_url ? `<a class="btn btn-ghost" href="${item.image_url}" target="_blank" style="text-align:center">View Full Image</a>` : ''}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+            // Build documents list: if file is an image, show image preview; otherwise show download link
+            const docs = [
+              { url: item.oct_tct_url, label: 'OCT / TCT' },
+              { url: item.tax_declaration_url, label: 'Tax Declaration' },
+              { url: item.doas_url, label: 'Deed of Absolute Sale' },
+              { url: item.government_id_url, label: 'Government ID (seller)' }
+            ];
+            const listEl = document.getElementById('documentsList');
+            listEl.innerHTML = '';
+            const isImage = (u) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(u);
+            docs.forEach(d => {
+              if (!d.url) return;
+              const filename = d.url.split('/').pop();
+              const li = document.createElement('li');
+              if (isImage(filename)) {
+                const img = document.createElement('img');
+                img.src = d.url;
+                img.style.maxWidth = '360px';
+                img.style.borderRadius = '8px';
+                img.style.display = 'block';
+                img.style.marginTop = '8px';
+                li.appendChild(document.createTextNode(d.label + ': '));
+                li.appendChild(img);
+              } else {
+                const a = document.createElement('a');
+                a.href = d.url.replace('/uploads/','/download/');
+                a.target = '_blank';
+                a.download = filename;
+                a.textContent = d.label + ' — Download';
+                li.appendChild(a);
+              }
+              listEl.appendChild(li);
+            });
+
+      } catch (err) {
+        console.error(err);
+        err.textContent = 'Could not load listing.';
+        err.style.display = 'block';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const id = getQueryParam('id');
+      loadListing(id);
+    });
+  </script>
+</body>
+</html>
