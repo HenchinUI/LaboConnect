@@ -1,5 +1,5 @@
 function downloadGuide(){
-  window.open("assets/docs/investment-guide.pdf","_blank");
+  window.open("/assets/docs/LABOCONNECT- INVESTMENT GUIDE 2025.pdf","_blank");
 }
 
 // Open inquiry modal for a specific listing

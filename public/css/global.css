@@ -591,6 +591,68 @@ button.btn {
     min-width: 0;
     justify-content: center;
   }
+
+.labo-row-1{
+    display: flex
+;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 12px 30px;
+    flex-direction: column;
+}
+
+.labo-row-2{
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0;
+    z-index: 1100;
+    background: var(--card, #fff);
+    padding: 10px 18px;
+    display: flex
+;
+    gap: 10px;
+    align-items: center;
+    box-shadow: 0 6px 18px rgba(2, 6, 23, 0.06);
+    transition: transform .18s 
+ease, box-shadow .18s 
+ease, padding .18s 
+ease;
+    flex-direction: column;
+
+}
+
+
+
+.footer-contact{
+  visibility: hidden;
+      position: absolute;
+}
+
+.faq-cta-grid{
+      display: flex
+;
+    justify-content: center;
+    gap: 20px;
+    width: 100%;
+    max-width: 980px;
+    flex-direction: column;
+}
+
+.labo-top-nav{
+      display: flex
+;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.grid-2{
+      display: flex
+;
+    flex-direction: column;
+}
+
 }
 @media (max-width:1000px) {
   .contact-grid { grid-template-columns: 1fr 320px; }
