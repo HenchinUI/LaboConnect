@@ -6,6 +6,7 @@
   <title>BPLO Admin — Dashboard</title>
   <link rel="stylesheet" href="/css/global.css">
   <style>
+    .labo-row-2 { display: none !important; }
     .admin-wrap{max-width:var(--container);margin:22px auto;padding:20px}
     .admin-hero{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
     .stat{background:linear-gradient(180deg,#fff,#f7fff7);padding:18px;border-radius:12px;box-shadow:0 6px 20px rgba(2,6,23,0.04);min-width:180px}
@@ -16,6 +17,14 @@
     th,td{padding:10px;border-bottom:1px solid rgba(15,23,42,0.06);text-align:left}
     .btn-sm{padding:6px 10px;border-radius:8px;font-weight:700}
     .muted{color:var(--muted)}
+    .admin-table-wrap{max-height:60vh;overflow:auto;border-radius:8px}
+    .admin-table-wrap .select-cell{display:none}
+    .admin-table-wrap.selection-active .select-cell{display:table-cell}
+    .admin-modal-panel img{max-height:360px;width:auto;display:block;margin:8px 0;border-radius:6px}
+    .modal-docs{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+    .modal-doc-thumb{width:72px;height:72px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid rgba(0,0,0,0.06)}
+    .admin-thumbs{display:flex;gap:8px;align-items:center}
+    .admin-thumb{width:56px;height:56px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid rgba(0,0,0,0.06)}
     /* modal */
     .admin-modal{display:none;position:fixed;inset:0;z-index:1400;align-items:center;justify-content:center;padding:20px;background:rgba(8,12,10,0.4)}
     .admin-modal.open{display:flex}
@@ -52,17 +61,22 @@
   <div class="grid-2">
     <section class="card" aria-labelledby="appsTitle">
       <h2 id="appsTitle" style="margin:0 0 12px 0">Recent Applications</h2>
+      <div style="margin-bottom:12px;display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="switchView('pending')">Pending</button>
+        <button class="btn btn-ghost" onclick="switchView('approved')">Approved Listings</button>
+        <button class="btn btn-ghost" onclick="switchView('rejected')">Rejected Listings</button>
+      </div>
 
-      <table aria-describedby="appsTitle">
-        <thead>
-          <tr><th>Applicant</th><th>Type</th><th>Status</th><th>Submitted</th><th></th></tr>
-        </thead>
-        <tbody id="appsTable">
-          <!-- sample rows, replaced by JS with real data when available -->
-
-
-        </tbody>
-      </table>
+      <div class="admin-table-wrap">
+        <table aria-describedby="appsTitle">
+          <thead>
+            <tr><th style="width:80px">Photo</th><th>Applicant</th><th>Type</th><th>Status</th><th>Submitted</th><th>Owner Email</th><th></th></tr>
+          </thead>
+          <tbody id="appsTable">
+            <!-- sample rows, replaced by JS with real data when available -->
+          </tbody>
+        </table>
+      </div>
 
       <div style="margin-top:12px;text-align:right">
         <button class="btn btn-ghost" onclick="location.href='admin-applications.html'">View all</button>
@@ -71,10 +85,15 @@
 
     <aside class="card">
       <h3 style="margin:0 0 12px 0">Quick Actions</h3>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <button class="btn btn-primary" onclick="location.href='admin-create-user.html'">Create User</button>
-        <button class="btn btn-ghost" onclick="location.href='admin-reports.html'">Generate Report</button>
-        <button class="btn btn-ghost" onclick="exportData()">Export Data</button>
+      <div id="quickActions" style="display:flex;flex-direction:column;gap:10px">
+        <button class="btn btn-ghost" id="toggleSelectBtn" onclick="toggleSelectMode()">Toggle Select</button>
+        <button class="btn btn-ghost" id="selectAllBtn" onclick="selectAllVisible()">Select All Visible</button>
+        <button class="btn btn-primary" id="approveSelectedBtn" onclick="bulkAction('approve')">Approve Selected</button>
+        <button class="btn btn-ghost" id="rejectSelectedBtn" onclick="bulkAction('reject')">Reject Selected</button>
+        <button class="btn btn-danger" id="deleteSelectedBtn" onclick="bulkAction('delete')">Delete Selected</button>
+        <button class="btn btn-ghost" id="clearSelectionBtn" onclick="clearSelection()">Clear Selection</button>
+        <button class="btn btn-ghost" id="createAdminTokenBtn" onclick="createAdminToken()">Generate Admin Token</button>
+        <div id="adminTokenResult" style="margin-top:6px; word-break:break-all; font-size:13px; color:var(--muted)"></div>
       </div>
     </aside>
   </div>
@@ -86,9 +105,8 @@
     <button style="float:right" class="btn btn-ghost" onclick="closeAppModal()">Close</button>
     <h2 id="modalTitle">Application details</h2>
     <div id="modalBody" style="margin-top:10px"></div>
-    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn btn-primary" onclick="takeAction(currentAppId,'approve')">Approve</button>
-      <button class="btn btn-ghost" onclick="takeAction(currentAppId,'reject')">Reject</button>
+    <div id="modalActions" style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+      <!-- buttons populated dynamically by admin.js depending on view/status -->
     </div>
   </div>
 </div>

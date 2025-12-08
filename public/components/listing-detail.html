@@ -49,34 +49,36 @@
         const imgStyle = item.image_url ? `style="background-image:url('${item.image_url}')"` : '';
 
         container.innerHTML = `
-          <div class="card" style="padding:18px">
-            <div class="property-photo" aria-hidden="true" ${imgStyle} style="height:260px;background-size:cover;background-position:center;border-radius:10px"></div>
-            <div style="margin-top:12px;display:flex;gap:12px;align-items:start;flex-wrap:wrap">
-              <div style="flex:1">
-                <h2 style="margin:0">${item.title || 'Untitled'}</h2>
-                <div class="muted" style="margin-top:6px">${item.type || ''} · ${item.size_sqm ? (item.size_sqm + ' sqm') : ''}</div>
-                <div style="font-weight:800;color:var(--accent);margin-top:8px">${item.price || 'Price on request'}</div>
-                <p class="muted" style="margin-top:12px">${item.description || ''}</p>
+          <div class="card" style="padding:24px">
+            <div class="property-photo" aria-hidden="true" ${imgStyle} style="height:360px;background-size:cover;background-position:center;border-radius:12px;margin-bottom:20px"></div>
+            <div style="display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start">
+              <div>
+                <h2 style="margin:0 0 8px 0">${item.title || 'Untitled'}</h2>
+                <div class="muted" style="margin-bottom:12px">${item.type || ''} ${item.size_sqm ? ('· ' + item.size_sqm + ' sqm') : ''}</div>
+                <div style="font-weight:800;color:var(--accent);font-size:20px;margin-bottom:16px">${item.price || 'Price on request'}</div>
+                <p style="margin:0;line-height:1.6">${item.description || ''}</p>
+
+                <div style="margin-top:24px">
+                  <h4 style="margin:0 0 12px 0">Documents</h4>
+                  <ul id="documentsList" style="padding-left:18px;margin:0;color:var(--muted);line-height:1.8"></ul>
+                </div>
               </div>
-              <div style="width:320px;min-width:240px">
-                <div class="side-card" style="padding:12px">
-                  <div style="font-weight:800">Owner</div>
-                  <div class="muted">${item.owner_first_name || ''} ${item.owner_last_name || ''}</div>
-                  <hr style="margin:12px 0;border:none;border-top:1px solid rgba(15,23,42,0.04)">
-                  <div class="muted" style="font-size:14px">Status: <strong>${item.status || item.approved ? 'Approved' : 'Pending'}</strong></div>
-                  <div class="muted" style="margin-top:8px;font-size:13px">Created: ${item.created_at ? new Date(item.created_at).toLocaleString() : ''}</div>
-                  <div style="margin-top:12px;display:flex;gap:8px">
+
+              <div>
+                <div class="side-card" style="padding:16px;position:sticky;top:20px">
+                  <div style="font-weight:800;margin-bottom:12px">Owner Details</div>
+                  <div style="color:var(--text);font-weight:600">${item.owner_first_name || ''} ${item.owner_last_name || ''}</div>
+                  <hr style="margin:12px 0;border:none;border-top:1px solid rgba(15,23,42,0.1)">
+                  <div class="small muted" style="margin-bottom:8px"><strong>Status:</strong> ${item.status || (item.approved ? 'Approved' : 'Pending')}</div>
+                  <div class="small muted" style="margin-bottom:12px"><strong>Listed:</strong> ${item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'}</div>
+                  <div style="display:flex;flex-direction:column;gap:8px">
                     <button class="btn btn-primary" onclick="openInquiry(${item.id}, '${(item.title||'Listing').replace(/'/g, "\\'")}')">Contact Owner</button>
-                    <a class="btn btn-ghost" href="${item.image_url || '#'}" target="_blank">Open Image</a>
+                    <button class="btn btn-ghost" onclick="window.location.href='/components/map.html?listing=${item.id}'">View on Map</button>
+                    ${item.image_url ? `<a class="btn btn-ghost" href="${item.image_url}" target="_blank" style="text-align:center">View Full Image</a>` : ''}
                   </div>
                 </div>
               </div>
             </div>
-
-                <div style="margin-top:16px">
-                  <h4 style="margin:0 0 6px 0">Documents</h4>
-                  <ul id="documentsList" style="padding-left:18px;margin:6px 0;color:var(--muted)"></ul>
-                </div>
           </div>
         `;
 

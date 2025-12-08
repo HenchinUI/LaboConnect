@@ -76,7 +76,7 @@
           <div class="title">${item.title || 'Untitled'}</div>
           <div class="muted description">${item.description || ''}</div>
           <div class="listing-meta">
-            <div class="listing-price">${item.price || 'Price on request'}</div>
+            <div class="listing-price">${item.price ? '₱' + item.price : 'Price on request'}</div>
             <div class="listing-stats muted">${item.size ? (item.size + ' sqm') : ''}</div>
           </div>
           <div class="listing-actions">

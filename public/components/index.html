@@ -5,10 +5,19 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>LABOCONNECT — Municipality of Labo, Camarines Norte</title>
   <meta name="description" content="Investment opportunities in Labo — streamlined permits, growing community, BPLO support." />
+  <link rel="icon" type="image/png" href="/assets/img/Labo-Logo.png" />
 
   <!-- GLOBAL + PAGE CSS -->
-<link rel="stylesheet" href="/css/global.css">
-<link rel="stylesheet" href="/css/home.css">
+<link rel="stylesheet" href="../css/global.css">
+<link rel="stylesheet" href="../css/home.css">
+
+  <style>
+    /* submit section animation and CTA */
+    .submit-wrap { opacity: 0; transform: translateY(6px); transition: opacity 260ms ease, transform 260ms ease; }
+    .submit-wrap.visible { opacity: 1; transform: translateY(0); }
+    .submit-cta { padding:18px; border-radius:8px; background:#fff; box-shadow:0 6px 20px rgba(2,6,23,0.04); text-align:center }
+    .submit-cta .btn { margin-top:8px }
+  </style>
 
 </head>
 
@@ -18,14 +27,14 @@
 <div id="header-import"></div>
 
 <!-- CONTENT -->
-<!-- MAIN -->
-  <main class="wrap">
+  <!-- MAIN -->
+  <main class="wrap" style="margin:0 auto; max-width:var(--container);">
 
     <!-- HERO -->
     <section class="hero reveal" id="hero">
       <div class="hero-left">
         <span class="kicker">Labo, Camarines Norte</span>
-        <h1>WELCOME to LaboConnect</h1>
+        <h1>WELCOME to LaboConnect!</h1>
         <p class="lead">Looking for the perfect place to grow your business? You’ve found it! Labo is rapidly emerging as a premier investment destination with growing commercial establishments, booming tourism, and a business-friendly government that’s here to support your success every step of the way.</p>
 
         <div class="cta-row">
@@ -48,7 +57,7 @@
         <div class="stat">
           <div>
             <div class="small muted">Growing Business Hub</div>
-            <div style="font-weight:800;color:var(--accent)">700+ businesses</div>
+            <div style="font-weight:800;color:var(--accent)">900+ businesses</div>
           </div>
           <div class="small muted">Join now</div>
         </div>
@@ -63,10 +72,10 @@
       </aside>
     </section>
 
-    <!-- WHY / OPPORTUNITIES -->
+    <!-- WHY Lab0 -->
     <section id="why" class="reveal why-section">
       <div class="why-top">
-        <h2 class="section-title">Why Choose Labo for your Business?</h2>
+        <h1 class="section-title">Why Choose Labo for your Business?</h1>
         <div class="kicker-pill">YOUR SUCCESS STORY STARTS HERE</div>
         <p class="lead">Thinking about expanding or starting a new business? Labo, Camarines Norte offers everything you need to succeed — from strategic location to supportive community and growing economy.</p>
       </div>
@@ -113,8 +122,11 @@
     </section>
 
     <section id="opportunities" class="reveal">
-      <h2 class="section-title">Investment Opportunities in Labo</h2>
-      <p class="lead">Where will you make your mark? From tourism and hospitality to manufacturing and tech — explore opportunities tailored to your goals.</p>
+      <div style="text-align:center;margin-bottom:30px;">
+        <h2 class="section-title">Investment Opportunities in Labo</h2>
+        <p class="lead" style="color:var(--accent);font-weight:700;margin-bottom:12px;">Where Will You Make Your Mark?</p>
+        <p class="lead">From tourism and hospitality to manufacturing and technology, Labo offers diverse investment opportunities across multiple thriving sectors. Find the perfect fit for your business vision.</p>
+      </div>
 
       <div class="grid" style="margin-top:12px" id="opportunitiesGrid">
         
@@ -125,229 +137,258 @@
       </div>
     </section>
 
-    <section id="submitListing" class="card" style="max-width:700px;margin:20px auto">
-  <h2 style="text-align: center; margin-bottom: 20px;">Submit Property Listing</h2>
-  <form id="listingForm" enctype="multipart/form-data">
-    
-    <!-- Land Owner Information -->
-    <h3 style="margin-top: 20px; margin-bottom: 10px; color: #333;">Land Owner Information</h3>
-    
-    <label>First Name:</label>
-    <input type="text" name="owner_first_name" required>
+<section id="submitListing" class="reveal" style="margin-top:18px;margin-bottom:40px;display:none;">
+      <div style="text-align:center;margin-bottom:20px;">
+        <h2 class="section-title">Submit Property Listing</h2>
+        <p class="lead" style="max-width:800px;margin:0 auto;">Share your property with potential investors. Fill out the form below and our team will review your listing.</p>
+      </div>
 
-    <label>Last Name:</label>
-    <input type="text" name="owner_last_name" required>
+      <div style="margin-top:0; max-width: 900px; margin-left: auto; margin-right: auto;">
+        <div id="submitFormWrap" class="submit-wrap">
+        <div class="contact-form-card">
+          <div class="form-card-inner">
 
-    <!-- Property Details -->
-    <h3 style="margin-top: 20px; margin-bottom: 10px; color: #333;">Property Details</h3>
-    
-    <label>Property Title:</label>
-    <input type="text" name="title" placeholder="e.g., Commercial Lot in Downtown Labo" required>
+            <form id="listingForm" enctype="multipart/form-data" aria-label="Property Listing Form" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+              
+              <!-- LEFT COLUMN: Property Details -->
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <div class="form-row" style="display:flex;gap:12px;">
+                  <div class="field" style="flex:1;"><label for="owner_first_name">First Name *</label><input id="owner_first_name" type="text" name="owner_first_name" required></div>
+                  <div class="field" style="flex:1;"><label for="owner_last_name">Last Name *</label><input id="owner_last_name" type="text" name="owner_last_name" required></div>
+                </div>
 
-    <label>Description:</label>
-    <textarea name="description" placeholder="Describe the property details, location, amenities, etc." required></textarea>
+                <div class="field"><label for="title">Property Title *</label><input id="title" type="text" name="title" placeholder="e.g., Commercial Lot in Downtown Labo" required></div>
 
-    <label>Property Type:</label>
-    <select name="type" required>
-      <option value="">-- Select --</option>
-      <option value="For Lease">For Lease</option>
-      <option value="For Sale">For Sale</option>
-    </select>
+                <div class="form-row" style="display:flex;gap:12px;">
+                  <div class="field" style="flex:1;"><label for="type">Property Type *</label><select id="type" name="type" required><option value="">-- Select --</option><option value="For Lease">For Lease</option><option value="For Sale">For Sale</option><option value="For Rent">Property For Rent</option></select></div>
+                  <div class="field" style="flex:1;"><label for="price">Price *</label><input id="price" type="number" name="price" step="0.01" required placeholder="e.g., 1000000"></div>
+                </div>
 
-    <label>Size (Square Meters):</label>
-    <input type="number" name="size_sqm" step="0.01" placeholder="e.g., 500">
+                <div class="form-row" style="display:flex;gap:12px;">
+                  <div class="field" style="flex:1;"><label for="size_sqm">Size (Square Meters)</label><input id="size_sqm" type="number" name="size_sqm" step="0.01" placeholder="e.g., 500"></div>
+                </div>
 
-    <label>Price:</label>
-    <input type="number" name="price" step="0.01" required placeholder="e.g., 1000000">
+                <div class="form-row" style="display:flex;gap:12px;">
+                  <div class="field" style="flex:1;"><label for="latitude">Latitude (optional)</label><input id="latitude" type="number" name="latitude" step="0.00000001" placeholder="14.117507"></div>
+                  <div class="field" style="flex:1;"><label for="longitude">Longitude (optional)</label><input id="longitude" type="number" name="longitude" step="0.00000001" placeholder="122.350692"></div>
+                </div>
 
-    <label>Latitude (optional):</label>
-    <input type="number" name="latitude" step="0.00000001" placeholder="e.g., 14.117507">
+                <div class="field"><label for="description">Description *</label><textarea id="description" name="description" rows="4" placeholder="Describe the property details, location, amenities, etc." required></textarea></div>
+              </div>
 
-    <label>Longitude (optional):</label>
-    <input type="number" name="longitude" step="0.00000001" placeholder="e.g., 122.350692">
+              <!-- RIGHT COLUMN: File Uploads -->
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <div class="field"><label for="image">Property Image</label><input id="image" type="file" name="image" accept="image/*"></div>
 
-    <!-- Documents Section -->
-    <h3 style="margin-top: 20px; margin-bottom: 10px; color: #333;">Required Documents</h3>
-    
-    <label>Property Image:</label>
-    <input type="file" name="image" accept="image/*">
+                <div class="field"><label for="oct_tct">OCT or TCT *</label><input id="oct_tct" type="file" name="oct_tct" accept=".pdf,.jpg,.jpeg,.png" required></div>
 
-    <label>OCT (Original Certificate of Title) or TCT (Transfer Certificate of Title):</label>
-    <input type="file" name="oct_tct" accept=".pdf,.jpg,.jpeg,.png" required>
+                <div class="field"><label for="tax_declaration">Tax Declaration *</label><input id="tax_declaration" type="file" name="tax_declaration" accept=".pdf,.jpg,.jpeg,.png" required></div>
 
-    <label>Tax Declaration:</label>
-    <input type="file" name="tax_declaration" accept=".pdf,.jpg,.jpeg,.png" required>
+                <div class="field"><label for="doas">Deed of Absolute Sale *</label><input id="doas" type="file" name="doas" accept=".pdf,.jpg,.jpeg,.png" required></div>
 
-    <label>Deed of Absolute Sale (DOAS):</label>
-    <input type="file" name="doas" accept=".pdf,.jpg,.jpeg,.png" required>
+                <div class="field"><label for="government_id">Valid Government ID of Seller *</label><input id="government_id" type="file" name="government_id" accept=".pdf,.jpg,.jpeg,.png" required></div>
 
-    <label>Valid Government ID of Seller:</label>
-    <input type="file" name="government_id" accept=".pdf,.jpg,.jpeg,.png" required>
+                <div style="margin-top:auto;padding-top:12px;">
+                  <div class="small muted" style="margin-bottom:12px;">* Required fields</div>
+                  <div style="display:flex;gap:12px;">
+                    <button class="btn btn-primary" type="submit">Submit Listing</button>
+                    <button type="button" class="btn btn-ghost" onclick="document.getElementById('listingForm').reset()">Reset</button>
+                  </div>
+                </div>
+              </div>
+            </form>
 
-    <button type="submit" style="margin-top: 20px; padding: 12px 24px; font-size: 16px;">Submit Listing</button>
-  </form>
-</section>
+            <p id="listingMessage" style="text-align: center; font-weight: bold; margin-top: 10px;"></p>
+          </div>
+        </div>
+        </div>
 
-
-<p id="listingMessage" style="text-align: center; font-weight: bold; margin-top: 10px;"></p>
-</section>
+        <div id="submitCTA" class="submit-cta" style="display:none;">
+          <div id="submitCTAText">Please log in to submit a listing.</div>
+          <div style="margin-top:12px">
+            <button class="btn btn-primary" id="submitCTALogin">Log in / Sign up</button>
+            <button class="btn btn-ghost" id="submitCTAProfile" style="display:none">Go to Profile</button>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- PROCESS -->
     <section id="process" class="reveal process-section">
       <div class="process-grid">
         <div class="process-left">
           <h2 class="section-title">Starting Your Business in Labo</h2>
-          <p class="lead">Made simple and clear — no bureaucratic runaround. Our step-by-step process gets you from idea to operation quickly.</p>
+          <p class="lead">Your roadmap to success. Follow these four simple steps to establish your business in our thriving municipality.</p>
 
           <div class="process-steps">
+            
             <div class="step">
               <div class="step-index">01</div>
               <div class="step-body">
-                <div class="step-title">Explore Investment Opportunities</div>
-                <div class="muted step-desc">Browse our database of opportunities — real estate, tourism ventures, and more.</div>
+                <div class="step-title">Explore Opportunities</div>
+                <div class="muted step-desc">
+                  Browse our database of commercial real estate and ventures to match your vision. Find the perfect spot for your business in Labo.
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="scrollToSection && scrollToSection('#opportunities')" style="margin-top:10px;">View Listings</button>
               </div>
             </div>
 
             <div class="step">
               <div class="step-index">02</div>
               <div class="step-body">
-                <div class="step-title">Connect with Our BPLO Team</div>
-                <div class="muted step-desc">We guide you through requirements, permits, and licensing with personalized support.</div>
+                <div class="step-title">Secure Clearances</div>
+                <div class="muted step-desc">
+                  Before applying, coordinate with these local offices to get necessary permits:
+                  <ul style="margin-top:8px; padding-left:20px; list-style-type:disc;">
+                    <li><strong>Engineering Office</strong> (Occupancy Permit)</li>
+                    <li><strong>MPDO</strong> (Zoning Clearance)</li>
+                    <li><strong>BFP</strong> (Fire Safety)</li>
+                    <li><strong>MHO</strong> (Sanitary Permit)</li>
+                    <li><strong>MENRO</strong> (Environment Certificate)</li>
+                  </ul>
+                </div>
               </div>
             </div>
 
             <div class="step">
               <div class="step-index">03</div>
               <div class="step-body">
-                <div class="step-title">Get Your Permits Fast</div>
-                <div class="muted step-desc">Efficient processing so you can open and operate without delay.</div>
+                <div class="step-title">Prepare Documents</div>
+                <div class="muted step-desc">
+                  Gather the requirements for your application type:
+                  <ul style="margin-top:8px; padding-left:20px; list-style-type:disc;">
+                    <li style="margin-bottom:6px;">
+                      <strong style="color:var(--accent)">New Business:</strong><br>
+                      Application Form, DTI/SEC Reg, CTC, & CCTV Photo (if capital > 1M).
+                    </li>
+                    <li>
+                      <strong style="color:var(--accent)">Renewal:</strong><br>
+                      Financial Docs (BIR/Gross Receipts), Previous Permit, CTC, & CCTV Photo (if capital > 1M).
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
 
             <div class="step">
               <div class="step-index">04</div>
               <div class="step-body">
-                <div class="step-title">Launch & Grow</div>
-                <div class="muted step-desc">Ongoing support to help your business thrive in Labo.</div>
+                <div class="step-title">Register & Launch</div>
+                <div class="muted step-desc">
+                  Submit your application via our Online Portal or visit the Business One Stop Shop (BOSS).
+                  <div style="margin-top:10px; display:flex; flex-direction:column; gap:6px;">
+                    
+                    <a href="https://prod.ebpls.com/labocamarinesnorte/index.php/login" target="_blank" class="btn btn-ghost btn-sm" style="text-align:left; padding-left:0;">
+                      🔗 <strong>Online:</strong> Click here to apply 
+                    </a>
+
+                    <div style="font-size:0.95em;">
+                      🏛️ <strong>Walk-In:</strong> Municipal Hall<br>
+                      <span style="font-size:0.85em; opacity:0.8; margin-left:24px;">(Jan 2 - Jan 20, 2025)</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="process-right">
+        <!--<div class="process-right">
           <div class="process-visual">
-            <!--<picture>
-              <source srcset="assets/img/Labo-Process.jpg" type="image/jpeg">
-              <img src="assets/img/Labo.png" alt="Labo — Camarines Norte visual" />
-            </picture>-->
-
             <div class="cta-card" role="note" aria-label="Call to action">
-              <div style="font-weight:800;font-size:18px">Ready to Start Your Business in Labo?</div>
-              <div class="muted" style="margin-top:8px">Hundreds of businesses have already chosen Labo. Let BPLO help you start.</div>
+              <div style="font-weight:800;font-size:18px">Need Assistance?</div>
+              <div class="muted" style="margin-top:8px">Our BPLO team is ready to guide you through every step of the process.</div>
               <div style="margin-top:12px">
                 <button class="btn btn-primary" onclick="scrollToSection && scrollToSection('#contact')">Contact BPLO Today</button>
               </div>
             </div>
-          </div>
+          </div>-->
         </div>
       </div>
     </section>
 
     <!-- Success Stories -->
-    <section id="stories" class="reveal stories-section">
+    <section id="stories" class="reveal">
       <h2 class="section-title">Success Stories from Labo</h2>
       <p class="lead">Real businesses, real growth. Click a card to learn more about each success story or ongoing project.</p>
 
-      <h3 class="stories-heading">Established Businesses</h3>
-      <div class="stories-grid" id="stories-established" role="list" aria-label="Established businesses">
-        <article class="story-card" role="button" tabindex="0" data-id="lcc" aria-pressed="false">
-          <div class="card-media" style="background-image:url('/assets/img/success/lcc.jpg')"></div>
+      <div class="stories-grid" id="stories-established">
+        
+        <article class="story-card" tabindex="0" data-id="lcc">
+          <div class="card-media" style="background-image:url('/assets/img/success/lcc.png')"></div>
           <div class="card-caption">
             <div class="card-title">LCC</div>
-            <div class="card-sub">Supermarket — Maharlika Highway, Pinyahan</div>
+            <div class="card-sub">Supermarket — Maharlika Highway, Pinya, LCN</div>
           </div>
         </article>
 
-        <article class="story-card" role="button" tabindex="0" data-id="jfm" aria-pressed="false">
-          <div class="card-media" style="background-image:url('/assets/img/success/jf-mall.jpg')"></div>
+        <article class="story-card" tabindex="0" data-id="jfm">
+          <div class="card-media" style="background-image:url('/assets/img/success/j&f.png')"></div>
           <div class="card-caption">
-            <div class="card-title">J&amp;F MALL</div>
-            <div class="card-sub">Mall — Dalis, Labo</div>
+            <div class="card-title">J&F MALL</div>
+            <div class="card-sub">Mall — Dalas, LCN</div>
           </div>
         </article>
 
-        <article class="story-card" role="button" tabindex="0" data-id="mrdiy" aria-pressed="false">
-          <div class="card-media" style="background-image:url('/assets/img/success/mr-diy.jpg')"></div>
+        <article class="story-card" tabindex="0" data-id="mrdiy">
+          <div class="card-media" style="background-image:url('/assets/img/success/diy.png')"></div>
           <div class="card-caption">
             <div class="card-title">Mr. DIY</div>
-            <div class="card-sub">Hardware & Retail — Maharlika Hwy</div>
+            <div class="card-sub">Hardware & Retail — Maharlika Highway, Kalamunding, LCN</div>
           </div>
         </article>
 
-        <article class="story-card" role="button" tabindex="0" data-id="maria" aria-pressed="false">
-          <div class="card-media" style="background-image:url('/assets/img/success/maria-fatima.jpg')"></div>
+        <article class="story-card" tabindex="0" data-id="maria">
+          <div class="card-media" style="background-image:url('/assets/img/success/fatima.png')"></div>
           <div class="card-caption">
             <div class="card-title">Maria Fatima</div>
-            <div class="card-sub">Farm Resort — Purok 2, Bautista</div>
+            <div class="card-sub">Farm Resort — Purok 2, Bautista, LCN</div>
           </div>
         </article>
 
-        <article class="story-card" role="button" tabindex="0" data-id="villa" aria-pressed="false">
-          <div class="card-media" style="background-image:url('/assets/img/success/villa-asuncion.jpg')"></div>
+        <article class="story-card" tabindex="0" data-id="villa">
+          <div class="card-media" style="background-image:url('/assets/img/success/vila.png')"></div>
           <div class="card-caption">
             <div class="card-title">Villa Asuncion</div>
-            <div class="card-sub">Resort — San Antonio</div>
+            <div class="card-sub">Resort — San Antonio, LCN</div>
           </div>
         </article>
 
-        <article class="story-card" role="button" tabindex="0" data-id="hutspot" aria-pressed="false">
-          <div class="card-media" style="background-image:url('/assets/img/success/hutspot.jpg')"></div>
+        <article class="story-card" tabindex="0" data-id="hutspot">
+          <div class="card-media" style="background-image:url('/assets/img/success/hutspot.png')"></div>
           <div class="card-caption">
             <div class="card-title">HutSpot</div>
-            <div class="card-sub">Hotel & Restaurant — Tulay na Lipa</div>
-          </div>
-        </article>
-      </div>
-
-      <!--<h3 class="stories-heading" style="margin-top:28px">Under Construction</h3>
-      <div class="stories-grid" id="stories-construction" role="list" aria-label="Projects under construction">
-        <article class="story-card" role="button" tabindex="0" data-id="munichall" aria-pressed="false">
-          <div class="card-media" style="background-image:url('assets/img/success/munhall.jpg')"></div>
-          <div class="card-caption">
-            <div class="card-title">Municipal Hall (New)</div>
-            <div class="card-sub">Government Project — Dalis</div>
+            <div class="card-sub">Hotel & Restaurant — Tulay na Lipa, LCN</div>
           </div>
         </article>
 
-        <article class="story-card" role="button" tabindex="0" data-id="centralplaza" aria-pressed="false">
-          <div class="card-media" style="background-image:url('assets/img/success/central-plaza.jpg')"></div>
-          <div class="card-caption">
-            <div class="card-title">Central Plaza</div>
-            <div class="card-sub">Mall — Dalis</div>
-          </div>
-        </article>-->
       </div>
     </section>
 
     <!-- Story detail modal (hidden until opened) -->
     <div id="storyModal" class="story-modal" aria-hidden="true" role="dialog" aria-labelledby="storyModalTitle">
-      <div class="story-modal-backdrop" data-close="true"></div>
-      <div class="story-modal-panel" role="document">
-        <button class="modal-close" aria-label="Close story" title="Close">✕</button>
-        <div class="story-modal-media" id="modalImage" aria-hidden="true"></div>
-        <div class="story-modal-body">
-          <h3 id="storyModalTitle"></h3>
-          <div class="muted" id="storyModalSub"></div>
-          <p id="storyModalDesc" style="margin-top:12px"></p>
-          <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
-            <button id="modalContact" class="btn btn-primary">Contact Business</button>
-            <button id="modalMore" class="btn btn-ghost">View More</button>
-          </div>
-        </div>
+  <div class="story-modal-backdrop" data-close="true"></div>
+  <div class="story-modal-panel" role="document">
+    <button class="modal-close" aria-label="Close story" title="Close">✕</button>
+    
+    <div class="story-modal-media-wrapper">
+      <img id="modalImage" src="" alt="" class="story-modal-media" />
+    </div>
+    
+    <div class="story-modal-body">
+      <h3 id="storyModalTitle"></h3>
+      <div class="muted" id="storyModalSub"></div>
+      <p id="storyModalDesc"></p>
+      <div class="story-modal-actions">
+        <button id="modalContact" class="btn btn-primary">Contact Business</button>
+        <button id="modalMore" class="btn btn-ghost">View More</button>
       </div>
     </div>
+  </div>
+</div>
 
-<!-- Contact / Form -->
+
+    <!-- Contact / Form -->
     <section id="contact" class="reveal contact-section">
       <h2 class="section-title">Ready to Start Your Investment Journey?</h2>
       <p class="lead">Let's talk about your vision. Tell us about your investment goals and we'll connect you with the perfect opportunities in Labo.</p>
@@ -414,6 +455,8 @@
 
       <div class="accordion" style="margin-top:12px">
         <div class="faq-item">
+      <div class="accordion" style="margin-top:12px">
+        <div class="faq-item">
           <button class="faq-question">How do I start a business in Labo?</button>
           <div class="faq-answer">Visit the BPLO office or fill out our online inquiry form. Our team will guide you through every step, from registration to operation.</div>
         </div>
@@ -429,40 +472,185 @@
     </section> <!-- end FAQ -->
 
     <!-- FAQ - Followup CTAs -->
-    <section id="faq-cta" class="reveal" style="margin-top:18px;">
-      <div class="faq-cta-grid">
-        <div class="faq-cta-card">
-          <div class="cta-icon">❓</div>
-          <h4>Still Have Questions?</h4>
+    <section id="faq-cta" class="reveal" style="margin-top:18px; display:flex; flex-direction:column; align-items:center;">
+      <div class="faq-cta-grid" style="display:flex; justify-content:center; gap:20px; width:100%; max-width:980px;">
+        
+        <div class="faq-cta-card" style="flex:1; min-width:260px; max-width:460px; text-align:center; display:flex; flex-direction:column; align-items:center;">
+          <div class="cta-icon" style="font-size: 2rem; margin-bottom: 10px;">❓</div> <h4 style="margin-bottom: 8px;">Still Have Questions?</h4>
           <p class="muted">We love questions! The more you understand about doing business in Labo, the more confident you'll feel about your investment decision.</p>
-          <div class="cta-actions">
+          <div class="cta-actions" style="margin-top: auto; padding-top: 15px;">
             <button class="btn btn-primary" onclick="scrollToSection && scrollToSection('#contact')">Contact BPLO Team</button>
           </div>
         </div>
 
-        <div class="faq-cta-card">
-          <div class="cta-icon">🚀</div>
-          <h4>Ready to Start?</h4>
+        <div class="faq-cta-card" style="flex:1; min-width:260px; max-width:460px; text-align:center; display:flex; flex-direction:column; align-items:center;">
+          <div class="cta-icon" style="font-size: 2rem; margin-bottom: 10px;">🚀</div> <h4 style="margin-bottom: 8px;">Ready to Start?</h4>
           <p class="muted">Hundreds of businesses have already chosen Labo. Your success story could be next — let's make it happen!</p>
-          <div class="cta-actions">
+          <div class="cta-actions" style="margin-top: auto; padding-top: 15px;">
             <button class="btn btn-ghost" onclick="scrollToSection && scrollToSection('#process')">Start Your Business in Labo</button>
           </div>
         </div>
       </div>
 
-      <div class="final-thought">
+      <div class="final-thought" style="max-width:880px; text-align:center; margin-top:24px;">
         <h3>One Final Thought...</h3>
         <p class="muted">The best business opportunities are often found in emerging markets before they become obvious to everyone else. Labo is at that perfect sweet spot right now — growing rapidly but still accessible. Your future success story starts with taking action today.</p>
       </div>
     </section>
+
+    <!-- HERO SECTION -->
+    <section style="
+      position: relative;
+      height: 420px;
+      background: url('/assets/img/bplo.png') center / cover no-repeat;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: white;
+      border-radius: 20px;
+      overflow: hidden;
+    ">
+
+      <!-- Dark overlay -->
+      <div style="
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        z-index: 1;
+      "></div>
+
+      <!-- Text content -->
+      <div style="
+        position: relative;
+        z-index: 2;
+        max-width: 780px;
+        padding: 0 20px;
+        margin: 0 auto;
+      ">
+        <h1 style="
+          font-size: 42px;
+          margin-bottom: 15px;
+          line-height: 1.2;
+          font-weight: 800;
+        ">
+          Your Business Success<br>Starts in Labo
+        </h1>
+
+        <p style="
+          font-size: 16px;
+          line-height: 1.7;
+          opacity: 0.95;
+        ">
+          You've seen the opportunities, learned about our streamlined processes,
+          and heard from successful businesses already thriving here. Now it's time
+          to make Labo the home of your next business venture.
+        </p>
+      </div>
+    </section>
+
+    <section style="
+      max-width: 1100px;
+      margin: -70px auto 0;
+      padding: 0 20px 20px;
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+      position: relative;
+      z-index: 3;
+    ">
+
+      <div style="
+        background: linear-gradient(to right, #F7FFF4, #CAE8C1);
+        border-radius: 20px;
+        padding: 30px 25px;
+        width: 100%;
+        max-width: 320px;
+        text-align: center;
+        box-shadow: 0 15px 40px rgba(0,0,0,0.08);
+        border-bottom: 4px solid #10b981;
+      ">
+        <div style="
+          width: 60px;
+          height: 60px;
+          background: #ffffff;
+          color: #10b981;
+          border-radius: 50%;
+          margin: 0 auto 15px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 24px;
+        ">⚡</div>
+        <h3 style="margin-bottom: 10px; color: #1f2937;">Quick Response</h3>
+        <p style="font-size: 14px; line-height: 1.6; color: #6b7280;">
+          Our BPLO team responds to inquiries within 24 hours.
+          Start your business journey with just one message.
+        </p>
+      </div>
+
+      <div style="
+        background: linear-gradient(to right, #F7FFF4, #CAE8C1);
+        border-radius: 20px;
+        padding: 30px 25px;
+        width: 100%;
+        max-width: 320px;
+        text-align: center;
+        box-shadow: 0 15px 40px rgba(0,0,0,0.08);
+        border-bottom: 4px solid #10b981;
+      ">
+        <div style="
+          width: 60px;
+          height: 60px;
+          background: #ffffff;
+          color: #10b981;
+          border-radius: 50%;
+          margin: 0 auto 15px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 24px;
+        ">👐</div>
+        <h3 style="margin-bottom: 10px; color: #1f2937;">No Obligations</h3>
+        <p style="font-size: 14px; line-height: 1.6; color: #6b7280;">
+          Explore opportunities with no pressure. We're here to provide information
+          and support your decision-making.
+        </p>
+      </div>
+
+      <div style="
+        background: linear-gradient(to right, #F7FFF4, #CAE8C1);
+        border-radius: 20px;
+        padding: 30px 25px;
+        width: 100%;
+        max-width: 320px;
+        text-align: center;
+        box-shadow: 0 15px 40px rgba(0,0,0,0.08);
+        border-bottom: 4px solid #10b981;
+      ">
+        <div style="
+          width: 60px;
+          height: 60px;
+          background: #ffffff;
+          color: #10b981;
+          border-radius: 50%;
+          margin: 0 auto 15px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 24px;
+        ">🛡️</div>
+        <h3 style="margin-bottom: 10px; color: #1f2937;">Complete Support</h3>
+        <p style="font-size: 14px; line-height: 1.6; color: #6b7280;">
+          From permits to grand opening, our team supports you every step of the way.
+        </p>
+      </div>
+
+    </section>
   </main>
 
-
 <div id="footer-placeholder"></div>
-
-
-
-
 
 <script>
   (async () => {
@@ -477,20 +665,93 @@
     }
   })();
 
-
 const listingForm = document.getElementById("listingForm");
 const listingMessage = document.getElementById("listingMessage");
+const submitListingSection = document.getElementById("submitListing");
+
+// Check if user is logged in and show/hide submit listing section and CTA
+async function checkUserLoginStatus() {
+  try {
+    const res = await fetch('/api/session', { credentials: 'same-origin' });
+    if (!res.ok) throw new Error('Session fetch failed');
+    const data = await res.json();
+
+    const submitFormWrap = document.getElementById('submitFormWrap');
+    const submitCTA = document.getElementById('submitCTA');
+    if (!submitFormWrap || !submitCTA) return;
+
+    // authorized roles
+    const allowed = data && data.authenticated && data.user && (data.user.role === 'business' || data.user.role === 'admin');
+    if (allowed) {
+      // show form with animation
+      submitCTA.style.display = 'none';
+      submitFormWrap.classList.add('visible');
+      submitListingSection.style.display = 'block';
+    } else if (data && data.authenticated) {
+      // logged in but not allowed role
+      submitFormWrap.classList.remove('visible');
+      submitListingSection.style.display = 'block';
+      submitCTA.style.display = '';
+      document.getElementById('submitCTAText').textContent = 'Only Business accounts may submit listings. Create or switch to a Business account.';
+      document.getElementById('submitCTALogin').style.display = 'none';
+      document.getElementById('submitCTAProfile').style.display = '';
+    } else {
+      // guest
+      submitFormWrap.classList.remove('visible');
+      submitListingSection.style.display = 'block';
+      submitCTA.style.display = '';
+      document.getElementById('submitCTAText').textContent = 'Please log in to submit a listing.';
+      document.getElementById('submitCTALogin').style.display = '';
+      document.getElementById('submitCTAProfile').style.display = 'none';
+    }
+  } catch (e) {
+    // fallback to hiding section when error
+    submitListingSection.style.display = 'none';
+    console.warn('checkUserLoginStatus failed', e);
+  }
+}
+
+// Check on page load
+document.addEventListener('DOMContentLoaded', checkUserLoginStatus);
+// Also check when storage changes (logout in another tab)
+window.addEventListener('storage', (ev) => {
+  if (ev.key === 'laboCurrentUser') checkUserLoginStatus();
+});
+
+// Wire CTA buttons
+document.addEventListener('DOMContentLoaded', () => {
+  const loginBtn = document.getElementById('submitCTALogin');
+  const profileBtn = document.getElementById('submitCTAProfile');
+  if (loginBtn) loginBtn.addEventListener('click', (e) => { e.preventDefault(); if (typeof openGuest === 'function') openGuest(); });
+  if (profileBtn) profileBtn.addEventListener('click', (e) => { e.preventDefault(); window.location.href = '/components/business/index.html'; });
+});
 
 listingForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+  // Verify server session before submitting
+  try {
+    const ses = await fetch('/api/session', { credentials: 'same-origin' });
+    const sesData = await ses.json();
+    if (!sesData || !sesData.authenticated) {
+      listingMessage.style.color = 'red';
+      listingMessage.textContent = 'You must be logged in to submit a listing.';
+      // open auth modal if available
+      if (typeof openGuest === 'function') openGuest();
+      return;
+    }
+    // only allow business or admin roles to submit
+    if (!sesData.user || (sesData.user.role !== 'business' && sesData.user.role !== 'admin')) {
+      listingMessage.style.color = 'red';
+      listingMessage.textContent = 'Only Business accounts may submit listings.';
+      return;
+    }
+  } catch (err) {
+    listingMessage.style.color = 'red';
+    listingMessage.textContent = 'Session check failed. Please try again.';
+    return;
+  }
 
   const formData = new FormData(listingForm);
-  
-  // Capture user_id if logged in
-  const user = JSON.parse(localStorage.getItem('laboCurrentUser'));
-  if (user && user.id) {
-    formData.append('user_id', user.id);
-  }
 
   try {
     const response = await fetch("/submit-listing", {
@@ -514,13 +775,11 @@ listingForm.addEventListener("submit", async (e) => {
   }
 });
 
-
 </script>
 
 <!-- JAVASCRIPT -->
 <script src="/js/global.js"></script>
 <script src="/js/home.js"></script>
-
 
 <script>
   // Use the shared loader in /js/home.js so listings are rendered consistently and only once.
@@ -552,7 +811,7 @@ listingForm.addEventListener("submit", async (e) => {
             <div class="title">${item.title || 'Untitled'}</div>
             <div class="muted description">${item.description || ''}</div>
             <div class="listing-meta">
-              <div class="listing-price">${item.price || 'Price on request'}</div>
+              <div class="listing-price">${item.price ? '₱' + item.price : 'Price on request'}</div>
               <div class="listing-stats muted">${item.size ? (item.size + ' sqm') : ''}</div>
             </div>
             <div class="listing-actions">
