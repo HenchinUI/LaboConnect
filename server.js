@@ -12,6 +12,7 @@ const { Server: IOServer } = require('socket.io');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
+const crypto = require('crypto');
 const session = require('express-session');
 
 const uploadDir = path.join(__dirname, 'public', 'uploads');
@@ -46,6 +47,31 @@ app.use(session({
   cookie: { httpOnly: true, secure: false, maxAge: 24 * 60 * 60 * 1000 } // 24 hours
 }));
 
+// Protect access to the admin dashboard HTML even if someone tries to hit the static file directly.
+// Allowed roles can be adjusted as needed. Currently allowing 'admin' and 'standard'.
+const _adminProtectedPaths = [
+  '/components/admin-dashboard.html',
+  '/components/admin-dashboard',
+  '/admin-dashboard',
+  '/admin-dashboard.html'
+];
+app.use((req, res, next) => {
+  try {
+    if (_adminProtectedPaths.includes(req.path)) {
+      const sessionUser = req.session && req.session.user;
+      const allowed = sessionUser && (sessionUser.role === 'admin' || sessionUser.role === 'standard');
+      if (!allowed) {
+        // If the request expects HTML, return a small HTML response; otherwise return JSON error.
+        if (req.accepts('html')) return res.status(403).send('Forbidden');
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+    }
+  } catch (e) {
+    console.warn('Admin protect middleware error', e);
+  }
+  return next();
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
@@ -73,6 +99,21 @@ app.get("/", (req, res) => {
 });
 
 // -------------------
+// Protected Admin Dashboard Route
+// -------------------
+app.get('/admin-dashboard', (req, res) => {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser) {
+    // Not authenticated: redirect to home/login (avoid exposing admin file)
+    return res.redirect('/');
+  }
+  if (sessionUser.role !== 'admin' && sessionUser.role !== 'standard') {
+    return res.status(403).send('Forbidden');
+  }
+  return res.sendFile(path.join(__dirname, 'public', 'components', 'admin-dashboard.html'));
+});
+
+// -------------------
 // User Registration
 // -------------------
 app.post("/register", async (req, res) => {
@@ -83,6 +124,34 @@ app.post("/register", async (req, res) => {
   }
 
   try {
+    // If registering as admin, require a valid admin token
+    if (role === 'admin') {
+      const token = req.body.admin_token;
+      if (!token) return res.status(400).json({ error: 'Admin token is required to register as admin' });
+
+      // ensure admin_tokens table exists
+      try {
+        await db.query(`CREATE TABLE IF NOT EXISTS admin_tokens (
+          id SERIAL PRIMARY KEY,
+          token TEXT UNIQUE NOT NULL,
+          created_by INTEGER,
+          created_at TIMESTAMP DEFAULT NOW(),
+          expires_at TIMESTAMP,
+          used BOOLEAN DEFAULT FALSE,
+          used_by INTEGER,
+          used_at TIMESTAMP
+        )`);
+      } catch (e) {
+        console.warn('Could not ensure admin_tokens table exists:', e.message || e);
+      }
+
+      const { rows: matching } = await db.query('SELECT * FROM admin_tokens WHERE token = $1 LIMIT 1', [token]);
+      if (matching.length === 0) return res.status(400).json({ error: 'Invalid admin token' });
+      const tk = matching[0];
+      if (tk.used) return res.status(400).json({ error: 'Admin token already used' });
+      if (tk.expires_at && new Date(tk.expires_at) < new Date()) return res.status(400).json({ error: 'Admin token expired' });
+      // token is valid; we'll mark it used after creating the user
+    }
     // Check if user exists
     const { rows: existing } = await db.query(
       "SELECT * FROM users WHERE username = $1 OR email = $2",
@@ -103,6 +172,22 @@ app.post("/register", async (req, res) => {
        RETURNING id, username, email, role, created_at`,
       [username, email, hashedPassword, role || 'user']
     );
+
+    // If admin token was used, mark it as used and associated with this user
+    if (role === 'admin') {
+      try {
+        await db.query('UPDATE admin_tokens SET used = TRUE, used_by = $1, used_at = NOW() WHERE token = $2', [rows[0].id, req.body.admin_token]);
+      } catch (e) {
+        console.warn('Could not mark admin token as used:', e.message || e);
+      }
+    }
+
+    // Establish server-side session for the newly created user so they are authenticated immediately
+    try {
+      req.session.user = { id: rows[0].id, username: rows[0].username, role: rows[0].role };
+    } catch (e) {
+      console.warn('Could not set session for new user:', e && e.message ? e.message : e);
+    }
 
     res.status(201).json({ message: "User registered successfully!", user: rows[0] });
 
@@ -163,6 +248,51 @@ app.get("/api/session", (req, res) => {
 });
 
 // -------------------
+// Admin token creation (admin-only)
+// -------------------
+app.post('/api/admin/tokens', async (req, res) => {
+  try {
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser || sessionUser.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+
+    // ensure table exists
+    try {
+      await db.query(`CREATE TABLE IF NOT EXISTS admin_tokens (
+        id SERIAL PRIMARY KEY,
+        token TEXT UNIQUE NOT NULL,
+        created_by INTEGER,
+        created_at TIMESTAMP DEFAULT NOW(),
+        expires_at TIMESTAMP,
+        used BOOLEAN DEFAULT FALSE,
+        used_by INTEGER,
+        used_at TIMESTAMP
+      )`);
+    } catch (e) {
+      console.warn('Could not ensure admin_tokens table exists:', e.message || e);
+    }
+
+    // generate a secure random token
+    const raw = crypto.randomBytes(20).toString('hex');
+    const token = raw;
+
+    // optional expires_in_days
+    let expiresAt = null;
+    if (req.body && req.body.expires_in_days) {
+      const days = parseInt(req.body.expires_in_days) || 0;
+      if (days > 0) expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+    }
+
+    const insertSql = 'INSERT INTO admin_tokens (token, created_by, expires_at) VALUES ($1,$2,$3) RETURNING id, token, created_at, expires_at';
+    const { rows } = await db.query(insertSql, [token, sessionUser.id || null, expiresAt]);
+
+    res.json({ message: 'Token created', token: rows[0].token, expires_at: rows[0].expires_at });
+  } catch (err) {
+    console.error('Create admin token error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// -------------------
 // Logout (clear server-side session)
 // -------------------
 app.post("/logout", (req, res) => {
@@ -186,6 +316,16 @@ app.post("/submit-listing", uploadMultiple.fields([
   { name: 'doas', maxCount: 1 },
   { name: 'government_id', maxCount: 1 }
 ]), async (req, res) => {
+  // Only authenticated users may submit a listing
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  // Only allow business or admin roles to submit listings
+  if (!sessionUser.role || (sessionUser.role !== 'business' && sessionUser.role !== 'admin')) {
+    return res.status(403).json({ error: 'Forbidden: only business or admin accounts may submit listings' });
+  }
+
   const { 
     owner_first_name, 
     owner_last_name, 
@@ -229,9 +369,11 @@ app.post("/submit-listing", uploadMultiple.fields([
     const values = [owner_first_name, owner_last_name, title, description, type, price, size_sqm || null];
     
     // Add owner_id if provided (from logged-in user)
-    if (user_id) {
+    // Prefer server-side session user id to prevent spoofing
+    const submitterId = sessionUser && sessionUser.id ? sessionUser.id : (user_id ? parseInt(user_id) : null);
+    if (submitterId) {
       insertCols.push('owner_id');
-      values.push(parseInt(user_id));
+      values.push(parseInt(submitterId));
     }
 
     if (existingCols.includes('latitude')) {
@@ -376,14 +518,30 @@ app.post('/api/inquiries', async (req, res) => {
 // GET inquiries - optional filters: listing_id, owner_id, listing_owner (backward compat)
 app.get('/api/inquiries', async (req, res) => {
   try {
-    const { listing_id, owner_id, listing_owner } = req.query;
+    // Only authenticated users may list inquiries. Admins may list all; regular users only their own (as owner) or those they sent (as inquirer).
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+
+    const isAdmin = sessionUser.role === 'admin';
+    const { listing_id } = req.query;
+
     let base = 'SELECT * FROM inquiries';
     const params = [];
     const clauses = [];
-    if (listing_id) { params.push(listing_id); clauses.push(`listing_id = $${params.length}`); }
-    if (owner_id) { params.push(owner_id); clauses.push(`owner_id = $${params.length}`); }
+    let idx = 0;
+
+    if (listing_id) { idx++; params.push(listing_id); clauses.push(`listing_id = $${idx}`); }
+
+    if (!isAdmin) {
+      // restrict to owner OR sender
+      idx++; params.push(sessionUser.id); const ownerIdx = idx;
+      idx++; params.push(sessionUser.id); const senderIdx = idx;
+      clauses.push(`(owner_id = $${ownerIdx} OR sender_user_id = $${senderIdx})`);
+    }
+
     if (clauses.length) base += ' WHERE ' + clauses.join(' AND ');
     base += ' ORDER BY created_at DESC';
+
     const { rows } = await db.query(base, params);
     res.json({ inquiries: rows });
   } catch (e) {
@@ -395,11 +553,23 @@ app.get('/api/inquiries', async (req, res) => {
 // GET inquiries count (unread). Optional: owner_id or listing_id
 app.get('/api/inquiries/count', async (req, res) => {
   try {
-    const { owner_id, listing_id } = req.query;
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    const isAdmin = sessionUser.role === 'admin';
+
+    const { listing_id } = req.query;
     let base = 'SELECT COUNT(*)::int as cnt FROM inquiries WHERE is_read = FALSE';
     const params = [];
-    if (owner_id) { params.push(owner_id); base += ` AND owner_id = $${params.length}`; }
-    if (listing_id) { params.push(listing_id); base += ` AND listing_id = $${params.length}`; }
+    let idx = 0;
+
+    if (listing_id) { idx++; params.push(listing_id); base += ` AND listing_id = $${idx}`; }
+
+    if (!isAdmin) {
+      idx++; params.push(sessionUser.id); const ownerIdx = idx;
+      idx++; params.push(sessionUser.id); const senderIdx = idx;
+      base += ` AND (owner_id = $${ownerIdx} OR sender_user_id = $${senderIdx})`;
+    }
+
     const { rows } = await db.query(base, params);
     res.json({ count: rows[0].cnt });
   } catch (e) {
@@ -412,6 +582,17 @@ app.get('/api/inquiries/count', async (req, res) => {
 app.patch('/api/inquiries/:id/read', async (req, res) => {
   try {
     const id = req.params.id;
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+
+    // Only listing owner or admin may mark an inquiry as read
+    const { rows: inq } = await db.query('SELECT owner_id FROM inquiries WHERE id = $1 LIMIT 1', [id]);
+    if (inq.length === 0) return res.status(404).json({ error: 'Inquiry not found' });
+    const ownerId = inq[0].owner_id;
+    if (sessionUser.role !== 'admin' && sessionUser.id !== ownerId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     await db.query('UPDATE inquiries SET is_read = TRUE WHERE id = $1', [id]);
     res.json({ message: 'Marked as read' });
   } catch (e) {
@@ -437,6 +618,18 @@ app.get('/api/inquiries/:id/messages', async (req, res) => {
       deleted BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT NOW()
     )`);
+
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+
+    // verify that the session user is allowed to view messages for this inquiry
+    const { rows: inq } = await db.query('SELECT owner_id, sender_user_id FROM inquiries WHERE id = $1 LIMIT 1', [inquiryId]);
+    if (inq.length === 0) return res.status(404).json({ error: 'Inquiry not found' });
+    const ownerId = inq[0].owner_id;
+    const senderId = inq[0].sender_user_id;
+    if (sessionUser.role !== 'admin' && sessionUser.id !== ownerId && sessionUser.id !== senderId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
     const { rows } = await db.query('SELECT * FROM messages WHERE inquiry_id = $1 AND deleted = FALSE ORDER BY created_at ASC', [inquiryId]);
     res.json({ messages: rows });
@@ -466,9 +659,20 @@ app.post('/api/inquiries/:id/messages', async (req, res) => {
       created_at TIMESTAMP DEFAULT NOW()
     )`);
 
+    // ensure sender is authorized (either the inquiry sender, the listing owner, or admin)
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    const { rows: inq } = await db.query('SELECT owner_id, sender_user_id FROM inquiries WHERE id = $1 LIMIT 1', [inquiryId]);
+    if (inq.length === 0) return res.status(404).json({ error: 'Inquiry not found' });
+    const ownerId = inq[0].owner_id;
+    const senderId = inq[0].sender_user_id;
+    if (sessionUser.role !== 'admin' && sessionUser.id !== ownerId && sessionUser.id !== senderId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     const insert = await db.query(
       `INSERT INTO messages (inquiry_id, sender_user_id, sender_name, sender_email, body) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [inquiryId, sender_user_id || null, sender_name || null, sender_email || null, body]
+      [inquiryId, sender_user_id || sessionUser.id || null, sender_name || sessionUser.username || null, sender_email || null, body]
     );
 
     // mark inquiry as unread for recipient (owner) when a new message arrives
@@ -509,6 +713,17 @@ app.post('/api/inquiries/:id/messages/upload', uploadMsg.single('attachment'), a
       created_at TIMESTAMP DEFAULT NOW()
     )`);
 
+    // ensure sender is authorized (either the inquiry sender, the listing owner, or admin)
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    const { rows: inq } = await db.query('SELECT owner_id, sender_user_id FROM inquiries WHERE id = $1 LIMIT 1', [inquiryId]);
+    if (inq.length === 0) return res.status(404).json({ error: 'Inquiry not found' });
+    const ownerId = inq[0].owner_id;
+    const senderId = inq[0].sender_user_id;
+    if (sessionUser.role !== 'admin' && sessionUser.id !== ownerId && sessionUser.id !== senderId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     let stored = null, original = null;
     if (req.file) {
       stored = req.file.filename;
@@ -518,7 +733,7 @@ app.post('/api/inquiries/:id/messages/upload', uploadMsg.single('attachment'), a
     const insert = await db.query(
       `INSERT INTO messages (inquiry_id, sender_user_id, sender_name, sender_email, body, attachment_stored, attachment_original)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [inquiryId, sender_user_id || null, sender_name || null, sender_email || null, body, stored, original]
+      [inquiryId, sender_user_id || sessionUser.id || null, sender_name || sessionUser.username || null, sender_email || null, body, stored, original]
     );
 
     try { await db.query('UPDATE inquiries SET is_read = FALSE WHERE id = $1', [inquiryId]); } catch (e) { console.warn(e); }
@@ -531,6 +746,21 @@ app.post('/api/inquiries/:id/messages/upload', uploadMsg.single('attachment'), a
 app.patch('/api/messages/:id/delete', async (req, res) => {
   try {
     const id = req.params.id;
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+
+    // fetch message and its inquiry owner
+    const { rows: msgs } = await db.query('SELECT inquiry_id, sender_user_id FROM messages WHERE id = $1 LIMIT 1', [id]);
+    if (msgs.length === 0) return res.status(404).json({ error: 'Message not found' });
+    const msg = msgs[0];
+    const { rows: inq } = await db.query('SELECT owner_id FROM inquiries WHERE id = $1 LIMIT 1', [msg.inquiry_id]);
+    const ownerId = inq.length ? inq[0].owner_id : null;
+
+    // Allow admin, message sender, or inquiry owner to delete
+    if (sessionUser.role !== 'admin' && sessionUser.id !== msg.sender_user_id && sessionUser.id !== ownerId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     await db.query('UPDATE messages SET deleted = TRUE WHERE id = $1', [id]);
     res.json({ message: 'Message deleted' });
   } catch (e) {
@@ -543,6 +773,20 @@ app.patch('/api/messages/:id/delete', async (req, res) => {
 app.patch('/api/messages/:id/read', async (req, res) => {
   try {
     const id = req.params.id;
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+
+    const { rows: msgs } = await db.query('SELECT inquiry_id, sender_user_id FROM messages WHERE id = $1 LIMIT 1', [id]);
+    if (msgs.length === 0) return res.status(404).json({ error: 'Message not found' });
+    const msg = msgs[0];
+    const { rows: inq } = await db.query('SELECT owner_id FROM inquiries WHERE id = $1 LIMIT 1', [msg.inquiry_id]);
+    const ownerId = inq.length ? inq[0].owner_id : null;
+
+    // Allow admin or inquiry owner to mark messages as read
+    if (sessionUser.role !== 'admin' && sessionUser.id !== ownerId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     await db.query('UPDATE messages SET is_read = TRUE WHERE id = $1', [id]);
     res.json({ message: 'Message marked as read' });
   } catch (e) {
@@ -736,18 +980,112 @@ app.post("/admin/listings/:id/reject", async (req, res) => {
 });
 
 app.get("/admin/listings", async (req, res) => {
+  // Supports optional ?status=pending|approved|rejected to filter results
   try {
-    const { rows } = await db.query(
-      `SELECT id, owner_first_name, owner_last_name, title, type, status, price, size_sqm AS size,
-              description, image_url, oct_tct_url, tax_declaration_url, doas_url, government_id_url,
-              views, inquiries, created_at
-       FROM listings
-       ORDER BY created_at DESC`
-    );
+    const status = req.query.status;
+        let q = `SELECT listings.id, listings.owner_id, users.email AS owner_email, listings.owner_first_name, listings.owner_last_name, listings.title, listings.type, listings.status, listings.price, listings.size_sqm AS size,
+        listings.description, listings.image_url, listings.oct_tct_url, listings.tax_declaration_url, listings.doas_url, listings.government_id_url,
+        listings.views, listings.inquiries, listings.created_at
+      FROM listings
+      LEFT JOIN users ON listings.owner_id = users.id`;
+    const params = [];
+    if (status) {
+      params.push(status);
+      q += ` WHERE status = $1`;
+    }
+    q += ` ORDER BY created_at DESC`;
+
+    const { rows } = await db.query(q, params);
     res.json(rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to load listings" });
+  }
+});
+
+// Fallback route for /admin/listings/:status (kept for compatibility with older frontends)
+app.get('/admin/listings/:status', async (req, res) => {
+  const status = req.params.status;
+  try {
+        const q = `SELECT listings.id, listings.owner_id, users.email AS owner_email, listings.owner_first_name, listings.owner_last_name, listings.title, listings.type, listings.status, listings.price, listings.size_sqm AS size,
+        listings.description, listings.image_url, listings.oct_tct_url, listings.tax_declaration_url, listings.doas_url, listings.government_id_url,
+        listings.views, listings.inquiries, listings.created_at
+      FROM listings
+      LEFT JOIN users ON listings.owner_id = users.id
+      WHERE listings.status = $1 ORDER BY listings.created_at DESC`;
+    const { rows } = await db.query(q, [status]);
+    res.json(rows);
+  } catch (err) {
+    console.error('Get listings by status error', err);
+    res.status(500).json({ error: 'Failed to load listings' });
+  }
+});
+
+// DELETE a listing (admin only). Cleans up uploads, uploads_meta, user_listings, inquiries, messages.
+app.delete('/admin/listings/:id', async (req, res) => {
+  const listingId = req.params.id;
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser || sessionUser.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    // fetch listing and file fields
+    const { rows: listings } = await client.query('SELECT id, image_url, oct_tct_url, tax_declaration_url, doas_url, government_id_url FROM listings WHERE id = $1 LIMIT 1', [listingId]);
+    if (listings.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    const listing = listings[0];
+
+    // delete uploads_meta rows and collect filenames to remove
+    let metas = [];
+    try {
+      const result = await client.query('SELECT stored_filename FROM uploads_meta WHERE listing_id = $1', [listingId]);
+      metas = result.rows || [];
+    } catch (e) {
+      console.warn('Could not fetch uploads_meta:', e.message);
+    }
+    const filesToDelete = metas.map(m => m.stored_filename).filter(Boolean);
+
+    // also include direct urls found on listing row
+    ['image_url','oct_tct_url','tax_declaration_url','doas_url','government_id_url'].forEach(f => {
+      const url = listing[f];
+      if (url && typeof url === 'string' && url.startsWith('/uploads/')) {
+        const fn = path.basename(url);
+        if (!filesToDelete.includes(fn)) filesToDelete.push(fn);
+      }
+    });
+
+    // delete related rows (wrap each in try-catch before transaction ends to avoid aborting it)
+    try { await client.query('DELETE FROM uploads_meta WHERE listing_id = $1', [listingId]); } catch(e) { console.warn('Could not delete uploads_meta:', e.message); }
+    try { await client.query('DELETE FROM messages WHERE inquiry_id IN (SELECT id FROM inquiries WHERE listing_id = $1)', [listingId]); } catch(e) { console.warn('Could not delete messages:', e.message); }
+    try { await client.query('DELETE FROM inquiries WHERE listing_id = $1', [listingId]); } catch(e) { console.warn('Could not delete inquiries:', e.message); }
+    try { await client.query('DELETE FROM user_listings WHERE listing_id = $1', [listingId]); } catch(e) { console.warn('Could not delete user_listings:', e.message); }
+
+    // delete the listing (this one should succeed)
+    await client.query('DELETE FROM listings WHERE id = $1', [listingId]);
+
+    await client.query('COMMIT');
+
+    // remove files from disk (best-effort, non-blocking)
+    filesToDelete.forEach(fn => {
+      try {
+        const p = path.join(uploadDir, fn);
+        if (fs.existsSync(p)) fs.unlinkSync(p);
+      } catch (e) { console.warn('Failed to delete upload file', fn, e); }
+    });
+
+    res.json({ message: 'Listing deleted' });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (e) { /* ignore */ }
+    console.error('Delete listing error', err);
+    res.status(500).json({ error: 'Failed to delete listing' });
+  } finally {
+    client.release();
   }
 });
 
@@ -796,7 +1134,11 @@ app.get("/api/approved-listings", async (req, res) => {
 app.get('/api/listing/:id', async (req, res) => {
   const id = req.params.id;
   try {
-    const { rows } = await db.query('SELECT * FROM listings WHERE id = $1 LIMIT 1', [id]);
+    const q = `SELECT listings.*, users.email AS owner_email, users.username AS owner_username
+               FROM listings
+               LEFT JOIN users ON listings.owner_id = users.id
+               WHERE listings.id = $1 LIMIT 1`;
+    const { rows } = await db.query(q, [id]);
     if (rows.length === 0) return res.status(404).json({ error: 'Listing not found' });
     res.json(rows[0]);
   } catch (err) {
@@ -1030,4 +1372,9 @@ try {
   console.warn('Socket.io init failed', e);
 }
 
-server.listen(3000, () => console.log("Server running at http://localhost:3000"));
+if (require.main === module) {
+  const port = process.env.PORT || 3000;
+  server.listen(port, () => console.log(`Server running at http://localhost:${port}`));
+}
+
+module.exports = app;
