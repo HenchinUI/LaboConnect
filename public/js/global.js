@@ -46,7 +46,7 @@ function saveUsers(users) {
 async function loadSession() {
     try {
         // Validate session with server
-        const res = await fetch('/api/session');
+        const res = await fetch('/api/session', { credentials: 'same-origin' });
         const data = await res.json();
         if (data.authenticated && data.user) {
             setUserRole(data.user.role, data.user);
@@ -82,11 +82,12 @@ function updateNotifBadge(count){
 
 async function fetchNotifCountForUser(){
     try {
-        const user = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
-        if (!user) return updateNotifBadge(0);
-        // Query by owner_id (user.id)
-        const url = '/api/inquiries/count?owner_id=' + encodeURIComponent(user.id);
-        const r = await fetch(url);
+        // Request count for the authenticated session user; server will enforce authorization
+        const r = await fetch('/api/inquiries/count', { credentials: 'same-origin' });
+        if (!r.ok) {
+            updateNotifBadge(0);
+            return;
+        }
         const data = await r.json();
         updateNotifBadge(data.count || 0);
     } catch (e) {
@@ -117,10 +118,15 @@ async function handleRegister(e) {
     if (errorEl) errorEl.textContent = '';
 
     try {
+        const payload = { username: name, email, password, role };
+        if (role === 'admin') {
+            const adminToken = document.getElementById('reg-admin-token') ? document.getElementById('reg-admin-token').value.trim() : '';
+            payload.admin_token = adminToken;
+        }
         const res = await fetch('/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: name, email, password, role })
+            body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (!res.ok) {
@@ -171,6 +177,9 @@ async function handleLogin(e) {
         // Refresh UI from server-side session to avoid mismatch
         await loadSession();
 
+            // If the current page exposes a checkUserLoginStatus function (index page), call it so submit form updates without refresh
+            try { if (typeof window.checkUserLoginStatus === 'function') window.checkUserLoginStatus(); } catch (e) { /* ignore */ }
+
         closeAuthModal();
         alert(`Welcome back, ${data.user.username}!`);
 
@@ -191,12 +200,13 @@ async function handleLogin(e) {
 // Logout Handler
 async function logoutUser() {
     try {
-        await fetch('/logout', { method: 'POST' });
+        await fetch('/logout', { method: 'POST', credentials: 'same-origin' });
     } catch (e) {
         console.warn('Logout request failed:', e);
     }
     localStorage.removeItem(CURRENT_USER_KEY);
     setUserRole('guest');
+    try { if (typeof window.checkUserLoginStatus === 'function') window.checkUserLoginStatus(); } catch (e) { /* ignore */ }
     alert('You have been logged out.');
     if (!window.location.pathname.endsWith('index.html')) {
         window.location.href = '/components/index.html';
@@ -262,8 +272,58 @@ function setUserRole(role, user) {
       }
   }
 
+    // Show or hide the Submit Listing button (only for authenticated users)
+    try {
+        const submitBtn = document.querySelector('#header-import #submitListingBtn');
+        if (submitBtn) {
+            if (isGuest) submitBtn.style.display = 'none';
+            else submitBtn.style.display = '';
+        }
+    } catch (e) { console.warn('Could not toggle submit listing button', e); }
+
   document.querySelectorAll('.role-admin').forEach(el => el.style.display = role === 'admin' ? '' : 'none');
+
+    // Always verify submit button visibility with server session to avoid stale client state
+    try { checkSubmitVisibility(); } catch (e) { /* ignore */ }
 }
+
+// Check server session and toggle submit button visibility accordingly
+async function checkSubmitVisibility() {
+    try {
+        const submitBtn = document.querySelector('#header-import #submitListingBtn');
+        if (!submitBtn) return;
+        const res = await fetch('/api/session', { credentials: 'same-origin' });
+        if (!res.ok) {
+            submitBtn.style.display = 'none';
+            // also hide submit section on page if present
+            const submitSection = document.querySelector('#submitListing');
+            if (submitSection) submitSection.style.display = 'none';
+            return;
+        }
+        const data = await res.json();
+        if (data && data.authenticated && data.user) {
+            // allow only logged-in users to see the submit button
+            submitBtn.style.display = '';
+            // show submit section if present on this page
+            const submitSection = document.querySelector('#submitListing');
+            if (submitSection) submitSection.style.display = '';
+        } else {
+            submitBtn.style.display = 'none';
+            const submitSection = document.querySelector('#submitListing');
+            if (submitSection) submitSection.style.display = 'none';
+        }
+    } catch (e) {
+        console.warn('checkSubmitVisibility failed', e);
+    }
+}
+
+// Keep submit button in sync across tabs
+window.addEventListener('storage', (ev) => {
+    if (ev.key === CURRENT_USER_KEY) {
+        // re-check server session to be authoritative
+        checkSubmitVisibility();
+    }
+});
 
 // Modal functions
 function openAuthModal() {
@@ -296,61 +356,68 @@ fetch("/components/header.html")
     return res.text();
   })
   .then(data => {
-    console.log('Header HTML loaded, length:', data.length);
-    document.querySelector("#header-import").innerHTML = data;
-    console.log('Header HTML injected into #header-import');
+        console.log('Header HTML loaded, length:', data.length);
+        const headerImportEl = document.querySelector("#header-import");
+        // Only inject if header-import is empty to avoid overwriting another loader
+        if (headerImportEl && headerImportEl.innerHTML.trim() === '') {
+            headerImportEl.innerHTML = data;
+            console.log('Header HTML injected into #header-import');
+        } else {
+            console.log('Header already present; skipping injection to avoid overwrite');
+        }
 
-    // **Header loaded, safe to update roles**
-    loadSession();
-    initNotifications();
+        // **Header loaded or already present — safe to update roles**
+        loadSession();
+        initNotifications();
 
-    const profileBtn = document.querySelector('#header-import #profileBtn');
-    const notifBtn = document.querySelector('#header-import #notifBtn');
-    const logoutBtn = document.querySelector('#header-import #logoutBtn');
+        const profileBtn = document.querySelector('#header-import #profileBtn');
+        const notifBtn = document.querySelector('#header-import #notifBtn');
+        const logoutBtn = document.querySelector('#header-import #logoutBtn');
 
-    console.log('Profile button found:', !!profileBtn);
-    console.log('Notif button found:', !!notifBtn);
-    console.log('Logout button found:', !!logoutBtn);
+        console.log('Profile button found:', !!profileBtn);
+        console.log('Notif button found:', !!notifBtn);
+        console.log('Logout button found:', !!logoutBtn);
 
-    // Wire simple header actions for logged-in users
-    if (notifBtn) {
-      notifBtn.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        openNotifications();
-      });
-    }
+        // Wire simple header actions for logged-in users (idempotent)
+        if (notifBtn && !notifBtn._wired) {
+            notifBtn.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                openNotifications();
+            });
+            notifBtn._wired = true;
+        }
 
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        logoutUser();
-      });
-    }
+        if (logoutBtn && !logoutBtn._wired) {
+            logoutBtn.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                logoutUser();
+            });
+            logoutBtn._wired = true;
+        }
 
-    if (profileBtn) {
-      profileBtn.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        try {
-          const stored = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
-          if (stored && stored.role === 'admin') {
-            window.location.href = '/components/admin-dashboard.html';
-            return;
-          }
-        } catch (e) { /* ignore */ }
-        // fallback to business dashboard
-        window.location.href = '/components/business/index.html';
-      });
-    }
+        if (profileBtn && !profileBtn._wired) {
+            profileBtn.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                try {
+                    const stored = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
+                    if (stored && stored.role === 'admin') {
+                        window.location.href = '/components/admin-dashboard.html';
+                        return;
+                    }
+                } catch (e) { /* ignore */ }
+                // fallback to business dashboard
+                window.location.href = '/components/business/index.html';
+            });
+            profileBtn._wired = true;
+        }
 
-    
-
-    const headerRow2 = document.querySelector('#header-import .labo-row-2');
-    if (headerRow2) {
-        const p = (location.pathname || '').toLowerCase();
-        const href = (location.href || '').toLowerCase();
-        const isHome = p.endsWith('/') || p.endsWith('/index.html') || href.includes('index.html');
-        headerRow2.style.display = isHome ? '' : 'none';
-    }
+        const headerRow2 = document.querySelector('#header-import .labo-row-2');
+        if (headerRow2) {
+            const p = (location.pathname || '').toLowerCase();
+            const href = (location.href || '').toLowerCase();
+            const isHome = p.endsWith('/') || p.endsWith('/index.html') || href.includes('index.html');
+            headerRow2.style.display = isHome ? '' : 'none';
+        }
   })
   .catch(err => console.error("Header fetch error:", err));
 

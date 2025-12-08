@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 /* ===== GLOBAL VARIABLES ===== */
 :root{
   --bg: #f6fbf7;
@@ -5,7 +7,7 @@
   --accent: #2d8f5a;
   --accent-2: #6fcf97;
   --muted: #6b7280;
-  --glass: rgba(255,255,255,0.6);
+  --glass: rgba(255,255,255,0.6); 
   --shadow: 0 6px 18px rgba(15,23,42,0.06);
   --radius: 14px;
   --container: 1120px;
@@ -338,26 +340,128 @@ button.btn {
     padding: 24px 12px;
   }
 }
-.process-section{ padding:28px 0; }
-.process-grid{
-  display:grid;
-  grid-template-columns:1fr 460px;
-  gap:32px;
-  align-items:start;
-  margin-top:12px;
-}
-.process-left .section-title{ margin-bottom:6px }
-.process-steps{ display:flex;flex-direction:column;gap:18px;margin-top:18px }
-.step{ display:flex;gap:18px;align-items:flex-start }
-.step-index{
-  min-width:56px;height:56px;border-radius:12px;
-  background:linear-gradient(180deg,var(--accent),var(--accent-2));
-  color:#fff;font-weight:800;display:grid;place-items:center;font-size:18px;
-  box-shadow:0 8px 20px rgba(16,64,32,0.12);
-}
-.step-body .step-title{ font-weight:800; font-size:16px }
-.step-desc{ margin-top:6px; color:var(--muted); font-size:14px }
+/* ---- CONTAINER FIXES (Galing sa previous answer para spread out) ---- */
+.process-section { padding: 50px 0; }
 
+.process-grid {
+  display: block; /* Full width */
+  width: 100%;
+  max-width: 1200px; /* Optional constraint para hindi sobrang lapad sa 4K screens */
+  margin: 30px auto 0 auto;
+}
+
+.process-left .section-title, .process-left .lead {
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+.process-left .lead { max-width: 700px; margin-bottom: 50px; }
+
+
+/* ---- THE MODERN GRADIENT STEPS ---- */
+
+/* Ang Grid Container */
+/* ---- CONTAINER FIXES (Full Width) ---- */
+.process-section { padding: 50px 0; }
+
+.process-grid {
+  display: block;
+  width: 100%;
+  max-width: 1200px;
+  margin: 30px auto 0 auto;
+}
+
+.process-left .section-title, .process-left .lead {
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+.process-left .lead { max-width: 700px; margin-bottom: 50px; }
+
+
+/* ---- GREEN GRADIENT CARDS ---- */
+
+.process-steps {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* 2 Columns */
+  gap: 30px;
+}
+
+.step {
+  display: flex;
+  gap: 25px;
+  align-items: flex-start;
+  padding: 30px;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0; /* Subtle grey border */
+  
+  /* BACKGROUND: White fading into very pale mint green at the bottom right */
+  background: linear-gradient(135deg, #ffffff 40%, var(--accent-light) 100%);
+  
+  /* GREEN SHADOW: A soft green glow behind the card */
+  box-shadow: 0 10px 30px -15px rgba(16, 185, 129, 0.15);
+  
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.step:hover {
+  transform: translateY(-5px);
+  /* Stronger green glow on hover */
+  box-shadow: 0 20px 40px -15px rgba(16, 185, 129, 0.25);
+  border-color: var(--accent); /* Highlight border on hover */
+}
+
+.step-body {
+  flex: 1; 
+}
+
+/* NUMBER BOX - The Jewel */
+.step-index {
+  min-width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  color: #fff;
+  flex-shrink: 0;
+  
+  /* Deep Green Gradient */
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  
+  /* Glowing Green Shadow directly under the number */
+  box-shadow: 0 15px 25px -10px var(--accent); 
+}
+
+.step-body .step-title {
+  font-weight: 800;
+  font-size: 20px;
+  margin-bottom: 8px;
+  color: #064e3b; /* Very dark green/grey for text readability */
+}
+
+.step-desc {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 900px) {
+  .process-steps {
+    grid-template-columns: 1fr; 
+    gap: 20px;
+  }
+}
+/* Mobile Responsiveness */
+@media (max-width: 900px) {
+  .process-steps {
+    grid-template-columns: 1fr; /* Stack to 1 column on tablets/phones */
+    gap: 20px;
+  }
+  .step { padding: 20px; }
+}
 /* Visual and CTA card */
 /* Ensure visual image scales and keeps correct aspect, CTA sits nicely */
 .process-visual{
@@ -532,7 +636,7 @@ button.btn {
 .final-thought{
   max-width:980px;
   margin:20px auto 0;
-  background:#ffffff;
+  background:linear-gradient(to right, #F7FFF4, #CAE8C1); /* Updated to horizontal linear gradient */
   border-radius:12px;
   padding:20px;
   box-shadow:0 12px 36px rgba(15,23,42,0.06);
@@ -542,16 +646,179 @@ button.btn {
 .final-thought p{ margin:0;color:var(--muted) }
 
 /* Success stories grid & cards */
-.stories-section { padding: 28px 0; }
-.stories-heading { font-size:18px; font-weight:800; margin:18px 0 8px; }
-.stories-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; align-items:stretch; }
-.story-card { cursor:pointer; border-radius:12px; overflow:hidden; position:relative; display:flex; flex-direction:column; min-height:140px; transition:transform .18s ease, box-shadow .18s ease; background:#f4fff4; box-shadow:0 8px 20px rgba(15,23,42,0.05); }
-.story-card:focus { outline: 3px solid rgba(21,112,58,0.12); }
-.story-card:hover { transform:translateY(-6px); box-shadow:0 18px 40px rgba(15,23,42,0.1); }
-.card-media { background-size:cover; background-position:center; height:120px; width:100%; }
-.card-caption { padding:10px 12px; background:linear-gradient(180deg, rgba(0,0,0,0.0), rgba(0,0,0,0.02)); display:flex; flex-direction:column; gap:6px; }
-.card-title { font-weight:800; color:var(--dark); font-size:15px; }
-.card-sub { font-size:13px; color:var(--muted); }
+/* 1. CENTER THE HEADER */
+#stories {
+  text-align: center;
+  padding: 80px 20px; /* Increased padding slightly for better spacing */
+  
+  /* MODERN SUBTLE GRADIENT */
+  /* Starts White, fades into a very light green at the bottom */
+  background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
+  
+  /* Optional: Adds a subtle border at the top to mark the section start */
+  border-top: 1px solid #eef2f6; 
+  border-radius: 40px;
+}
+@media (max-width: 600px) {
+  #stories {
+    margin: 10px; /* Smaller margin on phones */
+    border-radius: 24px; /* Slightly less round on phones */
+  }
+}
+
+#stories .section-title {
+  margin-bottom: 15px;
+  font-weight: 800;
+  color: #111827;
+}
+
+#stories .lead {
+  max-width: 700px;
+  margin: 0 auto 50px auto; /* "auto" on left/right centers the text block */
+  color: #64748b;
+  font-size: 1.1rem;
+}
+
+/* 2. FIX THE GRID */
+.stories-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 Columns side-by-side */
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto; /* Centers the grid container itself */
+}
+
+/* 3. MODERNIZE THE CARDS */
+/* ---- CLEAN MODERN CARD ---- */
+.story-card {
+  position: relative;
+  height: 320px;
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #fff;
+  
+  /* 1. THE GREEN ACCENT (Top Strip) */
+  /* Ito ay manipis na green line sa taas. Simple pero elegante. */
+  border-top: 5px solid var(--accent, #10b981);
+  
+  /* Standard Shadow */
+  box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+  
+  transition: all 0.3s ease;
+}
+
+/* HOVER EFFECT: Green Glow + Lift */
+.story-card:hover {
+  transform: translateY(-8px);
+  /* 2. GREEN GLOW SHADOW */
+  /* Nagiging green ang shadow pag hover para mukhang "active" */
+  box-shadow: 0 20px 40px -10px rgba(16, 185, 129, 0.3); 
+}
+
+.card-media {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  transition: transform 0.6s ease;
+}
+
+/* Zoom effect sa picture */
+.story-card:hover .card-media {
+  transform: scale(1.1);
+}
+
+/* TEXT OVERLAY */
+.card-caption {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  padding: 30px 20px 20px;
+  
+  /* Mas modernong gradient: Transparent to Dark */
+  background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 40%, transparent 100%);
+  color: white;
+  z-index: 2;
+}
+
+.card-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: #fff;
+}
+
+.story-card:hover .card-title {
+  /* Optional: Magiging Green ang text pag hover */
+  color: var(--accent, #10b981);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+}
+
+.card-sub {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  font-weight: 400;
+  color: #e2e8f0;
+}
+
+/* The Image Background */
+.card-media {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  transition: transform 0.5s ease;
+}
+
+/* Zoom effect on hover */
+.story-card:hover .card-media {
+  transform: scale(1.1);
+}
+
+/* 4. THE CAPTION (Text Overlay) */
+.card-caption {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  padding: 25px 20px;
+  /* Dark Gradient so white text is readable */
+  background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
+  color: white;
+  text-align: left; /* Keep card text left-aligned for better reading */
+  z-index: 2;
+}
+
+.card-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.card-sub {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  font-weight: 400;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 900px) {
+  .stories-grid {
+    grid-template-columns: repeat(2, 1fr); /* 2 cols on tablet */
+  }
+}
+
+@media (max-width: 600px) {
+  .stories-grid {
+    grid-template-columns: 1fr; /* 1 col on phone */
+  }
+  .story-card {
+    height: 250px; /* Shorter cards on phone */
+  }
+}
 
 /* responsive */
 @media (max-width:1100px) { .stories-grid { grid-template-columns:repeat(2,1fr); } }

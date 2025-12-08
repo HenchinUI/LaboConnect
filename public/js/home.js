@@ -162,14 +162,23 @@ function openChat(inquiryId, title, opener) {
       if (!res.ok) throw new Error('Failed to load messages');
       const data = await res.json();
       const msgs = data.messages || [];
+      const currentUser = (() => { try { return JSON.parse(localStorage.getItem('laboCurrentUser')); } catch(_) { return null; } })();
       messagesEl.innerHTML = '';
       msgs.forEach(m => {
         const el = document.createElement('div');
-        el.style.marginBottom = '8px';
-        el.style.padding = '8px';
-        el.style.borderRadius = '6px';
-        el.style.background = m.sender_user_id ? '#f2f9ff' : '#f6f6f6';
-        el.innerHTML = `<div style="font-weight:700;font-size:0.95rem">${m.sender_name || (m.sender_email||'Unknown')}</div><div style="margin-top:4px">${(m.body||'').replace(/\n/g,'<br/>')}</div><div class="small muted" style="margin-top:6px">${new Date(m.created_at).toLocaleString()}</div>`;
+        el.style.marginBottom = '12px';
+        el.style.display = 'flex';
+        const isCurrentUser = currentUser && m.sender_user_id === currentUser.id;
+        el.style.justifyContent = isCurrentUser ? 'flex-end' : 'flex-start';
+        
+        const msgBox = document.createElement('div');
+        msgBox.style.maxWidth = '70%';
+        msgBox.style.padding = '10px';
+        msgBox.style.borderRadius = '8px';
+        msgBox.style.background = isCurrentUser ? '#007bff' : '#f0f0f0';
+        msgBox.style.color = isCurrentUser ? '#fff' : '#000';
+        msgBox.innerHTML = `<div style="font-weight:700;font-size:0.9rem">${m.sender_name || (m.sender_email||'Unknown')}</div><div style="margin-top:4px;word-wrap:break-word">${(m.body||'').replace(/\n/g,'<br/>')}</div><div style="margin-top:6px;opacity:0.7;font-size:0.85rem">${new Date(m.created_at).toLocaleString()}</div>`;
+        el.appendChild(msgBox);
         messagesEl.appendChild(el);
       });
       messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -429,7 +438,7 @@ async function fetchApprovedListings(limit) {
         <div class="title">${item.title || 'Untitled'}</div>
         <div class="muted description">${item.description || ''}</div>
         <div class="listing-meta">
-          <div class="listing-price">${item.price || 'Price on request'}</div>
+          <div class="listing-price">${item.price ? '₱' + item.price : 'Price on request'}</div>
           <div class="listing-stats muted">${item.size ? (item.size + ' sqm') : ''}</div>
         </div>
         <div class="listing-actions">
