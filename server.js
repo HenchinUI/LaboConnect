@@ -184,12 +184,12 @@ app.post("/register", async (req, res) => {
 
     // Establish server-side session for the newly created user so they are authenticated immediately
     try {
-      req.session.user = { id: rows[0].id, username: rows[0].username, role: rows[0].role };
+      req.session.user = { id: rows[0].id, username: rows[0].username, email: rows[0].email, role: rows[0].role };
     } catch (e) {
       console.warn('Could not set session for new user:', e && e.message ? e.message : e);
     }
 
-    res.status(201).json({ message: "User registered successfully!", user: rows[0] });
+    res.status(201).json({ message: "User registered successfully!", user: { id: rows[0].id, username: rows[0].username, email: rows[0].email, role: rows[0].role } });
 
   } catch (err) {
     console.error("Register error:", err);
@@ -222,12 +222,12 @@ app.post("/login", async (req, res) => {
     }
 
     // Store user in server-side session
-    req.session.user = { id: user.id, username: user.username, role: user.role };
+    req.session.user = { id: user.id, username: user.username, email: user.email, role: user.role };
 
     // Return user info including role
     res.json({
       message: "Login successful!",
-      user: { id: user.id, username: user.username, role: user.role }
+      user: { id: user.id, username: user.username, email: user.email, role: user.role }
     });
 
   } catch (err) {
@@ -248,7 +248,482 @@ app.get("/api/session", (req, res) => {
 });
 
 // -------------------
-// Admin token creation (admin-only)
+// Profile Management
+// -------------------
+
+// Get user profile (private - own profile with stats)
+app.get('/api/profile/:userId', async (req, res) => {
+  try {
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser || parseInt(req.params.userId) !== sessionUser.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const userId = req.params.userId;
+
+    // Ensure profile columns exist
+    try {
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_number TEXT`);
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT`);
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture_url TEXT`);
+    } catch (e) {
+      console.warn('Could not add profile columns:', e.message);
+    }
+
+    // Get user profile
+    const { rows: users } = await db.query(
+      'SELECT id, username, email, contact_number, bio, profile_picture_url, created_at FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = users[0];
+
+    // Get listings count
+    const { rows: listings } = await db.query(
+      'SELECT COUNT(*) as count FROM listings WHERE owner_id = $1 AND status = $2',
+      [userId, 'approved']
+    );
+
+    // Get inquiries count (received by owner)
+    const { rows: inquiries } = await db.query(
+      'SELECT COUNT(*) as count FROM inquiries WHERE owner_id = $1',
+      [userId]
+    );
+
+    res.json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      contact_number: user.contact_number,
+      bio: user.bio,
+      profile_picture_url: user.profile_picture_url,
+      created_at: user.created_at,
+      listings_count: parseInt(listings[0].count),
+      inquiries_count: parseInt(inquiries[0].count)
+    });
+  } catch (e) {
+    console.error('Error fetching profile:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update user profile
+app.put('/api/profile/:userId', async (req, res) => {
+  try {
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser || parseInt(req.params.userId) !== sessionUser.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const userId = req.params.userId;
+    const { username, email, contact_number, bio } = req.body;
+
+    // Validation
+    if (!username || !email) {
+      return res.status(400).json({ error: 'Username and email are required' });
+    }
+
+    // Ensure profile columns exist
+    try {
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_number TEXT`);
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT`);
+    } catch (e) {
+      console.warn('Could not add profile columns:', e.message);
+    }
+
+    // Check if email is already taken by another user
+    const { rows: existingEmail } = await db.query(
+      'SELECT id FROM users WHERE email = $1 AND id != $2',
+      [email, userId]
+    );
+
+    if (existingEmail.length > 0) {
+      return res.status(400).json({ error: 'Email is already in use' });
+    }
+
+    // Update user
+    const { rows: updated } = await db.query(
+      'UPDATE users SET username = $1, email = $2, contact_number = $3, bio = $4 WHERE id = $5 RETURNING id, username, email, contact_number, bio, created_at',
+      [username, email, contact_number || null, bio || null, userId]
+    );
+
+    if (updated.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Update session
+    req.session.user = {
+      ...req.session.user,
+      username: updated[0].username,
+      email: updated[0].email
+    };
+
+    // Get updated stats
+    const { rows: listings } = await db.query(
+      'SELECT COUNT(*) as count FROM listings WHERE owner_id = $1 AND status = $2',
+      [userId, 'approved']
+    );
+
+    const { rows: inquiries } = await db.query(
+      'SELECT COUNT(*) as count FROM inquiries WHERE owner_id = $1',
+      [userId]
+    );
+
+    res.json({
+      id: updated[0].id,
+      username: updated[0].username,
+      email: updated[0].email,
+      contact_number: updated[0].contact_number,
+      bio: updated[0].bio,
+      created_at: updated[0].created_at,
+      listings_count: parseInt(listings[0].count),
+      inquiries_count: parseInt(inquiries[0].count)
+    });
+  } catch (e) {
+    console.error('Error updating profile:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Upload profile picture
+app.post('/api/profile/:userId/picture', upload.single('profile_picture'), async (req, res) => {
+  try {
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser || parseInt(req.params.userId) !== sessionUser.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const userId = req.params.userId;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Ensure profile column exists
+    try {
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture_url TEXT`);
+    } catch (e) {
+      console.warn('Could not add profile_picture_url column:', e.message);
+    }
+
+    // Store file path
+    const profilePictureUrl = `/uploads/${req.file.filename}`;
+
+    // Update user profile picture
+    const { rows: updated } = await db.query(
+      'UPDATE users SET profile_picture_url = $1 WHERE id = $2 RETURNING profile_picture_url',
+      [profilePictureUrl, userId]
+    );
+
+    if (updated.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      profile_picture_url: updated[0].profile_picture_url
+    });
+  } catch (e) {
+    console.error('Error uploading profile picture:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get public user profile (anyone can view)
+app.get('/api/profile/:userId/public', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    // Ensure profile columns exist
+    try {
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_number TEXT`);
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT`);
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture_url TEXT`);
+    } catch (e) {
+      console.warn('Could not add profile columns:', e.message);
+    }
+
+    // Get user profile (without email)
+    const { rows: users } = await db.query(
+      'SELECT id, username, contact_number, bio, profile_picture_url, created_at FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = users[0];
+
+    // Get listings count
+    const { rows: listings } = await db.query(
+      'SELECT COUNT(*) as count FROM listings WHERE owner_id = $1 AND status = $2',
+      [userId, 'approved']
+    );
+
+    res.json({
+      id: user.id,
+      username: user.username,
+      contact_number: user.contact_number,
+      bio: user.bio,
+      profile_picture_url: user.profile_picture_url,
+      created_at: user.created_at,
+      listings_count: parseInt(listings[0].count)
+    });
+  } catch (e) {
+    console.error('Error fetching public profile:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get user's listings (for public profile)
+app.get('/api/user/:userId/listings', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    const { rows: listings } = await db.query(
+      'SELECT id, title, description, price, size_sqm, image_url FROM listings WHERE owner_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT 6',
+      [userId, 'approved']
+    );
+
+    res.json(listings);
+  } catch (e) {
+    console.error('Error fetching user listings:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get user's listings by status (for profile page)
+app.get('/api/my-listings/:status', async (req, res) => {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { status } = req.params;
+  const validStatuses = ['pending', 'approved', 'rejected'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+
+  try {
+    // Ensure rejection_reason column exists
+    try {
+      await db.query(`ALTER TABLE listings ADD COLUMN IF NOT EXISTS rejection_reason TEXT`);
+    } catch (e) {
+      console.warn('Could not add rejection_reason column:', e.message);
+    }
+
+    const { rows: listings } = await db.query(
+      `SELECT id, title, description, price, size_sqm, image_url, status, created_at, updated_at, type, 
+              owner_first_name, owner_last_name, latitude, longitude, rejection_reason 
+       FROM listings 
+       WHERE owner_id = $1 AND status = $2 
+       ORDER BY created_at DESC`,
+      [sessionUser.id, status]
+    );
+
+    res.json(listings);
+  } catch (e) {
+    console.error('Error fetching user listings:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update listing details
+app.put('/api/my-listings/:listingId', async (req, res) => {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { listingId } = req.params;
+  const { title, description, price, size_sqm, type } = req.body;
+
+  try {
+    // Verify user owns this listing
+    const { rows: listing } = await db.query(
+      'SELECT owner_id FROM listings WHERE id = $1',
+      [listingId]
+    );
+
+    if (!listing.length) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    if (listing[0].owner_id !== sessionUser.id) {
+      return res.status(403).json({ error: 'You do not own this listing' });
+    }
+
+    // Update listing
+    const updateFields = [];
+    const updateValues = [];
+    let paramCount = 1;
+
+    if (title !== undefined) {
+      updateFields.push(`title = $${paramCount++}`);
+      updateValues.push(title);
+    }
+    if (description !== undefined) {
+      updateFields.push(`description = $${paramCount++}`);
+      updateValues.push(description);
+    }
+    if (price !== undefined) {
+      updateFields.push(`price = $${paramCount++}`);
+      updateValues.push(price);
+    }
+    if (size_sqm !== undefined) {
+      updateFields.push(`size_sqm = $${paramCount++}`);
+      updateValues.push(size_sqm);
+    }
+    if (type !== undefined) {
+      updateFields.push(`type = $${paramCount++}`);
+      updateValues.push(type);
+    }
+
+    updateFields.push(`updated_at = $${paramCount++}`);
+    updateValues.push(new Date());
+    updateValues.push(listingId);
+
+    const sql = `UPDATE listings SET ${updateFields.join(', ')} WHERE id = $${paramCount} RETURNING *`;
+    const { rows } = await db.query(sql, updateValues);
+
+    res.json({ message: 'Listing updated', listing: rows[0] });
+  } catch (e) {
+    console.error('Error updating listing:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Delete listing (user can delete their own)
+app.delete('/api/my-listings/:listingId', async (req, res) => {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { listingId } = req.params;
+
+  try {
+    // Verify user owns this listing
+    const { rows: listing } = await db.query(
+      'SELECT owner_id, image_url FROM listings WHERE id = $1',
+      [listingId]
+    );
+
+    if (!listing.length) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    if (listing[0].owner_id !== sessionUser.id) {
+      return res.status(403).json({ error: 'You do not own this listing' });
+    }
+
+    // Delete related records first
+    try { await db.query('DELETE FROM messages WHERE inquiry_id IN (SELECT id FROM inquiries WHERE listing_id = $1)', [listingId]); } catch (e) { console.warn('Could not delete messages:', e.message); }
+    try { await db.query('DELETE FROM inquiries WHERE listing_id = $1', [listingId]); } catch (e) { console.warn('Could not delete inquiries:', e.message); }
+    try { await db.query('DELETE FROM uploads_meta WHERE listing_id = $1', [listingId]); } catch (e) { console.warn('Could not delete uploads_meta:', e.message); }
+    try { await db.query('DELETE FROM user_listings WHERE listing_id = $1', [listingId]); } catch (e) { console.warn('Could not delete user_listings:', e.message); }
+
+    // Delete the listing
+    await db.query('DELETE FROM listings WHERE id = $1', [listingId]);
+
+    res.json({ message: 'Listing deleted successfully' });
+  } catch (e) {
+    console.error('Error deleting listing:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Upload/replace listing image
+app.post('/api/my-listings/:listingId/image', upload.single('image'), async (req, res) => {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'No image provided' });
+  }
+
+  const { listingId } = req.params;
+
+  try {
+    // Verify user owns this listing
+    const { rows: listing } = await db.query(
+      'SELECT owner_id, image_url FROM listings WHERE id = $1',
+      [listingId]
+    );
+
+    if (!listing.length) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    if (listing[0].owner_id !== sessionUser.id) {
+      return res.status(403).json({ error: 'You do not own this listing' });
+    }
+
+    // Delete old image if exists
+    if (listing[0].image_url) {
+      const oldPath = path.join(__dirname, 'public', listing[0].image_url);
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+    }
+
+    const newImageUrl = `/uploads/${req.file.filename}`;
+
+    // Update listing with new image
+    const { rows } = await db.query(
+      'UPDATE listings SET image_url = $1, updated_at = $2 WHERE id = $3 RETURNING *',
+      [newImageUrl, new Date(), listingId]
+    );
+
+    res.json({ message: 'Image updated', listing: rows[0] });
+  } catch (e) {
+    console.error('Error updating listing image:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Search users
+app.get('/api/users/search', async (req, res) => {
+  try {
+    // Ensure profile columns exist
+    try {
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_number TEXT`);
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT`);
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture_url TEXT`);
+    } catch (e) {
+      console.warn('Could not add profile columns:', e.message);
+    }
+
+    // Get all users with their profile info and listing counts (excluding email for privacy)
+    const { rows: users } = await db.query(`
+      SELECT 
+        u.id, 
+        u.username, 
+        u.contact_number, 
+        u.bio, 
+        u.profile_picture_url,
+        u.created_at,
+        COALESCE(COUNT(DISTINCT l.id), 0) as listings_count
+      FROM users u
+      LEFT JOIN listings l ON u.id = l.owner_id AND l.status = 'approved'
+      GROUP BY u.id, u.username, u.contact_number, u.bio, u.profile_picture_url, u.created_at
+      ORDER BY u.username ASC
+    `);
+
+    res.json(users);
+  } catch (e) {
+    console.error('Error searching users:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // -------------------
 app.post('/api/admin/tokens', async (req, res) => {
   try {
@@ -446,8 +921,8 @@ app.post("/submit-listing", uploadMultiple.fields([
 
 // Inquiries: investors can send inquiry to listing owner (wired to user accounts)
 app.post('/api/inquiries', async (req, res) => {
-  const { listing_id, first_name, last_name, contact_number, email, company, message, sender_user_id } = req.body;
-  if (!listing_id || !first_name || !last_name || !contact_number || !email) {
+  const { listing_id, full_name, contact_number, email, company, message, sender_user_id } = req.body;
+  if (!listing_id || !full_name || !contact_number || !email) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
@@ -457,8 +932,7 @@ app.post('/api/inquiries', async (req, res) => {
       id SERIAL PRIMARY KEY,
       listing_id INTEGER,
       sender_user_id INTEGER,
-      first_name TEXT,
-      last_name TEXT,
+      full_name TEXT,
       contact_number TEXT,
       email TEXT,
       company TEXT,
@@ -475,15 +949,15 @@ app.post('/api/inquiries', async (req, res) => {
 
     // prevent owner submitting inquiry for their own listing (by user_id if available, fallback to name)
     const ownerName = ((listing.owner_first_name || '') + ' ' + (listing.owner_last_name || '')).trim().toLowerCase();
-    const senderName = ((first_name || '') + ' ' + (last_name || '')).trim().toLowerCase();
+    const senderName = (full_name || '').trim().toLowerCase();
     if (ownerName && senderName && ownerName === senderName) {
       return res.status(400).json({ error: "Owner cannot send inquiry to their own listing" });
     }
 
     const insert = await db.query(
-      `INSERT INTO inquiries (listing_id, sender_user_id, first_name, last_name, contact_number, email, company, message, owner_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [listing_id, sender_user_id || null, first_name, last_name, contact_number, email, company || null, message || null, listing.owner_id || null]
+      `INSERT INTO inquiries (listing_id, sender_user_id, full_name, contact_number, email, company, message, owner_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [listing_id, sender_user_id || null, full_name, contact_number, email, company || null, message || null, listing.owner_id || null]
     );
 
     const inquiry = insert.rows[0];
@@ -795,6 +1269,140 @@ app.patch('/api/messages/:id/read', async (req, res) => {
   }
 });
 
+// -------------------
+// Listing Status Notifications
+// -------------------
+// Get all listing status notifications for current user
+app.get('/api/listing-notifications', async (req, res) => {
+  try {
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    // Ensure table exists
+    await db.query(`CREATE TABLE IF NOT EXISTS listing_notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      listing_id INTEGER NOT NULL,
+      listing_title TEXT,
+      status TEXT,
+      reason TEXT,
+      is_read BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+
+    const { rows } = await db.query(
+      `SELECT * FROM listing_notifications 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC`,
+      [sessionUser.id]
+    );
+
+    res.json(rows);
+  } catch (e) {
+    console.error('Get listing notifications error', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get unread listing notification count
+app.get('/api/listing-notifications/count', async (req, res) => {
+  try {
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    // Ensure table exists
+    await db.query(`CREATE TABLE IF NOT EXISTS listing_notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      listing_id INTEGER NOT NULL,
+      listing_title TEXT,
+      status TEXT,
+      reason TEXT,
+      is_read BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+
+    const { rows } = await db.query(
+      `SELECT COUNT(*)::int as count FROM listing_notifications 
+       WHERE user_id = $1 AND is_read = FALSE`,
+      [sessionUser.id]
+    );
+
+    res.json({ count: rows[0].count });
+  } catch (e) {
+    console.error('Count listing notifications error', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Mark listing notification as read
+app.patch('/api/listing-notifications/:id/read', async (req, res) => {
+  try {
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const notifId = req.params.id;
+
+    // Verify ownership
+    const { rows: notifs } = await db.query(
+      'SELECT user_id FROM listing_notifications WHERE id = $1',
+      [notifId]
+    );
+
+    if (notifs.length === 0) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    if (notifs[0].user_id !== sessionUser.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    await db.query('UPDATE listing_notifications SET is_read = TRUE WHERE id = $1', [notifId]);
+    res.json({ message: 'Marked as read' });
+  } catch (e) {
+    console.error('Mark notification read error', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Delete listing notification
+app.delete('/api/listing-notifications/:id', async (req, res) => {
+  try {
+    const sessionUser = req.session && req.session.user;
+    if (!sessionUser) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const notifId = req.params.id;
+
+    // Verify ownership
+    const { rows: notifs } = await db.query(
+      'SELECT user_id FROM listing_notifications WHERE id = $1',
+      [notifId]
+    );
+
+    if (notifs.length === 0) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    if (notifs[0].user_id !== sessionUser.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    await db.query('DELETE FROM listing_notifications WHERE id = $1', [notifId]);
+    res.json({ message: 'Deleted' });
+  } catch (e) {
+    console.error('Delete notification error', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET / POST notification preferences for a user
 app.get('/api/user/:user_id/notification-prefs', async (req, res) => {
   try {
@@ -932,6 +1540,96 @@ function sendInquiryNotificationEmail(inquiry, listing, owner_id) {
   });
 }
 
+// Rejection notification helper (async, non-blocking)
+function sendRejectionNotificationEmail(ownerEmail, listingTitle, rejectionReason) {
+  setImmediate(async () => {
+    try {
+      // Ensure email_logs table exists
+      await db.query(`CREATE TABLE IF NOT EXISTS email_logs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        inquiry_id INTEGER,
+        email_address TEXT,
+        subject TEXT,
+        status TEXT DEFAULT 'pending',
+        error_text TEXT,
+        sent_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      )`);
+
+      const subject = `Your Listing was Rejected: ${listingTitle}`;
+      const fromAddress = process.env.FROM_EMAIL || 'no-reply@laboconnect.local';
+      const reasonText = rejectionReason || 'No specific reason provided';
+      const text = `Unfortunately, your listing "${listingTitle}" has been rejected.\n\nReason: ${reasonText}\n\nPlease review your listing and submit again with the necessary corrections.`;
+      const html = `<p>Unfortunately, your listing <strong>"${listingTitle}"</strong> has been rejected.</p>
+        <p><strong>Reason:</strong> ${reasonText}</p>
+        <p>Please review your listing and submit again with the necessary corrections.</p>`;
+
+      // Insert a pending log entry
+      const insertResult = await db.query(
+        'INSERT INTO email_logs (email_address, subject, status) VALUES ($1,$2,$3) RETURNING id',
+        [ownerEmail, subject, 'pending']
+      );
+      const logId = insertResult.rows[0].id;
+
+      // Try SendGrid first
+      if (process.env.SENDGRID_API_KEY) {
+        try {
+          const sgMail = require('@sendgrid/mail');
+          sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+          await sgMail.send({
+            to: ownerEmail,
+            from: fromAddress,
+            subject,
+            text,
+            html
+          });
+          await db.query('UPDATE email_logs SET status = $1, sent_at = NOW() WHERE id = $2', ['sent', logId]);
+          return;
+        } catch (e) {
+          console.warn('SendGrid send failed:', e.message || e);
+          await db.query('UPDATE email_logs SET status = $1, error_text = $2 WHERE id = $3', ['failed', String(e), logId]);
+        }
+      }
+
+      // Fallback to SMTP via Nodemailer
+      if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+        try {
+          const nodemailer = require('nodemailer');
+          const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST,
+            port: parseInt(process.env.SMTP_PORT || '587'),
+            secure: (process.env.SMTP_SECURE === 'true'),
+            auth: {
+              user: process.env.SMTP_USER,
+              pass: process.env.SMTP_PASS
+            }
+          });
+
+          await transporter.sendMail({
+            from: fromAddress,
+            to: ownerEmail,
+            subject,
+            text,
+            html
+          });
+          await db.query('UPDATE email_logs SET status = $1, sent_at = NOW() WHERE id = $2', ['sent', logId]);
+          return;
+        } catch (e) {
+          console.warn('SMTP send failed:', e.message || e);
+          await db.query('UPDATE email_logs SET status = $1, error_text = $2 WHERE id = $3', ['failed', String(e), logId]);
+        }
+      }
+
+      // If no provider configured, just mark as logged and leave
+      await db.query('UPDATE email_logs SET status = $1 WHERE id = $2', ['logged', logId]);
+      console.log('No email provider configured; logged rejection email in email_logs');
+    } catch (e) {
+      console.error('Rejection email notification error:', e);
+    }
+  });
+}
+
 app.get("/listings", async (req, res) => {
   try {
     const { rows } = await db.query(
@@ -944,18 +1642,60 @@ app.get("/listings", async (req, res) => {
   }
 });
 
+// Helper function to create a notification for listing status change
+async function createListingStatusNotification(userId, listingId, listingTitle, status, reason = null) {
+  try {
+    // Ensure notifications table exists
+    await db.query(`CREATE TABLE IF NOT EXISTS listing_notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      listing_id INTEGER NOT NULL,
+      listing_title TEXT,
+      status TEXT,
+      reason TEXT,
+      is_read BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+
+    // Insert notification
+    await db.query(
+      `INSERT INTO listing_notifications (user_id, listing_id, listing_title, status, reason)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [userId, listingId, listingTitle, status, reason || null]
+    );
+  } catch (e) {
+    console.warn('Could not create listing notification:', e.message);
+  }
+}
+
 // -------------------
 // Admin Routes
 // -------------------
 app.post("/admin/approve-listing/:id", async (req, res) => {
   const listingId = req.params.id;
   try {
+    // Get listing details before updating
+    const { rows: listings } = await db.query(
+      'SELECT id, owner_id, title FROM listings WHERE id = $1 LIMIT 1',
+      [listingId]
+    );
+    if (listings.length === 0) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    const listing = listings[0];
+
     await db.query(
       `UPDATE listings
        SET approved = true, status = 'approved', updated_at = NOW()
        WHERE id = $1`,
       [listingId]
     );
+
+    // Create notification for listing owner
+    if (listing.owner_id) {
+      await createListingStatusNotification(listing.owner_id, listingId, listing.title, 'approved');
+    }
+
     res.json({ message: "Listing approved!" });
   } catch (err) {
     console.error(err);
@@ -965,14 +1705,56 @@ app.post("/admin/approve-listing/:id", async (req, res) => {
 
 app.post("/admin/listings/:id/reject", async (req, res) => {
   const listingId = req.params.id;
+  const { reason } = req.body;
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser || sessionUser.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
   try {
-    await db.query(
-      `UPDATE listings
-       SET status = 'rejected', updated_at = NOW()
-       WHERE id = $1`,
+    // Ensure rejection_reason column exists
+    try {
+      await db.query(`ALTER TABLE listings ADD COLUMN IF NOT EXISTS rejection_reason TEXT`);
+    } catch (e) {
+      console.warn('Could not add rejection_reason column:', e.message);
+    }
+
+    // Get listing details before updating
+    const { rows: listings } = await db.query(
+      'SELECT id, owner_id, title FROM listings WHERE id = $1 LIMIT 1',
       [listingId]
     );
-    res.json({ message: "Listing rejected" });
+    if (listings.length === 0) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    const listing = listings[0];
+
+    // Update listing with rejection reason
+    await db.query(
+      `UPDATE listings
+       SET status = 'rejected', rejection_reason = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [reason || null, listingId]
+    );
+
+    // Create notification for listing owner
+    if (listing.owner_id) {
+      await createListingStatusNotification(listing.owner_id, listingId, listing.title, 'rejected', reason);
+    }
+
+    // Send rejection notification email to listing owner if they exist
+    if (listing.owner_id) {
+      try {
+        const { rows: users } = await db.query('SELECT email FROM users WHERE id = $1', [listing.owner_id]);
+        if (users.length > 0) {
+          sendRejectionNotificationEmail(users[0].email, listing.title, reason);
+        }
+      } catch (e) {
+        console.warn('Could not send rejection notification:', e.message);
+      }
+    }
+
+    res.json({ message: "Listing rejected", rejection_reason: reason });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
@@ -1117,11 +1899,11 @@ app.get("/api/approved-listings", async (req, res) => {
     );
     const existing = cols.map(r => r.column_name);
 
-    const selectFields = ['id', 'title', 'description', 'type', 'price', 'size_sqm AS size', 'image_url'];
-    if (existing.includes('latitude')) selectFields.push('latitude');
-    if (existing.includes('longitude')) selectFields.push('longitude');
+    const selectFields = ['l.id', 'l.title', 'l.description', 'l.type', 'l.price', 'l.size_sqm AS size', 'l.image_url', 'l.owner_id', 'u.username AS owner_name'];
+    if (existing.includes('latitude')) selectFields.push('l.latitude');
+    if (existing.includes('longitude')) selectFields.push('l.longitude');
 
-    const q = `SELECT ${selectFields.join(', ')} FROM listings WHERE status = 'approved'`;
+    const q = `SELECT ${selectFields.join(', ')} FROM listings l LEFT JOIN users u ON l.owner_id = u.id WHERE l.status = 'approved' ORDER BY l.created_at DESC`;
     const { rows } = await db.query(q);
     res.json(rows);
   } catch (err) {
@@ -1324,6 +2106,126 @@ app.post('/admin/repair-uploads', async (req, res) => {
   } catch (err) {
     console.error('Repair error:', err);
     res.status(500).json({ error: 'Repair failed', detail: String(err) });
+  }
+});
+
+// -------------------
+// Economic Data API (Admin Only)
+// -------------------
+
+// Helper to check if user is admin
+function isAdmin(req) {
+  return req.session && req.session.user && req.session.user.role === 'admin';
+}
+
+// GET economic data
+app.get('/api/economic-data', async (req, res) => {
+  try {
+    // Ensure table exists
+    await db.query(`CREATE TABLE IF NOT EXISTS economic_data (
+      id SERIAL PRIMARY KEY,
+      key TEXT UNIQUE NOT NULL,
+      value TEXT,
+      label TEXT,
+      icon TEXT,
+      updated_at TIMESTAMP DEFAULT NOW(),
+      updated_by INTEGER
+    )`);
+
+    const { rows } = await db.query('SELECT * FROM economic_data ORDER BY id');
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetching economic data:', err);
+    res.status(500).json({ error: 'Failed to fetch economic data' });
+  }
+});
+
+// UPDATE economic data (admin only)
+app.put('/api/economic-data/:key', async (req, res) => {
+  if (!isAdmin(req)) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const { key } = req.params;
+  const { value, label, icon } = req.body;
+
+  try {
+    // Ensure table exists
+    await db.query(`CREATE TABLE IF NOT EXISTS economic_data (
+      id SERIAL PRIMARY KEY,
+      key TEXT UNIQUE NOT NULL,
+      value TEXT,
+      label TEXT,
+      icon TEXT,
+      updated_at TIMESTAMP DEFAULT NOW(),
+      updated_by INTEGER
+    )`);
+
+    const userId = req.session.user.id;
+    const { rows } = await db.query(
+      `INSERT INTO economic_data (key, value, label, icon, updated_at, updated_by) 
+       VALUES ($1, $2, $3, $4, NOW(), $5)
+       ON CONFLICT (key) DO UPDATE SET 
+         value = $2, 
+         label = $3, 
+         icon = $4,
+         updated_at = NOW(),
+         updated_by = $5
+       RETURNING *`,
+      [key, value, label, icon, userId]
+    );
+
+    res.json({ message: 'Economic data updated', data: rows[0] });
+  } catch (err) {
+    console.error('Error updating economic data:', err);
+    res.status(500).json({ error: 'Failed to update economic data' });
+  }
+});
+
+// Initialize default economic data
+app.post('/api/economic-data/init/defaults', async (req, res) => {
+  if (!isAdmin(req)) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    // Ensure table exists
+    await db.query(`CREATE TABLE IF NOT EXISTS economic_data (
+      id SERIAL PRIMARY KEY,
+      key TEXT UNIQUE NOT NULL,
+      value TEXT,
+      label TEXT,
+      icon TEXT,
+      updated_at TIMESTAMP DEFAULT NOW(),
+      updated_by INTEGER
+    )`);
+
+    const defaults = [
+      { key: 'population', value: '108,319', label: 'Population', icon: '👥' },
+      { key: 'population_change', value: '-0.20 from 2020', label: 'Population Change', icon: '' },
+      { key: 'land_area', value: '648.8 km²', label: 'Aggregated Land Area', icon: '📍' },
+      { key: 'land_breakdown', value: '65% Agricultural, 25% Residential, 10% Commercial', label: 'Land Breakdown', icon: '' },
+      { key: 'businesses', value: '905', label: 'Registered Businesses', icon: '🏢' },
+      { key: 'business_change', value: '0.78% increase', label: 'Business Growth', icon: '' },
+      { key: 'gross_income', value: '₱2,175,205,198.94', label: 'Gross Income', icon: '💰' },
+      { key: 'income_note', value: 'New and renewal', label: 'Income Note', icon: '' }
+    ];
+
+    const userId = req.session.user.id;
+    
+    for (const item of defaults) {
+      await db.query(
+        `INSERT INTO economic_data (key, value, label, icon, updated_by) 
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (key) DO NOTHING`,
+        [item.key, item.value, item.label, item.icon, userId]
+      );
+    }
+
+    res.json({ message: 'Default economic data initialized' });
+  } catch (err) {
+    console.error('Error initializing economic data:', err);
+    res.status(500).json({ error: 'Failed to initialize economic data' });
   }
 });
 

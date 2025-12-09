@@ -1,0 +1,737 @@
+═══════════════════════════════════════════════════════════════════════════════
+            INPUT - PROCESS - OUTPUT (IPO) DESIGN
+                    LaboConnect Website
+═══════════════════════════════════════════════════════════════════════════════
+
+OVERVIEW
+────────────────────────────────────────────────────────────────────────────────
+The IPO model breaks down each major feature into:
+  INPUT:   What data/actions does the user provide?
+  PROCESS: What does the system do with that data?
+  OUTPUT:  What result does the user see/receive?
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 1: USER REGISTRATION
+═══════════════════════════════════════════════════════════════════════════════
+
+INPUT
+─────
+User Form Submission (authModal.html):
+├─ Full Name (text) — e.g., "Juan Dela Cruz"
+├─ Email (email) — e.g., "juan@example.com"
+├─ Password (text, min 6 chars)
+├─ Account Type (dropdown) — "Business Owner" or "BPLO Admin"
+└─ Admin Token (text, if admin selected) — e.g., "a1b2c3d4e5f6..."
+
+PROCESS
+───────
+1. Browser-side Validation
+   ├─ Check all fields are filled
+   ├─ Validate email format
+   ├─ Verify password length ≥ 6
+   └─ If admin role, ensure token is provided
+
+2. Send to Server
+   └─ POST /register with JSON payload
+
+3. Server-side Validation & Processing
+   ├─ Check if email already exists in DB
+   │  └─ Query: SELECT * FROM users WHERE email = ?
+   ├─ If role = 'admin':
+   │  ├─ Validate admin token
+   │  │  └─ Query: SELECT * FROM admin_tokens WHERE token = ?
+   │  ├─ Check token is unused (used = FALSE)
+   │  ├─ Check token is not expired (expires_at > NOW)
+   │  └─ If invalid: reject registration
+   ├─ Hash password using bcrypt (salt rounds: 10)
+   │  └─ Hash function: bcrypt.hash(password, 10)
+   ├─ Insert user into database
+   │  └─ INSERT INTO users (username, email, password, role, created_at)
+   ├─ If admin: mark token as used
+   │  └─ UPDATE admin_tokens SET used=TRUE, used_by=user.id, used_at=NOW()
+   └─ Set server-side session
+       └─ req.session.user = { id, username, role }
+
+OUTPUT
+──────
+Success Case:
+├─ HTTP 201 response with user data
+├─ Session cookie set in browser
+├─ Alert: "Registration successful! Welcome, [username]."
+├─ Auth modal closes
+├─ User redirected to dashboard:
+│  ├─ If admin → /components/admin-dashboard.html
+│  └─ If business → /components/business/index.html
+└─ Header updated to show logged-in state
+
+Error Cases:
+├─ Email already exists → "Username or email already exists"
+├─ Invalid admin token → "Invalid admin token"
+├─ Token already used → "Admin token already used"
+├─ Token expired → "Admin token expired"
+├─ Missing fields → "Please fill all required fields"
+└─ Server error → "An error occurred during registration."
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 2: USER LOGIN
+═══════════════════════════════════════════════════════════════════════════════
+
+INPUT
+─────
+User Form Submission (authModal.html - Login tab):
+├─ Email (email) — e.g., "juan@example.com"
+└─ Password (text) — e.g., "myPassword123"
+
+PROCESS
+───────
+1. Browser-side Validation
+   ├─ Check email is not empty
+   └─ Check password is not empty
+
+2. Send to Server
+   └─ POST /login with JSON payload
+
+3. Server-side Processing
+   ├─ Query user by email
+   │  └─ SELECT * FROM users WHERE email = ?
+   ├─ If user not found → reject (400)
+   ├─ If user found:
+   │  ├─ Compare submitted password with hashed password
+   │  │  └─ bcrypt.compare(password, user.password_hash)
+   │  ├─ If mismatch → reject (400)
+   │  └─ If match → success
+   ├─ Set server-side session
+   │  └─ req.session.user = { id, username, role }
+   └─ Return user data in JSON
+
+OUTPUT
+──────
+Success Case:
+├─ HTTP 200 response with user data + role
+├─ Session cookie set in browser
+├─ localStorage updated: laboCurrentUser = { id, username, role }
+├─ Alert: "Welcome back, [username]!"
+├─ Auth modal closes
+├─ If role = 'admin' → redirect to /admin-dashboard
+├─ If role = 'business' → redirect to /business/index.html
+├─ If role = 'user' → stay on page, refresh header
+└─ Header shows logged-in state (profile name, notifications)
+
+Error Cases:
+├─ Email not found → "Invalid email or password."
+├─ Password incorrect → "Invalid email or password."
+├─ Missing fields → "Please enter email and password."
+└─ Server error → "Server error, please try again later."
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 3: LOGOUT
+═══════════════════════════════════════════════════════════════════════════════
+
+INPUT
+─────
+User Action:
+└─ Click "Logout" button in header
+
+PROCESS
+───────
+1. Browser calls logout function
+   └─ JavaScript: logoutUser()
+
+2. Send to Server
+   └─ POST /logout
+
+3. Server-side Processing
+   ├─ Destroy session
+   │  └─ req.session.destroy()
+   └─ Return success response
+
+4. Browser-side Cleanup
+   ├─ Remove localStorage item: laboCurrentUser
+   ├─ Call setUserRole('guest')
+   │  └─ Hide login button, show logout option
+   ├─ Call checkUserLoginStatus() (if on index page)
+   │  └─ Hide submit form, show login CTA
+   └─ Alert: "You have been logged out."
+
+OUTPUT
+──────
+├─ Session destroyed (server-side)
+├─ Header reverts to guest state
+├─ Login button visible again in header
+├─ Alert: "You have been logged out."
+├─ Page may redirect to /components/index.html
+└─ All protected routes now return 403 Forbidden
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 4: SUBMIT A LISTING (Business/Admin Users)
+═══════════════════════════════════════════════════════════════════════════════
+
+INPUT
+─────
+User Form Submission (index.html or business dashboard):
+├─ Owner First Name (text)
+├─ Owner Last Name (text)
+├─ Title (text, ≤255 chars)
+├─ Description (text, unlimited)
+├─ Type (dropdown) — "For Rent", "For Sale", etc.
+├─ Price (numeric, ≤999,999.99)
+├─ Size (numeric, sqm)
+├─ Latitude (numeric, optional)
+├─ Longitude (numeric, optional)
+├─ Image (file upload, 1 file)
+├─ OCT/TCT Document (file upload)
+├─ Tax Declaration (file upload)
+├─ DOAS (file upload)
+└─ Government ID (file upload)
+
+PROCESS
+───────
+1. Browser-side Validation
+   ├─ Check required fields (name, title, description, type, price)
+   ├─ Verify image is present
+   ├─ Check file sizes (e.g., max 10MB per file)
+   └─ Check MIME types (images, PDFs only)
+
+2. Session Check
+   ├─ GET /api/session
+   ├─ If not authenticated → show login prompt
+   └─ If role ≠ 'business'|'admin' → show error
+
+3. Send to Server (Multipart Form Data)
+   └─ POST /submit-listing with files + form fields
+
+4. Server-side Processing
+   ├─ Check req.session.user exists (authentication)
+   ├─ Check role is 'business' or 'admin' (authorization)
+   ├─ Multer middleware processes file uploads
+   │  ├─ Save image to public/uploads/[unique-id].png
+   │  ├─ Save docs to public/uploads/[unique-id].pdf
+   │  └─ Generate unique filenames (timestamp + random)
+   ├─ Validate required fields
+   ├─ Check if latitude/longitude columns exist in DB
+   ├─ Build INSERT query dynamically
+   ├─ Insert listing row
+   │  └─ INSERT INTO listings (owner_id, title, description, type, price, status='pending', ...)
+   ├─ Get returned listing.id
+   ├─ Insert upload metadata for each file
+   │  └─ INSERT INTO uploads_meta (listing_id, field_name, stored_filename, original_filename)
+   └─ Return success response with listing ID
+
+OUTPUT
+──────
+Success Case:
+├─ HTTP 201 response: "Listing submitted successfully!"
+├─ Listing ID returned to browser
+├─ Alert: "Your listing has been submitted for review."
+├─ Form clears
+├─ New listing appears in database with status='pending'
+├─ Listing is NOT visible to public yet (admin must approve)
+└─ Owner can view in business dashboard
+
+Error Cases:
+├─ Not authenticated → "Please log in to submit a listing"
+├─ Wrong role → "Only business accounts can submit listings"
+├─ Missing required fields → "[Field name] is required"
+├─ File too large → "File size exceeds limit"
+├─ Invalid file type → "Only images and PDFs are allowed"
+└─ Server error → "Internal Server Error"
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 5: BROWSE LISTINGS (Public)
+═══════════════════════════════════════════════════════════════════════════════
+
+INPUT
+─────
+User Action:
+├─ Load /components/listings.html
+├─ Optional: Click filters/search
+│  ├─ Type search term (title, location)
+│  ├─ Select listing type filter
+│  └─ Set price range
+└─ Or load listing details view
+
+PROCESS
+───────
+1. Browser Page Load
+   ├─ Fetch HTML template (listings.html)
+   └─ JavaScript (home.js) runs on DOMContentLoaded
+
+2. Fetch Listings from Server
+   └─ GET /api/listings or GET /listings
+      └─ Server queries: SELECT * FROM listings WHERE status='approved'
+
+3. Server-side Processing
+   ├─ Retrieve approved listings from DB
+   │  └─ SELECT * FROM listings WHERE status='approved' ORDER BY created_at DESC
+   ├─ Join with users table (optional)
+   │  └─ To get owner email/name
+   └─ Return JSON array of listings
+
+4. Browser-side Rendering
+   ├─ Receive JSON response
+   ├─ JavaScript loops through listings array
+   ├─ For each listing, build HTML card:
+   │  ├─ Property photo (background-image)
+   │  ├─ Title, description
+   │  ├─ Price with peso sign (₱) prepended
+   │  ├─ Size (sqm)
+   │  ├─ Type badge ("For Rent", "For Sale")
+   │  ├─ "Send Inquiry" button
+   │  └─ "View Details" button
+   └─ Render grid/list on page
+
+5. Optional: Search/Filter (Client-side or Server-side)
+   ├─ User types in search box
+   ├─ JavaScript filters listings array (client-side)
+   │  OR
+   ├─ JavaScript sends: GET /listings?search=term&type=ForRent&priceMax=100000
+   ├─ Server filters and returns matching listings
+   └─ Browser re-renders filtered results
+
+OUTPUT
+──────
+├─ Responsive grid of listing cards
+├─ Each card shows:
+│  ├─ Thumbnail image
+│  ├─ Title + description
+│  ├─ ₱Price + Size (sqm)
+│  ├─ Type label
+│  └─ Action buttons (Send Inquiry, View Details)
+├─ Clicking "View Details" → listing-detail.html with full info
+├─ Clicking "Send Inquiry" → inquiry modal pops up
+└─ If no results → "No listings found"
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 6: SEND INQUIRY (Interested Party)
+═══════════════════════════════════════════════════════════════════════════════
+
+INPUT
+─────
+User Form Submission (on listing-detail.html):
+├─ First Name (text)
+├─ Last Name (text)
+├─ Contact Number (phone)
+├─ Email (email)
+├─ Company (text, optional)
+└─ Message (text)
+
+PROCESS
+───────
+1. Browser-side Validation
+   ├─ Check required fields (first name, email, contact, message)
+   └─ Validate email format
+
+2. Send to Server
+   └─ POST /api/inquiries with JSON payload
+
+3. Server-side Processing
+   ├─ Verify listing exists
+   │  └─ SELECT * FROM listings WHERE id = ?
+   ├─ Prevent owner from inquiring on own listing
+   │  └─ Compare sender name/email with listing owner
+   ├─ Insert inquiry row
+   │  └─ INSERT INTO inquiries (listing_id, first_name, last_name, email, contact_number, message, owner_id, created_at)
+   ├─ Increment inquiries counter on listing
+   │  └─ UPDATE listings SET inquiries = inquiries + 1 WHERE id = ?
+   ├─ Fetch listing owner's email
+   ├─ Check owner's notification preferences
+   │  └─ SELECT * FROM notification_preferences WHERE user_id = owner_id
+   ├─ If notifications enabled:
+   │  ├─ Send email to owner: "New inquiry on your listing: [title]"
+   │  └─ Log email in email_logs table
+   └─ Return success response
+
+OUTPUT
+──────
+Success Case:
+├─ HTTP 201 response: "Inquiry sent successfully!"
+├─ Alert/Toast: "Your inquiry has been sent to the listing owner."
+├─ Form clears
+├─ Inquiry saved in database
+├─ Owner receives email notification (if enabled)
+└─ Inquiry appears in owner's inquiries list
+
+Error Cases:
+├─ Listing not found → "Listing not found"
+├─ Owner trying to inquire own listing → "Owner cannot send inquiry to their own listing"
+├─ Missing fields → "[Field name] is required"
+└─ Server error → "Server error"
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 7: ADMIN APPROVE/REJECT LISTINGS
+═══════════════════════════════════════════════════════════════════════════════
+
+INPUT
+─────
+Admin User Action (on admin-dashboard.html):
+├─ View admin dashboard
+├─ Click "Pending" tab (default)
+└─ For each pending listing:
+   ├─ Click "View" button (see details modal)
+   ├─ Click "Approve" button
+   │  OR
+   ├─ Click "Reject" button
+
+PROCESS
+───────
+1. Load Pending Listings
+   ├─ JavaScript calls: GET /admin/listings?status=pending
+   ├─ Server queries: SELECT * FROM listings WHERE status='pending'
+   └─ Browser renders table of pending listings
+
+2. Admin Clicks Approve
+   ├─ JavaScript calls: POST /admin/approve-listing/:id
+   ├─ Server-side Processing:
+   │  ├─ Check req.session.user is authenticated
+   │  ├─ Check role = 'admin'
+   │  ├─ Fetch listing from DB
+   │  ├─ Update listing status
+   │  │  └─ UPDATE listings SET status='approved', approved=TRUE WHERE id=?
+   │  ├─ Optionally send email to owner: "Your listing has been approved!"
+   │  └─ Return success response
+
+3. Admin Clicks Reject
+   ├─ JavaScript calls: POST /admin/listings/:id/reject
+   ├─ Server-side Processing:
+   │  ├─ Check authentication + role = 'admin'
+   │  ├─ Update listing status
+   │  │  └─ UPDATE listings SET status='rejected' WHERE id=?
+   │  ├─ Send email to owner: "Your listing has been rejected."
+   │  └─ Return success response
+
+OUTPUT
+──────
+For Approve:
+├─ HTTP 200 response: success
+├─ Toast notification: "Listing approved successfully!"
+├─ Listing disappears from "Pending" tab
+├─ Listing appears in "Approved Listings" tab
+├─ Listing becomes visible to public (status='approved')
+└─ Owner receives email notification
+
+For Reject:
+├─ HTTP 200 response: success
+├─ Toast notification: "Listing rejected successfully!"
+├─ Listing disappears from "Pending" tab
+├─ Listing appears in "Rejected Listings" tab
+├─ Owner receives email with rejection notice
+└─ Public cannot see listing
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 8: ADMIN DELETE LISTING (with File Cleanup)
+═══════════════════════════════════════════════════════════════════════════════
+
+INPUT
+─────
+Admin User Action (on admin-dashboard.html, Rejected tab):
+└─ Click "Delete" button on rejected listing
+
+PROCESS
+───────
+1. User Confirmation
+   └─ Confirm: "Delete this listing? This cannot be undone."
+
+2. Send to Server
+   └─ DELETE /admin/listings/:id
+
+3. Server-side Processing (Transaction)
+   ├─ BEGIN TRANSACTION
+   ├─ Check authentication + role = 'admin'
+   ├─ Fetch listing details (to get file URLs)
+   │  └─ SELECT * FROM listings WHERE id = ?
+   ├─ Delete related records (transactional)
+   │  ├─ DELETE FROM messages WHERE inquiry_id IN (SELECT id FROM inquiries WHERE listing_id = ?)
+   │  ├─ DELETE FROM inquiries WHERE listing_id = ?
+   │  ├─ DELETE FROM uploads_meta WHERE listing_id = ?
+   │  ├─ DELETE FROM user_listings WHERE listing_id = ?
+   │  └─ DELETE FROM listings WHERE id = ?
+   ├─ COMMIT TRANSACTION
+   ├─ After commit: delete files from disk
+   │  └─ For each file in listing:
+   │     └─ fs.unlink('public/uploads/[filename]')
+   └─ Return success response
+
+OUTPUT
+──────
+Success Case:
+├─ HTTP 204 response (No Content)
+├─ Toast notification: "Listing deleted successfully!"
+├─ Listing disappears from table
+├─ All inquiry threads for this listing deleted
+├─ All uploaded files deleted from disk
+├─ Admin sees updated dashboard
+└─ Database is cleaned up (no orphaned records)
+
+Error Cases:
+├─ Listing not found → "Listing not found"
+├─ Transaction fails → rollback, "Error deleting listing"
+└─ File deletion fails → logged as warning (DB already cleaned)
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 9: REAL-TIME INQUIRY MESSAGING
+═══════════════════════════════════════════════════════════════════════════════
+
+INPUT
+─────
+User Action (on inquiries.html):
+├─ View list of inquiries (owner or inquiry sender)
+├─ Click on inquiry to open conversation
+└─ Type reply message + Click Send
+
+PROCESS
+───────
+1. Load Inquiries
+   ├─ JavaScript calls: GET /api/inquiries
+   ├─ Server checks authentication:
+   │  ├─ If admin → return all inquiries
+   │  └─ If user → return only owner_id matches or sender_user_id matches
+   ├─ Server queries: SELECT * FROM inquiries WHERE owner_id = ? OR sender_user_id = ?
+   └─ Browser renders inquiry threads
+
+2. Open Inquiry (Click on thread)
+   ├─ Fetch messages in thread
+   │  └─ SELECT * FROM messages WHERE inquiry_id = ? ORDER BY created_at
+   ├─ Mark inquiry as read
+   │  └─ UPDATE inquiries SET is_read=TRUE WHERE id = ?
+   └─ Browser renders conversation (older at top, newer at bottom)
+
+3. Send Message
+   ├─ User types message in text box
+   ├─ User clicks "Send"
+   ├─ JavaScript emits Socket.IO event:
+   │  └─ socket.emit('message', { inquiry_id, body, sender_user_id, sender_name, sender_email })
+
+4. Server-side Processing (Socket.IO)
+   ├─ Socket.IO event handler receives message
+   ├─ Validate inquiry exists + sender has permission
+   ├─ Insert message into database
+   │  └─ INSERT INTO messages (inquiry_id, sender_user_id, body, created_at)
+   ├─ Broadcast message to all connected clients in that inquiry
+   │  └─ socket.broadcast.to('inquiry_' + inquiry_id).emit('newMessage', message)
+   └─ Optionally store in Redis cache for quick retrieval
+
+OUTPUT
+──────
+User Sending Message:
+├─ Message appears immediately in their chat (optimistic update)
+├─ Socket.IO broadcasts message to other participant(s)
+├─ Other user(s) receive real-time notification (no page refresh needed)
+├─ Message stored in database
+└─ Both parties see updated conversation
+
+Receiving Message:
+├─ Real-time notification: message pops up in chat
+├─ Audio/visual alert (if enabled)
+├─ Message appears instantly (WebSocket, no polling)
+└─ Marked unread until user opens conversation
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 10: GENERATE ADMIN TOKEN
+═══════════════════════════════════════════════════════════════════════════════
+
+INPUT
+─────
+Admin User Action (on admin-dashboard.html, Quick Actions):
+├─ Click "Generate Admin Token" button
+└─ Optional: Enter token expiry (days)
+
+PROCESS
+───────
+1. Send to Server
+   └─ POST /api/admin/tokens with optional { expires_in_days }
+
+2. Server-side Processing
+   ├─ Check authentication + role = 'admin'
+   ├─ Generate secure random token
+   │  ├─ crypto.randomBytes(20).toString('hex')
+   │  └─ Result: 40-character random string
+   ├─ Calculate expiry (optional)
+   │  └─ If expires_in_days: expiry = NOW() + (days * 24 hours)
+   ├─ Insert token into database
+   │  └─ INSERT INTO admin_tokens (token, created_by, expires_at, used=FALSE, created_at)
+   └─ Return plaintext token in response
+
+OUTPUT
+──────
+├─ HTTP 200 response with token string
+├─ Browser displays token in #adminTokenResult:
+│  ├─ Token string (readable, copyable)
+│  ├─ "Copy" button (copies to clipboard)
+│  └─ Expiry info (if set)
+├─ Admin copies token (Ctrl+C or Copy button)
+├─ Admin shares token with new admin (email, Slack, etc.)
+└─ New admin uses token during registration (see Feature 1)
+
+Security Notes:
+├─ Token is plaintext ONLY at generation
+├─ After page refresh, token is not shown again
+├─ Only one-time use: registration consumes token
+├─ Expired tokens cannot be used
+└─ Server stores token plaintext (recommendation: hash token)
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 11: VIEW ADMIN STATISTICS
+═══════════════════════════════════════════════════════════════════════════════
+
+INPUT
+─────
+Admin User Action:
+└─ Load admin-dashboard.html (page load)
+
+PROCESS
+───────
+1. JavaScript runs on page load
+   └─ Call function: loadAdminStats()
+
+2. Fetch Statistics from Server
+   └─ GET /admin/stats
+
+3. Server-side Processing
+   ├─ Query count of all listings
+   │  └─ SELECT COUNT(*) FROM listings
+   ├─ Query count of pending listings
+   │  └─ SELECT COUNT(*) FROM listings WHERE status='pending'
+   ├─ Query count of approved listings
+   │  └─ SELECT COUNT(*) FROM listings WHERE status='approved'
+   ├─ Query count of registered users
+   │  └─ SELECT COUNT(*) FROM users WHERE role='business'
+   └─ Return JSON: { total, pending, approved, businesses }
+
+OUTPUT
+──────
+├─ Hero stats cards populate with numbers:
+│  ├─ "Active Applications": total count
+│  ├─ "Pending Review": pending count
+│  ├─ "Approved": approved count
+│  └─ "Registered Businesses": user count
+└─ Numbers update dynamically as admin takes actions
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 12: BULK APPROVE/REJECT/DELETE (Multiple Listings)
+═══════════════════════════════════════════════════════════════════════════════
+
+INPUT
+─────
+Admin User Actions:
+├─ Click "Toggle Select" button
+├─ Checkboxes appear next to each listing
+├─ Admin clicks checkboxes to select multiple listings
+├─ Click "Select All Visible" to select all in current view
+├─ OR
+├─ Click "Approve Selected" / "Reject Selected" / "Delete Selected"
+└─ Confirm action (for delete: "Delete X listings?")
+
+PROCESS
+───────
+1. Selection Mode
+   ├─ toggleSelectMode() shows/hides checkboxes
+   ├─ User clicks checkboxes
+   ├─ Selected listing IDs collected
+
+2. Bulk Action Submission
+   ├─ User clicks bulk action button (e.g., "Approve Selected")
+   ├─ JavaScript collects checked IDs: getSelectedIds()
+   ├─ For each ID, make parallel fetch requests:
+   │  ├─ POST /admin/approve-listing/:id
+   │  ├─ POST /admin/listings/:id/reject
+   │  └─ DELETE /admin/listings/:id
+   └─ All requests sent in parallel (Promise.all)
+
+3. Server-side Processing
+   ├─ Each request is processed independently
+   ├─ Same authentication + authorization checks apply per request
+   ├─ Database updates are transactional per listing
+   └─ Responses returned as array
+
+OUTPUT
+──────
+Success:
+├─ Toast: "Bulk [action] completed"
+├─ All selected listings are actioned (approve/reject/delete)
+├─ Checkboxes cleared
+├─ Table refreshes to show updated state
+├─ Stats updated (if delete)
+└─ Selection cleared (selectAllVisible deselects)
+
+Partial Failure:
+├─ Toast: "Bulk [action] completed with N failures"
+├─ Failed items remain (not removed from table)
+├─ User can retry or investigate failures
+└─ Successful items are actioned
+
+═══════════════════════════════════════════════════════════════════════════════
+                          SUMMARY TABLE
+═══════════════════════════════════════════════════════════════════════════════
+
+Feature              INPUT                        PROCESS                 OUTPUT
+─────────────────────────────────────────────────────────────────────────────
+1. Register          Form (name, email, pwd)      Validate, hash pwd      User account created
+                                                  Insert to DB            Session set
+
+2. Login             Form (email, pwd)            Validate creds          Session created
+                                                  Compare hash            User logged in
+
+3. Logout            Click button                 Destroy session         Session cleared
+                                                                          User logged out
+
+4. Submit Listing    Form + files                 Validate, save files    Listing in DB
+                                                  Insert listing          status='pending'
+
+5. Browse Listings   Load page or filter          Query approved listings Listing grid display
+                                                  Render cards
+
+6. Send Inquiry      Form (contact info)          Validate, insert to DB  Inquiry created
+                                                  Send notification       Email sent
+
+7. Approve/Reject    Click approve/reject btn     Update listing status   Status changed
+                                                  Send email              Listing moved
+
+8. Delete Listing    Click delete + confirm       Delete DB records       Records deleted
+                                                  Delete files            Files removed
+
+9. Messaging         Type message, send           Insert message          Message appears
+                                                  Socket.IO broadcast     Real-time update
+
+10. Gen Token        Click button, optional       Generate random         Token displayed
+                     expiry days                  token, insert to DB     Copy button
+
+11. View Stats       Load dashboard               Query counts            Stats displayed
+                                                                          Cards populated
+
+12. Bulk Action      Select multiple,             Loop, parallel requests All selected items
+                     click action                 Update DB               are actioned
+
+═══════════════════════════════════════════════════════════════════════════════
+                          DATA FLOW SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+
+INPUT DEVICES/SOURCES:
+├─ Keyboard (text input)
+├─ Mouse (clicks, form submission)
+├─ File System (file uploads)
+├─ Calendar (optional dates for expiry)
+└─ Clipboard (paste token)
+
+PROCESSING COMPONENTS:
+├─ Browser JavaScript (validation, rendering, API calls)
+├─ Express Server (routing, auth, business logic)
+├─ Database (queries, transactions, constraints)
+├─ Multer (file handling)
+├─ Socket.IO (real-time events)
+├─ bcryptjs (password hashing)
+├─ Email service (SendGrid / Nodemailer)
+└─ File system (uploads, deletions)
+
+OUTPUT DEVICES/DESTINATIONS:
+├─ Browser DOM (HTML rendering)
+├─ HTTP Response (JSON, HTML)
+├─ WebSocket (Socket.IO events)
+├─ Database (stored data)
+├─ Disk (uploaded files)
+├─ Email (notifications)
+├─ Notifications (toasts, alerts)
+└─ Console logs (debugging)
+
+═══════════════════════════════════════════════════════════════════════════════
+END OF IPO DESIGN DOCUMENT
+═══════════════════════════════════════════════════════════════════════════════
