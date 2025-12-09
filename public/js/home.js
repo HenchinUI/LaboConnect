@@ -2,11 +2,36 @@ function downloadGuide(){
   window.open("/assets/docs/LABOCONNECT- INVESTMENT GUIDE 2025.pdf","_blank");
 }
 
+// Helper function to format property type for display
+function formatPropertyType(type) {
+  if (!type) return 'Listing';
+  return type
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 // Open inquiry modal for a specific listing
 function openInquiry(listingId, title) {
   // create modal container
   const existing = document.getElementById('inquiryModal');
   if (existing) existing.remove();
+
+  // Get user data from localStorage if logged in
+  let fullName = '';
+  let email = '';
+  try {
+    const user = JSON.parse(localStorage.getItem('laboCurrentUser'));
+    if (user && user.username) {
+      fullName = user.username.trim();
+    }
+    if (user && user.email) {
+      email = user.email;
+    }
+  } catch (e) {
+    // User not logged in or localStorage error, leave fields empty
+  }
 
   const modal = document.createElement('div');
   modal.id = 'inquiryModal';
@@ -26,12 +51,11 @@ function openInquiry(listingId, title) {
       <div class="muted" style="margin-bottom:12px">Inquiry about: <strong>${(title||'Listing')}</strong></div>
       <form id="inquiryModalForm">
         <div class="form-row">
-          <div class="field"><label>First Name *</label><input name="first_name" required></div>
-          <div class="field"><label>Last Name *</label><input name="last_name" required></div>
+          <div class="field"><label>Full Name *</label><input name="full_name" value="${fullName.replace(/"/g, '&quot;')}" required></div>
+          <div class="field"><label>Email *</label><input name="email" type="email" value="${email.replace(/"/g, '&quot;')}" required></div>
         </div>
         <div class="form-row">
           <div class="field"><label>Contact Number (start with +63) *</label><input name="contact_number" placeholder="+63 912 345 6789" required></div>
-          <div class="field"><label>Email *</label><input name="email" type="email" required></div>
         </div>
         <div class="field"><label>Company / Organization (optional)</label><input name="company"></div>
         <div class="field"><label>Note</label><textarea name="message" rows="4" placeholder="Any additional details or questions"></textarea></div>
@@ -56,8 +80,7 @@ function openInquiry(listingId, title) {
     const fd = new FormData(form);
     const payload = {
       listing_id: listingId,
-      first_name: fd.get('first_name').trim(),
-      last_name: fd.get('last_name').trim(),
+      full_name: fd.get('full_name').trim(),
       contact_number: fd.get('contact_number').trim(),
       email: fd.get('email').trim(),
       company: fd.get('company') ? fd.get('company').trim() : '',
@@ -73,7 +96,7 @@ function openInquiry(listingId, title) {
     }
 
     // basic validation
-    if (!payload.first_name || !payload.last_name || !payload.contact_number || !payload.email) {
+    if (!payload.full_name || !payload.contact_number || !payload.email) {
       alert('Please complete required fields');
       return;
     }
@@ -434,12 +457,17 @@ async function fetchApprovedListings(limit) {
 
       card.innerHTML = `
         <div class="property-photo" aria-hidden="true" ${img}></div>
-        <div class="tags"><span class="tag">${item.type || 'Listing'}</span></div>
+        <div class="tags"><span class="tag">${formatPropertyType(item.type)}</span></div>
         <div class="title">${item.title || 'Untitled'}</div>
         <div class="muted description">${item.description || ''}</div>
         <div class="listing-meta">
           <div class="listing-price">${item.price ? '₱' + item.price : 'Price on request'}</div>
           <div class="listing-stats muted">${item.size ? (item.size + ' sqm') : ''}</div>
+        </div>
+        <div style="font-size: 12px; color: var(--muted); margin: 8px 0; padding: 8px 0; border-top: 1px solid var(--border);">
+          <a href="/components/public-profile.html?id=${item.owner_id}" style="color: var(--accent); text-decoration: none; cursor: pointer;">
+            Posted by ${item.owner_name || 'User'}
+          </a>
         </div>
         <div class="listing-actions">
           <button class="btn btn-primary" onclick="openInquiry(${item.id}, '${(item.title||'Listing').replace(/'/g, "\\'")}')">Send Inquiry</button>

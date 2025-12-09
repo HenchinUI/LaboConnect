@@ -83,13 +83,26 @@ function updateNotifBadge(count){
 async function fetchNotifCountForUser(){
     try {
         // Request count for the authenticated session user; server will enforce authorization
-        const r = await fetch('/api/inquiries/count', { credentials: 'same-origin' });
-        if (!r.ok) {
-            updateNotifBadge(0);
-            return;
+        const [inquiriesRes, notificationsRes] = await Promise.all([
+            fetch('/api/inquiries/count', { credentials: 'same-origin' }),
+            fetch('/api/listing-notifications/count', { credentials: 'same-origin' })
+        ]);
+        
+        let inquiriesCount = 0;
+        let notificationsCount = 0;
+        
+        if (inquiriesRes.ok) {
+            const data = await inquiriesRes.json();
+            inquiriesCount = data.count || 0;
         }
-        const data = await r.json();
-        updateNotifBadge(data.count || 0);
+        
+        if (notificationsRes.ok) {
+            const data = await notificationsRes.json();
+            notificationsCount = data.count || 0;
+        }
+        
+        const totalCount = inquiriesCount + notificationsCount;
+        updateNotifBadge(totalCount);
     } catch (e) {
         console.warn('Notif fetch failed', e);
     }
@@ -245,11 +258,7 @@ function setUserRole(role, user) {
           try {
             ev && ev.preventDefault && ev.preventDefault();
           } catch(e){}
-          try {
-            const stored = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
-            if (stored && stored.role === 'admin') { window.location.href = '/components/admin-dashboard.html'; return; }
-          } catch (e) { /* ignore */ }
-          window.location.href = '/components/business/index.html';
+          window.location.href = '/components/profile.html';
         };
       }
   }

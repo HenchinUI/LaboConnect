@@ -8,6 +8,16 @@ let currentView = 'pending'; // 'pending' | 'approved' | 'rejected'
 let currentListings = [];
 let selectionActive = false;
 
+// Helper function to format property type for display
+function formatPropertyType(type) {
+  if (!type) return 'Listing';
+  return type
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 // ---------------- DOMContentLoaded ----------------
 document.addEventListener('DOMContentLoaded', () => {
   // Inject admin header only if not already loaded (global.js may have loaded it)
@@ -162,7 +172,7 @@ async function loadListings(status = 'pending') {
       ${selectCell}
       <td style="vertical-align:middle">${thumbHtml}</td>
       <td style="vertical-align:middle">${escapeHtml(listing.title)}</td>
-      <td style="vertical-align:middle">${escapeHtml(listing.type)}</td>
+      <td style="vertical-align:middle">${formatPropertyType(listing.type)}</td>
       <td style="vertical-align:middle"><span class="muted">${escapeHtml(listing.status)}</span></td>
       <td style="vertical-align:middle">${new Date(listing.created_at).toLocaleDateString()}</td>
       <td style="vertical-align:middle">${ownerEmail ? `<a href=\"mailto:${escapeHtml(ownerEmail)}\">${escapeHtml(ownerEmail)}</a>` : '-'}</td>
@@ -203,6 +213,12 @@ async function bulkAction(action) {
   const ids = getSelectedIds();
   if (!ids.length) { showToast('No listings selected', true); return; }
 
+  // For rejection, show modal to select reason
+  if (action === 'reject') {
+    openBulkRejectionModal(ids);
+    return;
+  }
+
   // confirm destructive actions
   if (action === 'delete') {
     if (!confirm(`Delete ${ids.length} selected listing(s)? This cannot be undone.`)) return;
@@ -211,7 +227,6 @@ async function bulkAction(action) {
   try {
     const promises = ids.map(id => {
       if (action === 'approve') return fetch(`/admin/approve-listing/${id}`, { method: 'POST' });
-      if (action === 'reject') return fetch(`/admin/listings/${id}/reject`, { method: 'POST' });
       if (action === 'delete') return fetch(`/admin/listings/${id}`, { method: 'DELETE' });
       return Promise.resolve();
     });
@@ -268,7 +283,7 @@ function openAppDetails(id){
     body.innerHTML = `
       <p><strong>Owner:</strong> ${ownerName || '-'}</p>
       <p><strong>Owner Email:</strong> ${ownerEmail ? `<a href="mailto:${escapeHtml(ownerEmail)}">${escapeHtml(ownerEmail)}</a>` : '-'}</p>
-      <p><strong>Type:</strong> ${escapeHtml(app.type)}</p>
+      <p><strong>Type:</strong> ${formatPropertyType(app.type)}</p>
       <p><strong>Status:</strong> ${escapeHtml(app.status)}</p>
       <p><strong>Price:</strong> ${escapeHtml(app.price)}</p>
       <p><strong>Size:</strong> ${escapeHtml(app.size || '-')}</p>
@@ -351,13 +366,16 @@ async function takeAction(id, action) {
   if (!id) return;
 
   try {
+    if (action === 'reject') {
+      // Show rejection modal instead of directly rejecting
+      openRejectionModal(id);
+      return;
+    }
+
     let url, opts = { method: 'POST' };
 
     if (action === 'approve') {
       url = `/admin/approve-listing/${id}`;
-      opts = { method: 'POST' };
-    } else if (action === 'reject') {
-      url = `/admin/listings/${id}/reject`;
       opts = { method: 'POST' };
     } else if (action === 'delete') {
       url = `/admin/listings/${id}`;
@@ -383,6 +401,297 @@ async function takeAction(id, action) {
   } catch (err) {
     console.error('Action error:', err);
     showToast('Server error: ' + err.message, true);
+  }
+}
+
+// Predefined rejection reasons
+const REJECTION_REASONS = [
+  'Incomplete or missing required documents',
+  'Property photos are unclear or missing',
+  'Inaccurate property information',
+  'Pricing appears uncompetitive or suspicious',
+  'Property does not meet listing requirements',
+  'Duplicate listing',
+  'Violates platform terms and conditions',
+  'Custom reason'
+];
+
+// Open rejection modal to select reason
+function openRejectionModal(listingId) {
+  const overlay = document.createElement('div');
+  overlay.id = 'rejectionOverlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+  `;
+
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  `;
+
+  let reasonsHTML = '';
+  REJECTION_REASONS.forEach((reason, idx) => {
+    reasonsHTML += `
+      <label style="display: block; margin-bottom: 12px; cursor: pointer;">
+        <input type="radio" name="rejection_reason" value="${reason}" style="margin-right: 10px;">
+        <span style="font-size: 14px;">${reason}</span>
+      </label>
+    `;
+  });
+
+  modal.innerHTML = `
+    <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 20px;">Reject Listing</h3>
+    <p style="color: #666; margin-bottom: 20px;">Select a reason for rejecting this listing:</p>
+    
+    <div style="margin-bottom: 20px; max-height: 300px; overflow-y: auto;">
+      ${reasonsHTML}
+    </div>
+
+    <div id="customReasonContainer" style="display: none; margin-bottom: 20px;">
+      <textarea 
+        id="customReason" 
+        placeholder="Enter your custom rejection reason..." 
+        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-family: Arial, sans-serif; min-height: 80px; box-sizing: border-box; resize: vertical;"
+      ></textarea>
+    </div>
+
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+      <button class="btn btn-ghost" onclick="closeRejectionModal()" style="padding: 10px 20px;">Cancel</button>
+      <button class="btn btn-danger" id="confirmRejectBtn" style="padding: 10px 20px;">Reject Listing</button>
+    </div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Show custom reason input when "Custom reason" is selected
+  const radios = modal.querySelectorAll('input[name="rejection_reason"]');
+  radios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      const customContainer = document.getElementById('customReasonContainer');
+      if (e.target.value === 'Custom reason') {
+        customContainer.style.display = 'block';
+        document.getElementById('customReason').focus();
+      } else {
+        customContainer.style.display = 'none';
+      }
+    });
+  });
+
+  // Handle rejection confirmation
+  document.getElementById('confirmRejectBtn').addEventListener('click', async () => {
+    const selectedRadio = modal.querySelector('input[name="rejection_reason"]:checked');
+    if (!selectedRadio) {
+      showToast('Please select a reason', true);
+      return;
+    }
+
+    let reason = selectedRadio.value;
+    if (reason === 'Custom reason') {
+      const customText = document.getElementById('customReason').value.trim();
+      if (!customText) {
+        showToast('Please enter a custom reason', true);
+        return;
+      }
+      reason = customText;
+    }
+
+    // Close the modal
+    closeRejectionModal();
+
+    // Perform the rejection API call
+    try {
+      const res = await fetch(`/admin/listings/${listingId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      });
+
+      let data = {};
+      try { data = await res.json(); } catch (e) { }
+
+      if (res.ok) {
+        closeAppModal();
+        await loadListings(currentView);
+        await loadAdminStats();
+        showToast('Listing rejected successfully');
+      } else {
+        showToast(data.error || 'Rejection failed', true);
+      }
+    } catch (err) {
+      console.error('Rejection error:', err);
+      showToast('Server error: ' + err.message, true);
+    }
+  });
+
+  // Close modal when overlay is clicked (outside the modal)
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      closeRejectionModal();
+    }
+  });
+}
+
+// Close rejection modal
+function closeRejectionModal() {
+  const overlay = document.getElementById('rejectionOverlay');
+  if (overlay) {
+    overlay.remove();
+  }
+}
+
+// Open bulk rejection modal for multiple listings
+function openBulkRejectionModal(listingIds) {
+  const overlay = document.createElement('div');
+  overlay.id = 'bulkRejectionOverlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+  `;
+
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  `;
+
+  let reasonsHTML = '';
+  REJECTION_REASONS.forEach((reason, idx) => {
+    reasonsHTML += `
+      <label style="display: block; margin-bottom: 12px; cursor: pointer;">
+        <input type="radio" name="bulk_rejection_reason" value="${reason}" style="margin-right: 10px;">
+        <span style="font-size: 14px;">${reason}</span>
+      </label>
+    `;
+  });
+
+  modal.innerHTML = `
+    <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 20px;">Reject ${listingIds.length} Listing(s)</h3>
+    <p style="color: #666; margin-bottom: 20px;">Select a reason for rejecting these listings:</p>
+    
+    <div style="margin-bottom: 20px; max-height: 300px; overflow-y: auto;">
+      ${reasonsHTML}
+    </div>
+
+    <div id="customBulkReasonContainer" style="display: none; margin-bottom: 20px;">
+      <textarea 
+        id="customBulkReason" 
+        placeholder="Enter your custom rejection reason..." 
+        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-family: Arial, sans-serif; min-height: 80px; box-sizing: border-box; resize: vertical;"
+      ></textarea>
+    </div>
+
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+      <button class="btn btn-ghost" onclick="closeBulkRejectionModal()" style="padding: 10px 20px;">Cancel</button>
+      <button class="btn btn-danger" id="confirmBulkRejectBtn" style="padding: 10px 20px;">Reject All</button>
+    </div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Show custom reason input when "Custom reason" is selected
+  const radios = modal.querySelectorAll('input[name="bulk_rejection_reason"]');
+  radios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      const customContainer = document.getElementById('customBulkReasonContainer');
+      if (e.target.value === 'Custom reason') {
+        customContainer.style.display = 'block';
+        document.getElementById('customBulkReason').focus();
+      } else {
+        customContainer.style.display = 'none';
+      }
+    });
+  });
+
+  // Handle bulk rejection confirmation
+  document.getElementById('confirmBulkRejectBtn').addEventListener('click', async () => {
+    const selectedRadio = modal.querySelector('input[name="bulk_rejection_reason"]:checked');
+    if (!selectedRadio) {
+      showToast('Please select a reason', true);
+      return;
+    }
+
+    let reason = selectedRadio.value;
+    if (reason === 'Custom reason') {
+      const customText = document.getElementById('customBulkReason').value.trim();
+      if (!customText) {
+        showToast('Please enter a custom reason', true);
+        return;
+      }
+      reason = customText;
+    }
+
+    // Close the modal
+    closeBulkRejectionModal();
+
+    // Perform bulk rejection API calls
+    try {
+      const promises = listingIds.map(id =>
+        fetch(`/admin/listings/${id}/reject`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason })
+        })
+      );
+
+      const results = await Promise.all(promises);
+      const failed = results.filter(r => !r.ok).length;
+      
+      if (failed === 0) {
+        showToast(`All ${listingIds.length} listings rejected successfully`);
+      } else {
+        showToast(`${failed} out of ${listingIds.length} rejections failed`, true);
+      }
+
+      clearSelection();
+      await loadListings(currentView);
+      await loadAdminStats();
+    } catch (err) {
+      console.error('Bulk rejection error:', err);
+      showToast('Server error: ' + err.message, true);
+    }
+  });
+
+  // Close modal when overlay is clicked (outside the modal)
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      closeBulkRejectionModal();
+    }
+  });
+}
+
+// Close bulk rejection modal
+function closeBulkRejectionModal() {
+  const overlay = document.getElementById('bulkRejectionOverlay');
+  if (overlay) {
+    overlay.remove();
   }
 }
 
