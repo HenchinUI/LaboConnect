@@ -12,6 +12,15 @@
     <div id="inquiriesContainer" style="margin-top:18px;display:flex;flex-direction:column;gap:12px;">
       <div class="small muted">Loading inquiries...</div>
     </div>
+
+    <!-- Listing Status Notifications Section -->
+    <div style="margin-top: 40px; border-top: 2px solid var(--border); padding-top: 30px;">
+      <h2>Listing Status Notifications</h2>
+      <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Notifications about your submitted listings being approved or rejected</p>
+      <div id="notificationsContainer" style="margin-top:18px;display:flex;flex-direction:column;gap:12px;">
+        <div class="small muted">Loading notifications...</div>
+      </div>
+    </div>
   </main>
 
   <script src="/js/global.js"></script>
@@ -185,9 +194,117 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      // header is loaded by global.js fetch; wait shortly then load inquiries
-      setTimeout(loadInquiries, 250);
+      // header is loaded by global.js fetch; wait shortly then load inquiries and notifications
+      setTimeout(() => {
+        loadInquiries();
+        loadListingNotifications();
+      }, 250);
     });
+
+    // Load listing status notifications
+    async function loadListingNotifications() {
+      const container = document.getElementById('notificationsContainer');
+      container.innerHTML = '<div class="small muted">Loading notifications...</div>';
+      try {
+        const user = JSON.parse(localStorage.getItem('laboCurrentUser'));
+        if (!user) {
+          container.innerHTML = '<div class="small muted">Please log in to view notifications.</div>';
+          return;
+        }
+
+        const res = await fetch('/api/listing-notifications', {
+          credentials: 'same-origin'
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to load notifications');
+        }
+
+        const notifications = await res.json();
+        if (!notifications || notifications.length === 0) {
+          container.innerHTML = '<div class="small muted">No notifications yet.</div>';
+          return;
+        }
+
+        renderNotifications(notifications);
+      } catch (e) {
+        container.innerHTML = '<div class="small muted">Error loading notifications</div>';
+        console.error(e);
+      }
+    }
+
+    // Render listing notifications
+    function renderNotifications(notifications) {
+      const container = document.getElementById('notificationsContainer');
+      container.innerHTML = '';
+
+      notifications.forEach(notif => {
+        const isRejected = notif.status === 'rejected';
+        const icon = isRejected ? '❌' : '✅';
+        const statusColor = isRejected ? '#991b1b' : '#166534';
+        const bgColor = isRejected ? '#fef2f2' : '#f0fdf4';
+        const borderColor = isRejected ? '#dc2626' : '#22c55e';
+
+        const card = document.createElement('div');
+        card.className = 'side-card';
+        card.style.background = bgColor;
+        card.style.borderLeft = `4px solid ${borderColor}`;
+        card.style.display = 'flex';
+        card.style.justifyContent = 'space-between';
+        card.style.alignItems = 'start';
+
+        const left = document.createElement('div');
+        left.style.flex = '1';
+        left.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-weight: 600; color: ${statusColor};">
+            <span style="font-size: 18px;">${icon}</span>
+            <span>Listing ${notif.status.charAt(0).toUpperCase() + notif.status.slice(1)}</span>
+          </div>
+          <p style="margin: 0 0 8px 0; color: var(--text); font-size: 14px; font-weight: 500;">
+            ${notif.listing_title}
+          </p>
+          ${notif.reason ? `
+            <p style="margin: 0 0 8px 0; color: var(--text-muted); font-size: 13px;">
+              <strong>Reason:</strong> ${notif.reason}
+            </p>
+          ` : ''}
+          <p style="margin: 0; color: var(--text-muted); font-size: 12px;">
+            ${new Date(notif.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </p>
+        `;
+
+        const right = document.createElement('div');
+        right.style.display = 'flex';
+        right.style.flexDirection = 'column';
+        right.style.gap = '8px';
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-ghost';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.onclick = async () => {
+          await deleteNotification(notif.id);
+          loadListingNotifications();
+        };
+
+        right.appendChild(deleteBtn);
+
+        card.appendChild(left);
+        card.appendChild(right);
+        container.appendChild(card);
+      });
+    }
+
+    // Delete notification
+    async function deleteNotification(notifId) {
+      try {
+        await fetch(`/api/listing-notifications/${notifId}`, {
+          method: 'DELETE',
+          credentials: 'same-origin'
+        });
+      } catch (e) {
+        console.error('Error deleting notification:', e);
+      }
+    }
   </script>
 </body>
 </html>

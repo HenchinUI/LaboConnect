@@ -19,8 +19,9 @@
         <input id="searchInput" placeholder="Search by title or description" style="flex:1;padding:10px;border-radius:10px;border:1px solid rgba(15,23,42,0.08)">
         <select id="filterType" style="padding:10px;border-radius:10px;border:1px solid rgba(15,23,42,0.08)">
           <option value="">All Types</option>
-          <option value="For Lease">For Lease</option>
-          <option value="For Sale">For Sale</option>
+          <option value="for_sale">For Sale</option>
+          <option value="for_lease">For Lease</option>
+          <option value="for_rent">Property for Rent</option>
         </select>
         <button class="btn btn-primary" id="applyFilters">Apply</button>
         <button class="btn btn-ghost" id="resetFilters">Reset</button>
@@ -37,6 +38,15 @@
   <script src="/js/global.js"></script>
   <script src="/js/home.js"></script>
   <script>
+    function formatPropertyType(type) {
+      if (!type) return 'Listing';
+      return type
+        .replace(/_/g, ' ')
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    }
+
     async function loadAllListings() {
       const grid = document.getElementById('listingsGrid');
       const empty = document.getElementById('listingsEmpty');
@@ -72,7 +82,7 @@
         const img = item.image_url ? `style="background-image:url('${item.image_url}')"` : '';
         card.innerHTML = `
           <div class="property-photo" aria-hidden="true" ${img}></div>
-          <div class="tags"><span class="tag">${item.type || 'Listing'}</span></div>
+          <div class="tags"><span class="tag">${formatPropertyType(item.type)}</span></div>
           <div class="title">${item.title || 'Untitled'}</div>
           <div class="muted description">${item.description || ''}</div>
           <div class="listing-meta">

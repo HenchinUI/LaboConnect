@@ -21,6 +21,15 @@
   <script src="/js/global.js"></script>
   <script src="/js/home.js"></script>
   <script>
+    function formatPropertyType(type) {
+      if (!type) return '';
+      return type
+        .replace(/_/g, ' ')
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    }
+
     function getQueryParam(name) {
       const url = new URL(window.location.href);
       return url.searchParams.get(name);
@@ -54,7 +63,7 @@
             <div style="display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start">
               <div>
                 <h2 style="margin:0 0 8px 0">${item.title || 'Untitled'}</h2>
-                <div class="muted" style="margin-bottom:12px">${item.type || ''} ${item.size_sqm ? ('· ' + item.size_sqm + ' sqm') : ''}</div>
+                <div class="muted" style="margin-bottom:12px">${formatPropertyType(item.type)} ${item.size_sqm ? ('· ' + item.size_sqm + ' sqm') : ''}</div>
                 <div style="font-weight:800;color:var(--accent);font-size:20px;margin-bottom:16px">${item.price || 'Price on request'}</div>
                 <p style="margin:0;line-height:1.6">${item.description || ''}</p>
 
@@ -73,6 +82,7 @@
                   <div class="small muted" style="margin-bottom:12px"><strong>Listed:</strong> ${item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'}</div>
                   <div style="display:flex;flex-direction:column;gap:8px">
                     <button class="btn btn-primary" onclick="openInquiry(${item.id}, '${(item.title||'Listing').replace(/'/g, "\\'")}')">Contact Owner</button>
+                    ${item.owner_id ? `<button class="btn btn-ghost" onclick="window.location.href='/components/public-profile.html?id=${item.owner_id}'">View Profile</button>` : ''}
                     <button class="btn btn-ghost" onclick="window.location.href='/components/map.html?listing=${item.id}'">View on Map</button>
                     ${item.image_url ? `<a class="btn btn-ghost" href="${item.image_url}" target="_blank" style="text-align:center">View Full Image</a>` : ''}
                   </div>

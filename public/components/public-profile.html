@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>User Profile — LaboConnect</title>
+  <link rel="icon" type="image/png" href="/assets/img/Labo-Logo.png" />
+  <link rel="stylesheet" href="../css/global.css" />
+  <style>
+    .profile-container {
+      max-width: 800px;
+      margin: 20px auto;
+      padding: 20px;
+    }
+
+    .profile-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .profile-title h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    .profile-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .profile-section {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border);
+    }
+
+    .profile-section h2 {
+      margin-top: 0;
+      margin-bottom: 16px;
+      font-size: 18px;
+      color: var(--text);
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .field-value {
+      padding: 10px;
+      background: var(--background);
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      word-break: break-word;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 6px;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 200ms ease;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-dark);
+    }
+
+    .profile-stat {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--accent);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--muted);
+    }
+
+    .error-message {
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+
+    @media (max-width: 760px) {
+      .profile-container {
+        margin: 10px;
+        padding: 15px;
+      }
+
+      .profile-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+      }
+
+      .profile-actions {
+        width: 100%;
+      }
+
+      .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- HEADER -->
+  <div id="header-import"></div>
+
+  <!-- MAIN CONTENT -->
+  <main class="profile-container">
+    <div class="profile-header">
+      <div class="profile-title">
+        <h1 id="profileTitle">User Profile</h1>
+      </div>
+      <div class="profile-actions">
+        <button id="contactBtn" class="btn btn-primary" style="display:none;">Send Inquiry</button>
+      </div>
+    </div>
+
+    <!-- Error message -->
+    <div id="errorMessage"></div>
+
+    <!-- Profile Picture Section -->
+    <div class="profile-section" id="pictureSection" style="display: none">
+      <div style="text-align: center;">
+        <div id="profilePicturePreview" 
+             style="width: 140px; height: 140px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); 
+                    display: inline-flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 54px; 
+                    border: 4px solid var(--border); overflow: hidden; margin: 0 auto 20px;">
+          <span id="profileInitials">--</span>
+          <img id="profilePictureImg" src="" style="width: 100%; height: 100%; object-fit: cover; display: none;" alt="Profile picture" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Personal Information Section -->
+    <div class="profile-section" id="infoSection" style="display: none">
+      <h2>About</h2>
+
+      <!-- Full Name -->
+      <div class="field">
+        <label>Full Name</label>
+        <div class="field-value" id="nameDisplay"></div>
+      </div>
+
+      <!-- Contact Number -->
+      <div class="field">
+        <label>Contact Number</label>
+        <div class="field-value" id="contactDisplay">Not provided</div>
+      </div>
+
+      <!-- Bio -->
+      <div class="field">
+        <label>Bio</label>
+        <div class="field-value" id="bioDisplay">No bio added yet</div>
+      </div>
+    </div>
+
+    <!-- Account Stats -->
+    <div class="profile-section" id="statsSection" style="display: none">
+      <h2>Activity</h2>
+      <div class="profile-stat">
+        <div class="stat-item">
+          <div class="stat-value" id="listingsCount">0</div>
+          <div class="stat-label">Listings Posted</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="memberSince">—</div>
+          <div class="stat-label">Member Since</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Listings Section -->
+    <div class="profile-section" id="listingsSection" style="display: none">
+      <h2>Recent Listings</h2>
+      <div id="listingsContainer"></div>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <div id="footer-placeholder"></div>
+
+  <script>
+    (async () => {
+      try {
+        const resp = await fetch("../components/footer.html");
+        if (!resp.ok)
+          throw new Error(`Failed to load footer (status ${resp.status})`);
+        document.getElementById("footer-placeholder").innerHTML =
+          await resp.text();
+      } catch (err) {
+        console.error("Could not load footer:", err);
+      }
+    })();
+  </script>
+
+  <script src="../js/global.js"></script>
+  <script src="../js/public-profile.js"></script>
+</body>
+</html>

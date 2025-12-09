@@ -203,9 +203,65 @@
 
         /* Responsive */
         @media (max-width: 900px) {
-            .dashboard-container { grid-template-columns: 1fr; height: auto; display: block; }
-            .sidebar { height: auto; max-height: 50vh; border-right: none; border-bottom: 1px solid #eee; }
-            .map-wrapper { height: 60vh; }
+            .dashboard-container { 
+                grid-template-columns: 1fr; 
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+            }
+            .sidebar { 
+                height: 0;
+                max-height: 0;
+                border-right: none; 
+                border-bottom: 1px solid #eee;
+                overflow: hidden;
+                transition: max-height 0.3s ease-in-out, height 0.3s ease-in-out;
+                padding: 0;
+                gap: 0;
+            }
+            .sidebar.open {
+                height: auto;
+                max-height: 60vh;
+                padding: 20px;
+                gap: 24px;
+                overflow-y: auto;
+            }
+            .map-wrapper { 
+                height: 100vh;
+                flex: 1;
+            }
+            
+            /* Toggle Button */
+            .sidebar-toggle {
+                position: fixed;
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: white;
+                border: 2px solid var(--primary);
+                color: var(--primary);
+                width: 50px;
+                height: 50px;
+                border-radius: 50%;
+                cursor: pointer;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                font-size: 24px;
+                box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+                z-index: 15;
+                transition: all 0.3s ease;
+            }
+            
+            .sidebar-toggle:hover {
+                background: var(--primary);
+                color: white;
+                transform: translateX(-50%) scale(1.1);
+            }
+            
+            .sidebar-toggle.show {
+                display: flex;
+            }
         }
     </style>
 </head>
@@ -559,6 +615,47 @@
                 console.error('Error loading specific listing:', err);
             }
         }
+
+        // Mobile sidebar toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.querySelector('.sidebar');
+            const toggleBtn = document.getElementById('sidebarToggle');
+            const isMobile = window.innerWidth <= 900;
+
+            // Only show toggle on mobile
+            if (isMobile) {
+                toggleBtn.classList.add('show');
+            }
+
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function() {
+                    sidebar.classList.toggle('open');
+                    
+                    // Change arrow direction
+                    if (sidebar.classList.contains('open')) {
+                        toggleBtn.textContent = '⬆️';
+                        toggleBtn.title = 'Hide menu';
+                    } else {
+                        toggleBtn.textContent = '⬇️';
+                        toggleBtn.title = 'Show menu';
+                    }
+                });
+            }
+
+            // Handle window resize
+            window.addEventListener('resize', function() {
+                const isNowMobile = window.innerWidth <= 900;
+                if (isNowMobile && !toggleBtn.classList.contains('show')) {
+                    toggleBtn.classList.add('show');
+                } else if (!isNowMobile && toggleBtn.classList.contains('show')) {
+                    toggleBtn.classList.remove('show');
+                    sidebar.classList.remove('open');
+                }
+            });
+        });
     </script>
+
+    <!-- Mobile Sidebar Toggle Button -->
+    <button id="sidebarToggle" class="sidebar-toggle" title="Show menu">⬇️</button>
 </body>
 </html>

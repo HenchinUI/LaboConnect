@@ -211,24 +211,33 @@
     max-width:720px;
     background:var(--card);
     border-radius:12px;
-    padding:22px;
+    padding:28px;
     box-shadow:0 10px 40px rgba(2,6,23,0.2);
+    max-height:90vh;
+    overflow-y:auto;
   }
-  .modal h3{ margin:0 0 8px 0; font-size:18px }
-  .modal p{ margin:0 0 14px 0; color:var(--muted) }
-  .form-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px }
+  .modal h3{ margin:0 0 8px 0; font-size:22px; font-weight:700; }
+  .modal p{ margin:0 0 24px 0; color:var(--muted); font-size:14px; }
+  .form-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px }
   .form-row.col{ grid-template-columns:1fr; }
-  label{ display:block; font-size:13px; color:#0f172a; margin-bottom:6px; font-weight:600 }
+  label{ display:block; font-size:13px; color:#0f172a; margin-bottom:8px; font-weight:600; }
   input[type="text"], input[type="email"], textarea, select{
     width:100%;
-    padding:10px 12px;
+    padding:12px;
     border-radius:8px;
     border:1px solid rgba(15,23,42,0.12);
     background:#fbfdfb;
     font-size:14px;
+    transition:0.2s;
+  }
+  input[type="text"]:focus, input[type="email"]:focus, textarea:focus, select:focus{
+    outline:none;
+    border-color:#15703a;
+    background:#fff;
+    box-shadow:0 0 0 3px rgba(21,112,58,0.1);
   }
   textarea{ min-height:96px; resize:vertical }
-  .modal-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:12px }
+  .modal-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:24px; padding-top:20px; border-top:1px solid rgba(15,23,42,0.1); }
   .meta-file{ font-size:13px; color:var(--muted); padding:8px 12px; background:#f7faf7; border-radius:8px; border:1px dashed rgba(15,23,42,0.06) }
 
   /* Responsive */
@@ -264,6 +273,7 @@
       </div>
 
       <div class="header-right">
+        <button class="btn primary" id="editDataBtn" style="display:none;" onclick="openEditModal()">Edit Data</button>
         <button class="btn primary" onclick="downloadDummy()">Download</button>
         <!-- Upload controls removed for this page -->
         <div id="fileName" class="file-info" aria-live="polite"></div>
@@ -272,25 +282,25 @@
 
     <!-- STATS -->
     <div class="stats">
-      <div class="stat-card">
+      <div class="stat-card" id="stat-population">
         <div class="stat-header"><span>Population</span><span>👥</span></div>
         <div class="stat-value">108,319</div>
         <div class="stat-sub">-0.20 from 2020</div>
       </div>
 
-      <div class="stat-card">
+      <div class="stat-card" id="stat-land-area">
         <div class="stat-header"><span>Aggregated Land Area</span><span>📍</span></div>
         <div class="stat-value">648.8 km²</div>
         <div class="stat-sub">65% Agricultural, 25% Residential, 10% Commercial</div>
       </div>
 
-      <div class="stat-card">
+      <div class="stat-card" id="stat-businesses">
         <div class="stat-header"><span>Registered Businesses</span><span>🏢</span></div>
         <div class="stat-value">905</div>
         <div class="stat-sub">0.78% increase</div>
       </div>
 
-      <div class="stat-card">
+      <div class="stat-card" id="stat-gross-income">
         <div class="stat-header"><span>Gross Income</span><span>💰</span></div>
         <div class="stat-value">₱2,175,205,198.94</div>
         <div class="stat-sub">New and renewal</div>
@@ -300,16 +310,26 @@
     <!-- CHARTS -->
     <div class="charts">
       <div class="chart-card">
-        <h3 class="chart-title">Population Growth Trend</h3>
-        <p class="chart-sub">5-year population growth data</p>
+        <div style="display: flex; justify-content: space-between; align-items: start;">
+          <div>
+            <h3 class="chart-title">Population Growth Trend</h3>
+            <p class="chart-sub">5-year population growth data</p>
+          </div>
+          <button class="btn small primary" id="editPopChartBtn" style="display:none;" onclick="openPopulationChartModal()">Edit</button>
+        </div>
         <div class="chart-wrapper">
           <canvas id="popChart"></canvas>
         </div>
       </div>
 
       <div class="chart-card">
-        <h3 class="chart-title">Business Distribution by Sector</h3>
-        <p class="chart-sub">Percentage of businesses by industry</p>
+        <div style="display: flex; justify-content: space-between; align-items: start;">
+          <div>
+            <h3 class="chart-title">Business Distribution by Sector</h3>
+            <p class="chart-sub">Percentage of businesses by industry</p>
+          </div>
+          <button class="btn small primary" id="editBizChartBtn" style="display:none;" onclick="openBusinessChartModal()">Edit</button>
+        </div>
         <div class="chart-wrapper">
           <canvas id="bizChart"></canvas>
         </div>
@@ -331,13 +351,450 @@
 
   <!-- CHART SCRIPTS + UPLOAD HANDLER -->
   <script>
+    let economicDataCache = {};
+    let isAdminUser = false;
+    let popChartData = [101000,109000,108000,0,0];
+    let bizChartData = [35,28,15,12,10];
+    let bizLabels = ['Retail','Agriculture','Manufacturing','Services','Tourism'];
+    let popChartInstance = null;
+    let bizChartInstance = null;
+
+    // Check if user is admin
+    async function checkAdminStatus() {
+      try {
+        const res = await fetch('/api/session', { credentials: 'same-origin' });
+        if (res.ok) {
+          const data = await res.json();
+          isAdminUser = data.authenticated && data.user && data.user.role === 'admin';
+          const editBtn = document.getElementById('editDataBtn');
+          const editPopBtn = document.getElementById('editPopChartBtn');
+          const editBizBtn = document.getElementById('editBizChartBtn');
+          if (editBtn && isAdminUser) editBtn.style.display = '';
+          if (editPopBtn && isAdminUser) editPopBtn.style.display = '';
+          if (editBizBtn && isAdminUser) editBizBtn.style.display = '';
+        }
+      } catch (err) {
+        console.error('Error checking admin status:', err);
+      }
+    }
+
+    // Load economic data from API
+    async function loadEconomicData() {
+      try {
+        const res = await fetch('/api/economic-data');
+        if (res.ok) {
+          const data = await res.json();
+          economicDataCache = {};
+          data.forEach(item => {
+            economicDataCache[item.key] = item;
+          });
+          
+          // Load chart data from database
+          if (economicDataCache['population_data'] && economicDataCache['population_data'].value) {
+            try {
+              popChartData = JSON.parse(economicDataCache['population_data'].value);
+            } catch (e) {
+              console.warn('Could not parse population data:', e);
+            }
+          }
+          
+          if (economicDataCache['business_distribution'] && economicDataCache['business_distribution'].value) {
+            try {
+              bizChartData = JSON.parse(economicDataCache['business_distribution'].value);
+            } catch (e) {
+              console.warn('Could not parse business data:', e);
+            }
+          }
+          
+          updateStatCards();
+          
+          // Update charts with loaded data
+          if (popChartInstance) {
+            popChartInstance.data.datasets[0].data = popChartData;
+            popChartInstance.update();
+          }
+          
+          if (bizChartInstance) {
+            bizChartInstance.data.datasets[0].data = bizChartData;
+            bizChartInstance.update();
+          }
+        }
+      } catch (err) {
+        console.error('Error loading economic data:', err);
+      }
+    }
+
+    // Update stat cards with loaded data
+    function updateStatCards() {
+      const stats = [
+        { id: 'population', valueKey: 'population', subKey: 'population_change' },
+        { id: 'land-area', valueKey: 'land_area', subKey: 'land_breakdown' },
+        { id: 'businesses', valueKey: 'businesses', subKey: 'business_change' },
+        { id: 'gross-income', valueKey: 'gross_income', subKey: 'income_note' }
+      ];
+
+      stats.forEach(stat => {
+        const card = document.getElementById(`stat-${stat.id}`);
+        if (card && economicDataCache[stat.valueKey]) {
+          const valueEl = card.querySelector('.stat-value');
+          const subEl = card.querySelector('.stat-sub');
+          if (valueEl) valueEl.textContent = economicDataCache[stat.valueKey].value;
+          if (subEl && economicDataCache[stat.subKey]) {
+            subEl.textContent = economicDataCache[stat.subKey].value;
+          }
+        }
+      });
+    }
+
+    // Open edit modal
+    function openEditModal() {
+      const overlay = document.getElementById('editOverlay');
+      if (!overlay) {
+        createEditModal();
+      }
+      document.getElementById('editOverlay').classList.add('open');
+    }
+
+    // Close edit modal
+    function closeEditModal() {
+      const overlay = document.getElementById('editOverlay');
+      if (overlay) overlay.classList.remove('open');
+    }
+
+    // Open population chart edit modal
+    function openPopulationChartModal() {
+      const container = document.body;
+      const overlay = document.createElement('div');
+      overlay.id = 'popChartOverlay';
+      overlay.className = 'overlay open';
+      overlay.innerHTML = `
+        <div class="modal">
+          <h3>Edit Population Growth Trend</h3>
+          <p>Update population data for each year</p>
+          
+          <form id="popChartForm">
+            <div style="margin-bottom: 20px; padding: 16px; background: #f7faf7; border-radius: 8px;">
+              <p style="margin: 0 0 16px 0; font-size: 13px; color: var(--muted);">Select a year and enter the population value</p>
+              
+              <div id="popChartInputs"></div>
+            </div>
+
+            <div class="modal-actions">
+              <button type="button" class="btn outline" onclick="closePopulationChartModal()">Cancel</button>
+              <button type="submit" class="btn primary">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      `;
+      container.appendChild(overlay);
+
+      // Populate inputs
+      const years = ['2015', '2020', '2024', '2025', '2026'];
+      const inputsContainer = document.getElementById('popChartInputs');
+      inputsContainer.innerHTML = years.map((year, idx) => `
+        <div class="form-row col" style="margin-bottom: 12px;">
+          <div>
+            <label>${year}</label>
+            <input type="number" id="pop_${year}" placeholder="Enter population" value="${popChartData[idx]}">
+          </div>
+        </div>
+      `).join('');
+
+      // Handle form submission
+      document.getElementById('popChartForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        years.forEach((year, idx) => {
+          const val = parseInt(document.getElementById(`pop_${year}`).value) || 0;
+          popChartData[idx] = val;
+        });
+        popChartInstance.data.datasets[0].data = popChartData;
+        popChartInstance.update();
+
+        // Save to database
+        try {
+          const res = await fetch('/api/economic-data/population_data', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ 
+              value: JSON.stringify(popChartData),
+              label: 'Population Growth Trend',
+              icon: '📊'
+            })
+          });
+
+          if (!res.ok) {
+            console.error('Failed to save population data');
+            alert('Failed to save population data to database');
+          }
+        } catch (err) {
+          console.error('Error saving population data:', err);
+          alert('Error saving population data');
+        }
+
+        closePopulationChartModal();
+      });
+
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closePopulationChartModal();
+      });
+    }
+
+    function closePopulationChartModal() {
+      const overlay = document.getElementById('popChartOverlay');
+      if (overlay) overlay.remove();
+    }
+
+    // Open business chart edit modal
+    function openBusinessChartModal() {
+      const container = document.body;
+      const overlay = document.createElement('div');
+      overlay.id = 'bizChartOverlay';
+      overlay.className = 'overlay open';
+      overlay.innerHTML = `
+        <div class="modal">
+          <h3>Edit Business Distribution by Sector</h3>
+          <p>Update the percentage of businesses for each industry</p>
+          
+          <form id="bizChartForm">
+            <div style="margin-bottom: 20px; padding: 16px; background: #f7faf7; border-radius: 8px;">
+              <p style="margin: 0 0 16px 0; font-size: 13px; color: var(--muted);">Enter percentage (%) for each industry</p>
+              
+              <div id="bizChartInputs"></div>
+            </div>
+
+            <div class="modal-actions">
+              <button type="button" class="btn outline" onclick="closeBusinessChartModal()">Cancel</button>
+              <button type="submit" class="btn primary">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      `;
+      container.appendChild(overlay);
+
+      // Populate inputs
+      const inputsContainer = document.getElementById('bizChartInputs');
+      inputsContainer.innerHTML = bizLabels.map((label, idx) => `
+        <div class="form-row col" style="margin-bottom: 12px;">
+          <div>
+            <label>${label}</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="number" id="biz_${label}" placeholder="Enter percentage" value="${bizChartData[idx]}" min="0" max="100">
+              <span style="font-size: 14px; font-weight: 600; color: var(--muted);">%</span>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      // Handle form submission
+      document.getElementById('bizChartForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        bizLabels.forEach((label, idx) => {
+          const val = parseInt(document.getElementById(`biz_${label}`).value) || 0;
+          bizChartData[idx] = val;
+        });
+        bizChartInstance.data.datasets[0].data = bizChartData;
+        bizChartInstance.update();
+
+        // Save to database
+        try {
+          const res = await fetch('/api/economic-data/business_distribution', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ 
+              value: JSON.stringify(bizChartData),
+              label: 'Business Distribution by Sector',
+              icon: '🏢'
+            })
+          });
+
+          if (!res.ok) {
+            console.error('Failed to save business data');
+            alert('Failed to save business data to database');
+          }
+        } catch (err) {
+          console.error('Error saving business data:', err);
+          alert('Error saving business data');
+        }
+
+        closeBusinessChartModal();
+      });
+
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeBusinessChartModal();
+      });
+    }
+
+    function closeBusinessChartModal() {
+      const overlay = document.getElementById('bizChartOverlay');
+      if (overlay) overlay.remove();
+    }
+
+    // Create edit modal
+    function createEditModal() {
+      const container = document.body;
+      const overlay = document.createElement('div');
+      overlay.id = 'editOverlay';
+      overlay.className = 'overlay';
+      overlay.innerHTML = `
+        <div class="modal">
+          <h3>Edit Economic Data</h3>
+          <p>Update economic statistics for Labo Municipality</p>
+          
+          <form id="editForm">
+            <!-- Population Section -->
+            <div style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid rgba(15,23,42,0.1);">
+              <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 700; color: #0f172a;">👥 Population</h4>
+              <div class="form-row">
+                <div>
+                  <label>Current Population</label>
+                  <input type="text" id="edit_population" placeholder="e.g., 108,319">
+                </div>
+                <div>
+                  <label>Change from 2020</label>
+                  <input type="text" id="edit_population_change" placeholder="e.g., -0.20">
+                </div>
+              </div>
+            </div>
+
+            <!-- Land Area Section -->
+            <div style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid rgba(15,23,42,0.1);">
+              <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 700; color: #0f172a;">📍 Land Area</h4>
+              <div class="form-row col">
+                <div>
+                  <label>Total Land Area (with unit)</label>
+                  <input type="text" id="edit_land_area" placeholder="e.g., 648.8 km²">
+                </div>
+              </div>
+              <div class="form-row col">
+                <div>
+                  <label>Land Distribution by Type</label>
+                  <input type="text" id="edit_land_breakdown" placeholder="e.g., 65% Agricultural, 25% Residential, 10% Commercial">
+                </div>
+              </div>
+            </div>
+
+            <!-- Business Section -->
+            <div style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid rgba(15,23,42,0.1);">
+              <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 700; color: #0f172a;">🏢 Businesses</h4>
+              <div class="form-row">
+                <div>
+                  <label>Total Registered Businesses</label>
+                  <input type="text" id="edit_businesses" placeholder="e.g., 905">
+                </div>
+                <div>
+                  <label>Growth Rate</label>
+                  <input type="text" id="edit_business_change" placeholder="e.g., 0.78% increase">
+                </div>
+              </div>
+            </div>
+
+            <!-- Gross Income Section -->
+            <div style="margin-bottom: 24px;">
+              <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 700; color: #0f172a;">💰 Gross Income</h4>
+              <div class="form-row col">
+                <div>
+                  <label>Annual Gross Income</label>
+                  <input type="text" id="edit_gross_income" placeholder="e.g., ₱2,175,205,198.94">
+                </div>
+              </div>
+              <div class="form-row col">
+                <div>
+                  <label>Income Classification</label>
+                  <input type="text" id="edit_income_note" placeholder="e.g., New and renewal" style="font-size: 13px;">
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-actions">
+              <button type="button" class="btn outline" onclick="closeEditModal()">Cancel</button>
+              <button type="submit" class="btn primary">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      `;
+      container.appendChild(overlay);
+
+      // Close overlay when clicking outside modal
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeEditModal();
+      });
+
+      // Handle form submission
+      document.getElementById('editForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await saveEconomicData();
+      });
+
+      // Populate form with current data
+      populateEditForm();
+    }
+
+    // Populate edit form
+    function populateEditForm() {
+      const fields = [
+        'population', 'population_change', 'land_area', 'land_breakdown',
+        'businesses', 'business_change', 'gross_income', 'income_note'
+      ];
+
+      fields.forEach(field => {
+        const input = document.getElementById(`edit_${field}`);
+        if (input && economicDataCache[field]) {
+          input.value = economicDataCache[field].value;
+        }
+      });
+    }
+
+    // Save economic data
+    async function saveEconomicData() {
+      const fields = [
+        'population', 'population_change', 'land_area', 'land_breakdown',
+        'businesses', 'business_change', 'gross_income', 'income_note'
+      ];
+
+      try {
+        for (const field of fields) {
+          const input = document.getElementById(`edit_${field}`);
+          if (input) {
+            const value = input.value.trim();
+            if (value) {
+              const res = await fetch(`/api/economic-data/${field}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ value, label: field, icon: '' })
+              });
+
+              if (!res.ok) {
+                throw new Error(`Failed to update ${field}`);
+              }
+            }
+          }
+        }
+
+        alert('Economic data updated successfully!');
+        closeEditModal();
+        await loadEconomicData();
+      } catch (err) {
+        console.error('Error saving economic data:', err);
+        alert('Error updating economic data');
+      }
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      checkAdminStatus();
+      loadEconomicData();
+    });
+
     // POPULATION BAR CHART
-    new Chart(document.getElementById("popChart"), {
+    popChartInstance = new Chart(document.getElementById("popChart"), {
       type: "bar",
       data: {
         labels: ['2015','2020','2024','2025','2026'],
         datasets: [{
-          data: [101000,109000,108000,0,0],
+          data: popChartData,
           backgroundColor:'#123b1c',
           borderRadius:6,
           barPercentage:0.55
@@ -353,13 +810,13 @@
     });
 
     // BUSINESS PIE CHART — improved styling
-    new Chart(document.getElementById("bizChart"), {
+    bizChartInstance = new Chart(document.getElementById("bizChart"), {
       type:"doughnut",
       plugins:[ChartDataLabels],
       data:{
-        labels:['Retail','Agriculture','Manufacturing','Services','Tourism'],
+        labels: bizLabels,
         datasets:[{
-          data:[35,28,15,12,10],
+          data: bizChartData,
           borderWidth:2,
           borderColor:'#fff',
           backgroundColor:[
