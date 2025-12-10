@@ -196,6 +196,67 @@
             font-size: 1.1rem;
             color: var(--text-dark);
         }
+
+        /* SEARCHABLE SELECT STYLING */
+        .searchable-select-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .searchable-select-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            margin-bottom: 12px;
+            background-color: #f9fafb;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+
+        .searchable-select-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background-color: #fff;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .searchable-select-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            z-index: 100;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .searchable-select-dropdown.open {
+            display: block;
+        }
+
+        .searchable-select-option {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .searchable-select-option:hover {
+            background-color: #f3f4f6;
+        }
+
+        .searchable-select-option.selected {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--primary);
+            font-weight: 600;
+        }
         
         /* SCROLLBAR Styling */
         .sidebar::-webkit-scrollbar { width: 6px; }
@@ -301,8 +362,8 @@
                 </div>
             </div>
 
-            <div class="sidebar-section">
-                <div class="section-title">Manual / Add New</div>
+            <div class="sidebar-section" id="adminLocationSection" style="display: none;">
+                <div class="section-title">Manual / Add New (Admin)</div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     <div style="grid-column: span 2;">
                         <input type="text" id="titleInput" placeholder="Business Name / Title">
@@ -319,8 +380,10 @@
                 </div>
                 <div class="btn-group">
                     <button type="button" id="updateMapBtn" class="btn btn-secondary">Preview on Map</button>
-                    <button type="button" id="addLocationBtn" class="btn btn-primary">Save to DB</button>
+                    <button type="button" id="addLocationBtn" class="btn btn-primary">Save Location</button>
+                    <button type="button" id="deleteLocationBtn" class="btn btn-danger" style="background: #dc2626;">Delete Location</button>
                 </div>
+                <div id="adminNote" class="small muted" style="margin-top: 8px; font-size: 0.85rem; color: #666;">⚠️ Admin-only section</div>
             </div>
 
             <div class="sidebar-section">
@@ -358,6 +421,100 @@
         let allLocations = [];
         let leafletMap = null;
         let currentMarker = null;
+        let isAdminUser = false;
+
+        // Check if user is admin
+        async function checkAdminStatus() {
+            try {
+                const res = await fetch('/api/session', { credentials: 'same-origin' });
+                if (res.ok) {
+                    const data = await res.json();
+                    isAdminUser = data.authenticated && data.user && data.user.role === 'admin';
+                    
+                    // Show admin section only for admins
+                    const adminSection = document.getElementById('adminLocationSection');
+                    if (adminSection) {
+                        adminSection.style.display = isAdminUser ? 'block' : 'none';
+                    }
+                }
+            } catch (err) {
+                console.error('Error checking admin status:', err);
+            }
+        }
+
+        // Searchable Select Helper Functions
+        function makeSelectSearchable(selectId) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+
+            select.style.display = 'none';
+            
+            const wrapper = document.createElement('div');
+            wrapper.className = 'searchable-select-wrapper';
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'searchable-select-input';
+            input.placeholder = 'Search...';
+            
+            const dropdown = document.createElement('div');
+            dropdown.className = 'searchable-select-dropdown';
+            
+            // Store select data
+            wrapper.dataset.selectId = selectId;
+            wrapper.dataset.selectedValue = '';
+            
+            select.parentNode.insertBefore(wrapper, select);
+            wrapper.appendChild(input);
+            wrapper.appendChild(dropdown);
+            wrapper.appendChild(select);
+            
+            // Populate dropdown
+            function updateDropdown() {
+                dropdown.innerHTML = '';
+                const searchTerm = input.value.toLowerCase();
+                let count = 0;
+                
+                Array.from(select.options).forEach(option => {
+                    if (option.value === '') return;
+                    
+                    if (option.text.toLowerCase().includes(searchTerm)) {
+                        const div = document.createElement('div');
+                        div.className = 'searchable-select-option';
+                        div.textContent = option.text;
+                        div.dataset.value = option.value;
+                        
+                        if (option.value === wrapper.dataset.selectedValue) {
+                            div.classList.add('selected');
+                            input.value = option.text;
+                        }
+                        
+                        div.addEventListener('click', () => {
+                            select.value = option.value;
+                            wrapper.dataset.selectedValue = option.value;
+                            input.value = option.text;
+                            dropdown.classList.remove('open');
+                        });
+                        
+                        dropdown.appendChild(div);
+                        count++;
+                    }
+                });
+            }
+            
+            input.addEventListener('focus', () => {
+                dropdown.classList.add('open');
+                updateDropdown();
+            });
+            
+            input.addEventListener('input', updateDropdown);
+            
+            document.addEventListener('click', (e) => {
+                if (!wrapper.contains(e.target)) {
+                    dropdown.classList.remove('open');
+                }
+            });
+        }
 
         // Initialize Leaflet Map
         function initializeLeafletMap() {
@@ -404,7 +561,7 @@
         }
 
         // Add or update marker on map
-        function addMarkerToMap(latitude, longitude, businessName) {
+        function addMarkerToMap(latitude, longitude, businessName, imageUrl = null) {
             const lat = parseFloat(latitude);
             const lng = parseFloat(longitude);
 
@@ -418,8 +575,14 @@
                 leafletMap.removeLayer(currentMarker);
             }
 
-            // Create popup content
-            const popupContent = `<div style="text-align: center; min-width: 150px;">
+            // Create popup content with optional image
+            let popupContent = `<div style="text-align: center; min-width: 200px;">`;
+            
+            if (imageUrl) {
+                popupContent += `<img src="${imageUrl}" style="max-width: 100%; max-height: 150px; border-radius: 6px; margin-bottom: 8px;">`;
+            }
+            
+            popupContent += `
                 <strong>${businessName}</strong>
                 <p style="margin: 5px 0; font-size: 0.85rem; color: #666;">
                     ${lat.toFixed(4)}, ${lng.toFixed(4)}
@@ -559,6 +722,53 @@
             }
         });
 
+        // Delete Location
+        document.getElementById('deleteLocationBtn')?.addEventListener('click', async () => {
+            const title = document.getElementById('titleInput').value;
+            
+            if (!title) {
+                alert('Please select or enter a location to delete');
+                return;
+            }
+
+            if (!confirm(`Delete location "${title}"? This action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                // Find location by title from loaded locations
+                const location = allLocations.find(loc => loc.title === title);
+                
+                if (!location) {
+                    alert('Location not found in database');
+                    return;
+                }
+
+                const response = await fetch(`/api/locations/${location.id}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    alert(`Error: ${data.error}`);
+                    return;
+                }
+
+                alert('Location deleted successfully!');
+                document.getElementById('titleInput').value = '';
+                document.getElementById('latitudeInput').value = '';
+                document.getElementById('longitudeInput').value = '';
+                document.getElementById('typeInput').value = '';
+                loadLocations();
+
+            } catch (error) {
+                console.error("Error deleting location:", error);
+                alert('Failed to delete location');
+            }
+        });
+
         // Load Locations for List
         async function loadLocations() {
             try {
@@ -570,7 +780,8 @@
                 const listingsContainer = document.getElementById('recentListings');
                 listingsContainer.innerHTML = '';
 
-                locations.forEach((location, index) => {
+                // Limit to 5 items
+                locations.slice(0, 5).forEach((location, index) => {
                     // Changed styling to class-based in CSS
                     const listItem = document.createElement('div');
                     listItem.className = 'result-card'; 
@@ -605,7 +816,8 @@
                 const dropdown = document.getElementById('approvedListingDropdown');
                 dropdown.innerHTML = '<option value="">-- Select an approved listing --</option>';
 
-                listings.forEach((item) => {
+                // Limit to 5 items
+                listings.slice(0, 5).forEach((item) => {
                     if (item.latitude == null || item.longitude == null) return;
 
                     // Changed styling to class-based in CSS
@@ -646,14 +858,21 @@
             }
 
             if (location.latitude != null && location.longitude != null) {
-                addMarkerToMap(location.latitude, location.longitude, location.title || 'Location');
+                addMarkerToMap(location.latitude, location.longitude, location.title || 'Location', location.image_url || null);
             }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            checkAdminStatus();
             initializeLeafletMap();
             loadLocations();
             loadApprovedListings();
+            
+            // Make selects searchable
+            setTimeout(() => {
+                makeSelectSearchable('locationDropdown');
+                makeSelectSearchable('approvedListingDropdown');
+            }, 100);
             
             // Check for listing query parameter and show it first
             const urlParams = new URLSearchParams(window.location.search);

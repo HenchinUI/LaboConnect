@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Close on Escape key
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && imagePreviewModal.style.display === 'flex') {
+      if (e.key === 'Escape' && imagePreviewModal.classList.contains('open')) {
         closeImagePreview();
       }
     });
@@ -338,7 +338,7 @@ function openAppDetails(id){
         previewModal.addEventListener("click", (e) => { 
           // Only close if clicking on the modal background, not the image
           if (e.target === previewModal) {
-            previewModal.style.display = "none";
+            closeImagePreview();
           }
         });
         previewModal._listenerAttached = true;
@@ -379,7 +379,8 @@ function openImagePreview(url) {
     const previewImg = document.getElementById('imagePreview');
     if (!previewModal || !previewImg) return;
     previewImg.src = url;
-    previewModal.style.display = 'flex';
+    previewModal.classList.add('open');
+    previewModal.setAttribute('aria-hidden', 'false');
   } catch (e) { console.warn('Preview open failed', e); }
 }
 
@@ -387,7 +388,8 @@ function openImagePreview(url) {
 function closeImagePreview() {
   const previewModal = document.getElementById('imagePreviewModal');
   if (previewModal) {
-    previewModal.style.display = 'none';
+    previewModal.classList.remove('open');
+    previewModal.setAttribute('aria-hidden', 'true');
   }
 }
 
