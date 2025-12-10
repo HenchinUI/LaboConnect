@@ -1770,6 +1770,12 @@ app.post("/admin/listings/:id/reject", async (req, res) => {
 });
 
 app.get("/admin/listings", async (req, res) => {
+  // Require admin authentication
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser || sessionUser.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
   // Supports optional ?status=pending|approved|rejected to filter results
   try {
     const status = req.query.status;
@@ -1795,6 +1801,12 @@ app.get("/admin/listings", async (req, res) => {
 
 // Fallback route for /admin/listings/:status (kept for compatibility with older frontends)
 app.get('/admin/listings/:status', async (req, res) => {
+  // Require admin authentication
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser || sessionUser.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
   const status = req.params.status;
   try {
         const q = `SELECT listings.id, listings.owner_id, users.email AS owner_email, listings.owner_name, listings.title, listings.type, listings.status, listings.price, listings.size_sqm AS size,
