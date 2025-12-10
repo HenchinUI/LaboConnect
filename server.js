@@ -44,11 +44,14 @@ app.use(express.urlencoded({ extended: true }));
 app.use(session({
   store: new pgSession({
     pool: db,
-    tableName: 'session'
+    tableName: 'session',
+    errorHandler: (err) => {
+      console.error('[PGSESSION ERROR]', err);
+    }
   }),
   secret: process.env.SESSION_SECRET || 'labo-connect-secret-key-change-in-production',
-  resave: false,
-  saveUninitialized: false,
+  resave: true,
+  saveUninitialized: true,
   cookie: { 
     httpOnly: true, 
     secure: process.env.NODE_ENV === 'production' ? true : false,
@@ -233,11 +236,27 @@ app.post("/login", async (req, res) => {
 
     // Store user in server-side session
     req.session.user = { id: user.id, username: user.username, email: user.email, role: user.role };
+    
+    // Debug logging for session creation
+    console.log('[LOGIN] Session ID:', req.sessionID);
+    console.log('[LOGIN] User set in session:', req.session.user);
+    console.log('[LOGIN] Session object keys:', Object.keys(req.session));
+    console.log('[LOGIN] NODE_ENV:', process.env.NODE_ENV);
 
-    // Return user info including role
-    res.json({
-      message: "Login successful!",
-      user: { id: user.id, username: user.username, email: user.email, role: user.role }
+    // Explicitly save session to database before responding
+    req.session.save((err) => {
+      if (err) {
+        console.error('[LOGIN] Session save error:', err);
+        return res.status(500).json({ error: "Failed to save session" });
+      }
+      
+      console.log('[LOGIN] Session saved successfully');
+      
+      // Return user info including role
+      res.json({
+        message: "Login successful!",
+        user: { id: user.id, username: user.username, email: user.email, role: user.role }
+      });
     });
 
   } catch (err) {
@@ -250,11 +269,30 @@ app.post("/login", async (req, res) => {
 // Session Validation (get current user from server-side session)
 // -------------------
 app.get("/api/session", (req, res) => {
+  console.log('[SESSION CHECK] Session ID:', req.sessionID);
+  console.log('[SESSION CHECK] Session user:', req.session.user);
+  console.log('[SESSION CHECK] Session keys:', Object.keys(req.session));
+  console.log('[SESSION CHECK] Cookie header:', req.get('cookie'));
+  
   if (req.session.user) {
     res.json({ authenticated: true, user: req.session.user });
   } else {
     res.json({ authenticated: false, user: null });
   }
+});
+
+// Debug endpoint to show session details
+app.get("/api/session-debug", (req, res) => {
+  res.json({
+    sessionID: req.sessionID,
+    sessionUser: req.session.user,
+    sessionKeys: Object.keys(req.session),
+    cookieHeader: req.get('cookie'),
+    nodeEnv: process.env.NODE_ENV,
+    sessionStoreType: 'PostgreSQL (connect-pg-simple)',
+    secureCookie: process.env.NODE_ENV === 'production' ? 'yes (https only)' : 'no (http allowed)',
+    sameSite: 'lax'
+  });
 });
 
 // -------------------
