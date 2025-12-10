@@ -673,7 +673,8 @@
             const listing = {
                 title: selectedOption.textContent.split(' (')[0],
                 latitude: parseFloat(selectedOption.dataset.latitude),
-                longitude: parseFloat(selectedOption.dataset.longitude)
+                longitude: parseFloat(selectedOption.dataset.longitude),
+                image_url: selectedOption.dataset.imageUrl || null
             };
 
             updateMapLocation(listing);
@@ -846,7 +847,7 @@
                     `;
 
                     el.addEventListener('click', () => {
-                        updateMapLocation({ title: item.title, latitude: item.latitude, longitude: item.longitude });
+                        updateMapLocation({ title: item.title, latitude: item.latitude, longitude: item.longitude, image_url: item.image_url });
                     });
 
                     container.appendChild(el);
@@ -856,6 +857,7 @@
                     option.textContent = `${item.title} (${item.type || 'Listing'})`;
                     option.dataset.latitude = item.latitude;
                     option.dataset.longitude = item.longitude;
+                    option.dataset.imageUrl = item.image_url || '';
                     dropdown.appendChild(option);
                 });
             } catch (err) {
