@@ -7,6 +7,7 @@
 
     <link rel="stylesheet" href="/css/global.css">
     <link rel="stylesheet" href="/css/home.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
     <style>
         :root {
@@ -275,8 +276,8 @@
         <aside class="sidebar">
             
             <div class="sidebar-section">
-                <div class="section-title">Search Database</div>
-                <label for="locationDropdown">Stored Locations</label>
+                <div class="section-title">Search Stored Location</div>
+                <label for="locationDropdown">Select Locations</label>
                 <div style="display: flex; gap: 8px;">
                     <select id="locationDropdown">
                         <option value="">-- Loading... --</option>
@@ -345,29 +346,94 @@
                 </div>
             </div>
 
-            <iframe id="mapIframe" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d308255.50361146376!2d122.35069244631066!3d14.11750796469968!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3398a4b87f362efb%3A0x37ebd322e90733e9!2sLabo%2C%20Camarines%20Norte!5e1!3m2!1sen!2sph!4v1764661356353!5m2!1sen!2sph" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+            <div id="leafletMap" style="height: 100%; width: 100%;"></div>
         </main>
 
     </div>
 
     <script src="/js/global.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        let allLocations = []; 
+        let allLocations = [];
+        let leafletMap = null;
+        let currentMarker = null;
 
-        // Generate Google Maps embed URL
-        function generateMapEmbedUrl(latitude, longitude, businessName) {
-            const lat = parseFloat(latitude);
-            const lng = parseFloat(longitude);
-            
-            if (isNaN(lat) || isNaN(lng)) {
-                console.error("Invalid coordinates:", latitude, longitude);
-                return null;
+        // Initialize Leaflet Map
+        function initializeLeafletMap() {
+            if (leafletMap) {
+                leafletMap.remove();
             }
 
-            // Using the format from your original code
-            const embedUrl = `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3000!2d${lng}!3d${lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0:0x0!2z${lat},${lng}!5e0!3m2!1sen!2sph!4v1704000000000`;
-            return embedUrl;
+            // Default to Labo, Camarines Norte, Philippines
+            leafletMap = L.map('leafletMap').setView([14.153887, 122.828522], 13);
+
+            // Add OpenStreetMap tiles
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors',
+                className: 'leaflet-tiles'
+            }).addTo(leafletMap);
+
+            // Handle map clicks to place pins
+            leafletMap.on('click', function(e) {
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+
+                // Update input fields with coordinates
+                document.getElementById('latitudeInput').value = lat.toFixed(6);
+                document.getElementById('longitudeInput').value = lng.toFixed(6);
+
+                // Add marker to map
+                if (currentMarker) {
+                    leafletMap.removeLayer(currentMarker);
+                }
+
+                const popupContent = `<div style="text-align: center; min-width: 150px;">
+                    <strong>Pinned Location</strong>
+                    <p style="margin: 5px 0; font-size: 0.85rem; color: #666;">
+                        ${lat.toFixed(6)}, ${lng.toFixed(6)}
+                    </p>
+                </div>`;
+
+                currentMarker = L.marker([lat, lng])
+                    .bindPopup(popupContent)
+                    .addTo(leafletMap)
+                    .openPopup();
+            });
+        }
+
+        // Add or update marker on map
+        function addMarkerToMap(latitude, longitude, businessName) {
+            const lat = parseFloat(latitude);
+            const lng = parseFloat(longitude);
+
+            if (isNaN(lat) || isNaN(lng)) {
+                console.error("Invalid coordinates:", latitude, longitude);
+                return;
+            }
+
+            // If marker exists, remove it
+            if (currentMarker) {
+                leafletMap.removeLayer(currentMarker);
+            }
+
+            // Create popup content
+            const popupContent = `<div style="text-align: center; min-width: 150px;">
+                <strong>${businessName}</strong>
+                <p style="margin: 5px 0; font-size: 0.85rem; color: #666;">
+                    ${lat.toFixed(4)}, ${lng.toFixed(4)}
+                </p>
+            </div>`;
+
+            // Add new marker
+            currentMarker = L.marker([lat, lng])
+                .bindPopup(popupContent)
+                .addTo(leafletMap)
+                .openPopup();
+
+            // Center map on marker
+            leafletMap.setView([lat, lng], 15);
         }
 
         // Populate the dropdown
@@ -569,22 +635,23 @@
         }
 
         function updateMapLocation(location) {
-            const mapIframe = document.getElementById('mapIframe');
             const businessNameEl = document.getElementById('selectedBusinessName');
 
-            if (!mapIframe) return;
+            if (!leafletMap) {
+                initializeLeafletMap();
+            }
 
             if (businessNameEl) {
                 businessNameEl.textContent = location.title || 'Unknown Business';
             }
 
-            const newEmbedUrl = generateMapEmbedUrl(location.latitude, location.longitude, location.title);
-            if (newEmbedUrl) {
-                mapIframe.src = newEmbedUrl;
+            if (location.latitude != null && location.longitude != null) {
+                addMarkerToMap(location.latitude, location.longitude, location.title || 'Location');
             }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            initializeLeafletMap();
             loadLocations();
             loadApprovedListings();
             
