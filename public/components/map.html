@@ -197,6 +197,35 @@
             color: var(--text-dark);
         }
 
+        /* SIDEBAR TOGGLE BUTTON - ALWAYS AVAILABLE, BUT ONLY SHOWN ON MOBILE */
+        .sidebar-toggle {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+            z-index: 9999;
+            transition: all 0.3s ease;
+            padding: 0;
+        }
+        
+        .sidebar-toggle:hover {
+            background: var(--primary);
+            color: white;
+            transform: translateX(-50%) scale(1.1);
+        }
+
         /* SEARCHABLE SELECT STYLING */
         .searchable-select-wrapper {
             position: relative;
@@ -289,40 +318,22 @@
                 overflow-y: auto;
             }
             .map-wrapper { 
-                height: 100vh;
+                height: calc(100vh - 60px);
                 flex: 1;
             }
             
-            /* Toggle Button */
+            /* Toggle Button - SHOW ON MOBILE */
             .sidebar-toggle {
-                position: fixed;
-                bottom: 20px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: white;
-                border: 2px solid var(--primary);
-                color: var(--primary);
-                width: 50px;
-                height: 50px;
-                border-radius: 50%;
-                cursor: pointer;
-                display: none;
-                align-items: center;
-                justify-content: center;
-                font-size: 24px;
-                box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-                z-index: 15;
-                transition: all 0.3s ease;
-            }
-            
-            .sidebar-toggle:hover {
-                background: var(--primary);
-                color: white;
-                transform: translateX(-50%) scale(1.1);
+                display: flex !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                bottom: 25px !important;
             }
             
             .sidebar-toggle.show {
-                display: flex;
+                display: flex !important;
+                visibility: visible !important;
+                opacity: 1 !important;
             }
         }
     </style>
@@ -942,6 +953,6 @@
     </script>
 
     <!-- Mobile Sidebar Toggle Button -->
-    <button id="sidebarToggle" class="sidebar-toggle" title="Show menu">⬇️</button>
+    <button id="sidebarToggle" class="sidebar-toggle show" title="Show menu">⬇️</button>
 </body>
 </html>
