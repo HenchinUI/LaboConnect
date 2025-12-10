@@ -497,7 +497,6 @@
                         
                         if (option.value === wrapper.dataset.selectedValue) {
                             div.classList.add('selected');
-                            input.value = option.text;
                         }
                         
                         div.addEventListener('click', () => {
@@ -505,6 +504,13 @@
                             wrapper.dataset.selectedValue = option.value;
                             input.value = option.text;
                             dropdown.classList.remove('open');
+                            
+                            // Auto-load the location when selected
+                            if (selectId === 'locationDropdown') {
+                                document.getElementById('loadLocationBtn')?.click();
+                            } else if (selectId === 'approvedListingDropdown') {
+                                document.getElementById('loadApprovedListingBtn')?.click();
+                            }
                         });
                         
                         dropdown.appendChild(div);
