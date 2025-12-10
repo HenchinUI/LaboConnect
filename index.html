@@ -9,7 +9,90 @@
   <!-- GLOBAL + PAGE CSS -->
 <link rel="stylesheet" href="/css/global.css">
 <link rel="stylesheet" href="/css/home.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
+<style>
+  /* Location Picker Modal */
+  .location-picker-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 12, 10, 0.5);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .location-picker-modal.open {
+    display: flex;
+  }
+  .location-picker-panel {
+    background: #fff;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 800px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(2, 6, 23, 0.3);
+  }
+  .location-picker-header {
+    padding: 20px;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .location-picker-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .location-picker-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--muted);
+  }
+  .location-picker-body {
+    flex: 1;
+    position: relative;
+    min-height: 400px;
+  }
+  #locationPickerMap {
+    width: 100%;
+    height: 100%;
+  }
+  .location-picker-footer {
+    padding: 20px;
+    border-top: 1px solid rgba(15, 23, 42, 0.1);
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+  .location-picker-footer button {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .location-picker-footer .btn-cancel {
+    background: #f3f4f6;
+    color: #1f2937;
+  }
+  .location-picker-footer .btn-cancel:hover {
+    background: #e5e7eb;
+  }
+  .location-picker-footer .btn-confirm {
+    background: #10b981;
+    color: white;
+  }
+  .location-picker-footer .btn-confirm:hover {
+    background: #047857;
+  }
+</style>
 </head>
 
 <body>
@@ -135,8 +218,7 @@
             <div class="form-grid">
               <h3 style="margin:0 0 8px 0">Land Owner Information</h3>
               <div class="form-row">
-                <div class="field"><label>First Name</label><input type="text" name="owner_first_name" required></div>
-                <div class="field"><label>Last Name</label><input type="text" name="owner_last_name" required></div>
+                <div class="field" style="grid-column: span 2;"><label>Owner Name</label><input type="text" name="owner_name" placeholder="Full name of property owner" required></div>
               </div>
 
               <h3 style="margin:12px 0 8px 0">Property Details</h3>
@@ -156,11 +238,15 @@
 
               <div class="form-row">
                 <div class="field"><label>Price</label><input type="number" name="price" step="0.01" required placeholder="e.g., 1000000"></div>
-                <div class="field"><label>Latitude (optional)</label><input type="number" name="latitude" step="0.00000001" placeholder="e.g., 14.117507"></div>
+                <div class="field"><label>Latitude (optional)</label><input type="number" id="listingLatitude" name="latitude" step="0.00000001" placeholder="e.g., 14.117507"></div>
               </div>
 
               <div class="form-row">
-                <div class="field"><label>Longitude (optional)</label><input type="number" name="longitude" step="0.00000001" placeholder="e.g., 122.350692"></div>
+                <div class="field"><label>Longitude (optional)</label><input type="number" id="listingLongitude" name="longitude" step="0.00000001" placeholder="e.g., 122.350692"></div>
+                <div class="field"><label>&nbsp;</label><button type="button" class="btn btn-secondary" onclick="openLocationPicker()" style="width:100%;margin-top:0">📍 Select Location on Map</button></div>
+              </div>
+
+              <div class="form-row">
                 <div class="field"><label>Property Image</label><input type="file" name="image" accept="image/*"></div>
               </div>
 
@@ -454,6 +540,35 @@
 
 <div id="footer-placeholder"></div>
 
+<!-- Location Picker Modal -->
+<div id="locationPickerModal" class="location-picker-modal">
+  <div class="location-picker-panel">
+    <div class="location-picker-header">
+      <h2>Select Property Location</h2>
+      <button class="location-picker-close" onclick="closeLocationPicker()">✕</button>
+    </div>
+    <div class="location-picker-body">
+      <div id="locationPickerMap"></div>
+    </div>
+    <div class="location-picker-footer">
+      <button class="btn-cancel" onclick="closeLocationPicker()">Cancel</button>
+      <button class="btn-confirm" onclick="confirmLocationSelection()">Confirm Location</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (async () => {
+    try {
+      const resp = await fetch("../components/footer.html");
+      if (!resp.ok) throw new Error(`Failed to load footer (status ${resp.status})`);
+      document.getElementById("footer-placeholder").innerHTML = await resp.text();
+    } catch (err) {
+      console.error("Could not load footer:", err);
+      document.getElementById("footer-placeholder").innerHTML =
+        '<footer style="padding:20px;text-align:center;color:var(--muted)">© Municipality of Labo — Footer not loaded</footer>';
+    }
+  })();
 
 
 
@@ -471,6 +586,70 @@
     }
   })();
 
+// Location Picker for Listing Form
+let locationPickerMap = null;
+let selectedMarker = null;
+let selectedLat = null;
+let selectedLng = null;
+
+function openLocationPicker() {
+  document.getElementById('locationPickerModal').classList.add('open');
+  
+  // Initialize map if not already done
+  if (!locationPickerMap) {
+    setTimeout(() => {
+      locationPickerMap = L.map('locationPickerMap').setView([14.153887, 122.828522], 13);
+      
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(locationPickerMap);
+      
+      // Handle map clicks to place pins
+      locationPickerMap.on('click', function(e) {
+        selectedLat = e.latlng.lat;
+        selectedLng = e.latlng.lng;
+        
+        if (selectedMarker) {
+          locationPickerMap.removeLayer(selectedMarker);
+        }
+        
+        const popupContent = `<div style="text-align: center; min-width: 150px;">
+          <strong>Selected Location</strong>
+          <p style="margin: 5px 0; font-size: 0.85rem; color: #666;">
+            ${selectedLat.toFixed(6)}, ${selectedLng.toFixed(6)}
+          </p>
+        </div>`;
+        
+        selectedMarker = L.marker([selectedLat, selectedLng])
+          .bindPopup(popupContent)
+          .addTo(locationPickerMap)
+          .openPopup();
+      });
+    }, 100);
+  }
+}
+
+function closeLocationPicker() {
+  document.getElementById('locationPickerModal').classList.remove('open');
+}
+
+function confirmLocationSelection() {
+  if (selectedLat !== null && selectedLng !== null) {
+    document.getElementById('listingLatitude').value = selectedLat.toFixed(6);
+    document.getElementById('listingLongitude').value = selectedLng.toFixed(6);
+    closeLocationPicker();
+  } else {
+    alert('Please click on the map to select a location first!');
+  }
+}
+
+// Close modal when clicking outside
+document.getElementById('locationPickerModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeLocationPicker();
+  }
+});
 
 const listingForm = document.getElementById("listingForm");
 const listingMessage = document.getElementById("listingMessage");
@@ -518,6 +697,9 @@ listingForm.addEventListener("submit", async (e) => {
   }
 });
 </script>
+
+<!-- LEAFLET MAP -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <!-- JAVASCRIPT -->
 <script src="/js/global.js"></script>
