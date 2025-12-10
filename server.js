@@ -116,7 +116,7 @@ app.get('/admin-dashboard', (req, res) => {
     // Not authenticated: redirect to home/login (avoid exposing admin file)
     return res.redirect('/');
   }
-  if (sessionUser.role !== 'admin' && sessionUser.role !== 'standard') {
+  if (sessionUser.role !== 'admin') {
     return res.status(403).send('Forbidden');
   }
   return res.sendFile(path.join(__dirname, 'public', 'components', 'admin-dashboard.html'));
@@ -1865,7 +1865,7 @@ app.delete('/admin/listings/:id', async (req, res) => {
     }
     try { 
       // Then delete inquiries
-      await client.query('DELETE FROM inquiries WHERE listing_id = $1', [listingId]); 
+      await client.query('DELETE FROM inquiries WHERE listing_id = $1', [listingId]); z
     } catch(e) { 
       console.warn('Could not delete inquiries:', e.message); 
     }
