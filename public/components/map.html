@@ -95,25 +95,6 @@
             box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
         }
 
-        /* Searchable Dropdown */
-        .searchable-select-wrapper {
-            position: relative;
-            width: 100%;
-        }
-
-        .searchable-select-wrapper input[type="text"] {
-            margin-bottom: 0 !important;
-            border-bottom: 1px solid #d1d5db;
-            border-radius: 8px 8px 0 0;
-        }
-
-        .searchable-select-wrapper select {
-            margin-top: 0 !important;
-            border-top: none;
-            border-radius: 0 0 8px 8px;
-            max-height: 200px;
-        }
-
         /* BUTTONS */
         .btn {
             display: inline-flex;
@@ -295,16 +276,13 @@
         <aside class="sidebar">
             
             <div class="sidebar-section">
-                <div class="section-title">Search Stored Location</div>
-                <label for="locationDropdown">Select Locations</label>
+                <div class="section-title">Search Database</div>
+                <label for="locationDropdown">Stored Locations</label>
                 <div style="display: flex; gap: 8px;">
-                    <div class="searchable-select-wrapper" style="flex: 1;">
-                        <input type="text" id="locationSearch" placeholder="Search locations..." style="margin-bottom: 0;">
-                        <select id="locationDropdown">
-                            <option value="">-- Loading... --</option>
-                        </select>
-                    </div>
-                    <button type="button" id="loadLocationBtn" class="btn btn-primary" style="width: auto; padding: 0 20px; margin-bottom: 0;">
+                    <select id="locationDropdown">
+                        <option value="">-- Loading... --</option>
+                    </select>
+                    <button type="button" id="loadLocationBtn" class="btn btn-primary" style="width: auto; padding: 0 20px;">
                         Go
                     </button>
                 </div>
@@ -314,19 +292,16 @@
                 <div class="section-title">Approved Listings</div>
                 <label for="approvedListingDropdown">Select Property</label>
                 <div style="display: flex; gap: 8px;">
-                    <div class="searchable-select-wrapper" style="flex: 1;">
-                        <input type="text" id="approvedListingSearch" placeholder="Search properties..." style="margin-bottom: 0;">
-                        <select id="approvedListingDropdown">
-                            <option value="">-- Loading... --</option>
-                        </select>
-                    </div>
-                    <button type="button" id="loadApprovedListingBtn" class="btn btn-warning" style="width: auto; padding: 0 20px; margin-bottom: 0;">
+                    <select id="approvedListingDropdown">
+                        <option value="">-- Loading... --</option>
+                    </select>
+                    <button type="button" id="loadApprovedListingBtn" class="btn btn-warning" style="width: auto; padding: 0 20px;">
                         Go
                     </button>
                 </div>
             </div>
 
-            <div class="sidebar-section" id="adminAddLocationSection" style="display: none;">
+            <div class="sidebar-section">
                 <div class="section-title">Manual / Add New</div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     <div style="grid-column: span 2;">
@@ -344,7 +319,7 @@
                 </div>
                 <div class="btn-group">
                     <button type="button" id="updateMapBtn" class="btn btn-secondary">Preview on Map</button>
-                    <button type="button" id="addLocationBtn" class="btn btn-primary">Save Location</button>
+                    <button type="button" id="addLocationBtn" class="btn btn-primary">Save to DB</button>
                 </div>
             </div>
 
@@ -355,7 +330,7 @@
             </div>
 
             <div class="sidebar-section">
-                <div class="section-title">Recent Listing</div>
+                <div class="section-title">Listing Results</div>
                 <div id="approvedListings" class="results-container">
                     </div>
             </div>
@@ -383,50 +358,6 @@
         let allLocations = [];
         let leafletMap = null;
         let currentMarker = null;
-        let isAdminUser = false;
-
-        // Check if current user is admin
-        async function checkAdminStatus() {
-            try {
-                const response = await fetch('/api/session');
-                const data = await response.json();
-                isAdminUser = data.authenticated && data.user && data.user.role === 'admin';
-                
-                // Show/hide admin section
-                const adminSection = document.getElementById('adminAddLocationSection');
-                if (adminSection) {
-                    adminSection.style.display = isAdminUser ? 'block' : 'none';
-                }
-            } catch (error) {
-                console.error('Error checking admin status:', error);
-                isAdminUser = false;
-            }
-        }
-
-        // Delete a location
-        async function deleteLocation(locationId) {
-            if (!confirm('Are you sure you want to delete this location?')) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`/api/locations/${locationId}`, {
-                    method: 'DELETE'
-                });
-
-                if (!response.ok) {
-                    const data = await response.json();
-                    alert(`Error: ${data.error}`);
-                    return;
-                }
-
-                // Reload locations
-                loadLocations();
-            } catch (error) {
-                console.error('Error deleting location:', error);
-                alert('Failed to delete location');
-            }
-        }
 
         // Initialize Leaflet Map
         function initializeLeafletMap() {
@@ -473,7 +404,7 @@
         }
 
         // Add or update marker on map
-        function addMarkerToMap(latitude, longitude, businessName, imageUrl = null) {
+        function addMarkerToMap(latitude, longitude, businessName) {
             const lat = parseFloat(latitude);
             const lng = parseFloat(longitude);
 
@@ -487,14 +418,9 @@
                 leafletMap.removeLayer(currentMarker);
             }
 
-            // Create popup content with optional image
-            let popupContent = `<div style="text-align: center; min-width: 200px;">`;
-            
-            if (imageUrl) {
-                popupContent += `<img src="${imageUrl}" alt="${businessName}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 6px; margin-bottom: 10px;">`;
-            }
-            
-            popupContent += `<strong>${businessName}</strong>
+            // Create popup content
+            const popupContent = `<div style="text-align: center; min-width: 150px;">
+                <strong>${businessName}</strong>
                 <p style="margin: 5px 0; font-size: 0.85rem; color: #666;">
                     ${lat.toFixed(4)}, ${lng.toFixed(4)}
                 </p>
@@ -567,8 +493,7 @@
             const listing = {
                 title: selectedOption.textContent.split(' (')[0],
                 latitude: parseFloat(selectedOption.dataset.latitude),
-                longitude: parseFloat(selectedOption.dataset.longitude),
-                image_url: selectedOption.dataset.imageUrl
+                longitude: parseFloat(selectedOption.dataset.longitude)
             };
 
             updateMapLocation(listing);
@@ -645,52 +570,16 @@
                 const listingsContainer = document.getElementById('recentListings');
                 listingsContainer.innerHTML = '';
 
-                // Limit to 5 most recent locations
-                const recentLocations = locations.slice(0, 5);
-
-                recentLocations.forEach((location, index) => {
+                locations.forEach((location, index) => {
                     // Changed styling to class-based in CSS
                     const listItem = document.createElement('div');
                     listItem.className = 'result-card'; 
-                    
-                    let itemHTML = `
-                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                            <div style="flex: 1;">
-                                <strong>${location.title}</strong>
-                                <p>${location.type || 'N/A'}</p>
-                            </div>
+                    listItem.innerHTML = `
+                        <strong>${location.title}</strong>
+                        <p>${location.type || 'N/A'}</p>
                     `;
-                    
-                    // Add delete button for admins
-                    if (isAdminUser) {
-                        itemHTML += `
-                            <button type="button" class="delete-location-btn" data-id="${location.id}" 
-                                style="background: #dc3545; color: white; border: none; padding: 5px 10px; 
-                                border-radius: 4px; cursor: pointer; font-size: 0.85rem; margin-left: 10px;">
-                                Delete
-                            </button>
-                        `;
-                    }
-                    
-                    itemHTML += `</div>`;
-                    listItem.innerHTML = itemHTML;
 
-                    // Add click handler for the location item (but not the delete button)
-                    const deleteBtn = listItem.querySelector('.delete-location-btn');
-                    if (deleteBtn) {
-                        deleteBtn.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            deleteLocation(location.id);
-                        });
-                    }
-                    
-                    // Click the location to view it on map
-                    listItem.addEventListener('click', () => {
-                        if (event.target !== deleteBtn) {
-                            updateMapLocation(location);
-                        }
-                    });
-                    
+                    listItem.addEventListener('click', () => updateMapLocation(location));
                     listingsContainer.appendChild(listItem);
 
                     if (index === 0) updateMapLocation(location);
@@ -716,10 +605,7 @@
                 const dropdown = document.getElementById('approvedListingDropdown');
                 dropdown.innerHTML = '<option value="">-- Select an approved listing --</option>';
 
-                // Limit to 5 most recent listings
-                const recentListings = listings.slice(0, 5);
-
-                recentListings.forEach((item) => {
+                listings.forEach((item) => {
                     if (item.latitude == null || item.longitude == null) return;
 
                     // Changed styling to class-based in CSS
@@ -731,12 +617,7 @@
                     `;
 
                     el.addEventListener('click', () => {
-                        updateMapLocation({ 
-                            title: item.title, 
-                            latitude: item.latitude, 
-                            longitude: item.longitude,
-                            image_url: item.image_url
-                        });
+                        updateMapLocation({ title: item.title, latitude: item.latitude, longitude: item.longitude });
                     });
 
                     container.appendChild(el);
@@ -746,7 +627,6 @@
                     option.textContent = `${item.title} (${item.type || 'Listing'})`;
                     option.dataset.latitude = item.latitude;
                     option.dataset.longitude = item.longitude;
-                    option.dataset.imageUrl = item.image_url || '';
                     dropdown.appendChild(option);
                 });
             } catch (err) {
@@ -766,14 +646,11 @@
             }
 
             if (location.latitude != null && location.longitude != null) {
-                addMarkerToMap(location.latitude, location.longitude, location.title || 'Location', location.image_url);
+                addMarkerToMap(location.latitude, location.longitude, location.title || 'Location');
             }
         }
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            // Check if user is admin
-            await checkAdminStatus();
-            
+        document.addEventListener('DOMContentLoaded', () => {
             initializeLeafletMap();
             loadLocations();
             loadApprovedListings();
@@ -841,29 +718,6 @@
                     toggleBtn.classList.remove('show');
                     sidebar.classList.remove('open');
                 }
-            });
-        });
-
-        // Search/Filter functionality for dropdowns
-        document.getElementById('locationSearch')?.addEventListener('keyup', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const dropdown = document.getElementById('locationDropdown');
-            const options = dropdown.querySelectorAll('option:not(:first-child)');
-            
-            options.forEach(option => {
-                const text = option.textContent.toLowerCase();
-                option.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
-        });
-
-        document.getElementById('approvedListingSearch')?.addEventListener('keyup', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const dropdown = document.getElementById('approvedListingDropdown');
-            const options = dropdown.querySelectorAll('option:not(:first-child)');
-            
-            options.forEach(option => {
-                const text = option.textContent.toLowerCase();
-                option.style.display = text.includes(searchTerm) ? '' : 'none';
             });
         });
     </script>
