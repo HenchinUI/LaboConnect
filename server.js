@@ -14,7 +14,6 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const crypto = require('crypto');
 const session = require('express-session');
-const pgSession = require('connect-pg-simple')(session);
 
 const uploadDir = path.join(__dirname, 'public', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -42,22 +41,10 @@ app.use(express.urlencoded({ extended: true }));
 
 // Session middleware
 app.use(session({
-  store: new pgSession({
-    pool: db,
-    tableName: 'session',
-    errorHandler: (err) => {
-      console.error('[PGSESSION ERROR]', err);
-    }
-  }),
   secret: process.env.SESSION_SECRET || 'labo-connect-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
-  cookie: { 
-    httpOnly: true, 
-    secure: process.env.NODE_ENV === 'production' ? true : false,
-    sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
+  cookie: { httpOnly: true, secure: false, maxAge: 24 * 60 * 60 * 1000 } // 24 hours
 }));
 
 // Protect access to the admin dashboard HTML even if someone tries to hit the static file directly.
@@ -120,7 +107,7 @@ app.get('/admin-dashboard', (req, res) => {
     // Not authenticated: redirect to home/login (avoid exposing admin file)
     return res.redirect('/');
   }
-  if (sessionUser.role !== 'admin') {
+  if (sessionUser.role !== 'admin' && sessionUser.role !== 'standard') {
     return res.status(403).send('Forbidden');
   }
   return res.sendFile(path.join(__dirname, 'public', 'components', 'admin-dashboard.html'));
@@ -236,27 +223,11 @@ app.post("/login", async (req, res) => {
 
     // Store user in server-side session
     req.session.user = { id: user.id, username: user.username, email: user.email, role: user.role };
-    
-    // Debug logging for session creation
-    console.log('[LOGIN] Session ID:', req.sessionID);
-    console.log('[LOGIN] User set in session:', req.session.user);
-    console.log('[LOGIN] Session object keys:', Object.keys(req.session));
-    console.log('[LOGIN] NODE_ENV:', process.env.NODE_ENV);
 
-    // Explicitly save session to database before responding
-    req.session.save((err) => {
-      if (err) {
-        console.error('[LOGIN] Session save error:', err);
-        return res.status(500).json({ error: "Failed to save session" });
-      }
-      
-      console.log('[LOGIN] Session saved successfully');
-      
-      // Return user info including role
-      res.json({
-        message: "Login successful!",
-        user: { id: user.id, username: user.username, email: user.email, role: user.role }
-      });
+    // Return user info including role
+    res.json({
+      message: "Login successful!",
+      user: { id: user.id, username: user.username, email: user.email, role: user.role }
     });
 
   } catch (err) {
@@ -269,30 +240,11 @@ app.post("/login", async (req, res) => {
 // Session Validation (get current user from server-side session)
 // -------------------
 app.get("/api/session", (req, res) => {
-  console.log('[SESSION CHECK] Session ID:', req.sessionID);
-  console.log('[SESSION CHECK] Session user:', req.session.user);
-  console.log('[SESSION CHECK] Session keys:', Object.keys(req.session));
-  console.log('[SESSION CHECK] Cookie header:', req.get('cookie'));
-  
   if (req.session.user) {
     res.json({ authenticated: true, user: req.session.user });
   } else {
     res.json({ authenticated: false, user: null });
   }
-});
-
-// Debug endpoint to show session details
-app.get("/api/session-debug", (req, res) => {
-  res.json({
-    sessionID: req.sessionID,
-    sessionUser: req.session.user,
-    sessionKeys: Object.keys(req.session),
-    cookieHeader: req.get('cookie'),
-    nodeEnv: process.env.NODE_ENV,
-    sessionStoreType: 'PostgreSQL (connect-pg-simple)',
-    secureCookie: process.env.NODE_ENV === 'production' ? 'yes (https only)' : 'no (http allowed)',
-    sameSite: 'lax'
-  });
 });
 
 // -------------------
@@ -850,7 +802,8 @@ app.post("/submit-listing", uploadMultiple.fields([
   }
 
   const { 
-    owner_name, 
+    owner_first_name, 
+    owner_last_name, 
     title, 
     description, 
     type, 
@@ -864,7 +817,7 @@ app.post("/submit-listing", uploadMultiple.fields([
   const files = req.files || {};
 
   // Validate required fields
-  if (!owner_name || !title || !description || !type || !price) {
+  if (!owner_first_name || !owner_last_name || !title || !description || !type || !price) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
@@ -886,9 +839,9 @@ app.post("/submit-listing", uploadMultiple.fields([
 
     // Build insert dynamically depending on available columns
     const insertCols = [
-      'owner_name','title','description','type','price','size_sqm'
+      'owner_first_name','owner_last_name','title','description','type','price','size_sqm'
     ];
-    const values = [owner_name, title, description, type, price, size_sqm || null];
+    const values = [owner_first_name, owner_last_name, title, description, type, price, size_sqm || null];
     
     // Add owner_id if provided (from logged-in user)
     // Prefer server-side session user id to prevent spoofing
@@ -995,7 +948,7 @@ app.post('/api/inquiries', async (req, res) => {
     const listing = listings[0];
 
     // prevent owner submitting inquiry for their own listing (by user_id if available, fallback to name)
-    const ownerName = (listing.owner_name || '').trim().toLowerCase();
+    const ownerName = ((listing.owner_first_name || '') + ' ' + (listing.owner_last_name || '')).trim().toLowerCase();
     const senderName = (full_name || '').trim().toLowerCase();
     if (ownerName && senderName && ownerName === senderName) {
       return res.status(400).json({ error: "Owner cannot send inquiry to their own listing" });
@@ -1075,8 +1028,7 @@ app.get('/api/inquiries', async (req, res) => {
 app.get('/api/inquiries/count', async (req, res) => {
   try {
     const sessionUser = req.session && req.session.user;
-    // Return 0 count for unauthenticated users instead of 401 (allows guests to see UI)
-    if (!sessionUser) return res.json({ cnt: 0 });
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
     const isAdmin = sessionUser.role === 'admin';
 
     const { listing_id } = req.query;
@@ -1358,9 +1310,8 @@ app.get('/api/listing-notifications', async (req, res) => {
 app.get('/api/listing-notifications/count', async (req, res) => {
   try {
     const sessionUser = req.session && req.session.user;
-    // Return 0 count for unauthenticated users (allows guests to see UI)
     if (!sessionUser) {
-      return res.json({ count: 0 });
+      return res.status(401).json({ error: 'Not authenticated' });
     }
 
     // Ensure table exists
@@ -1811,16 +1762,10 @@ app.post("/admin/listings/:id/reject", async (req, res) => {
 });
 
 app.get("/admin/listings", async (req, res) => {
-  // Require admin authentication
-  const sessionUser = req.session && req.session.user;
-  if (!sessionUser || sessionUser.role !== 'admin') {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-
   // Supports optional ?status=pending|approved|rejected to filter results
   try {
     const status = req.query.status;
-        let q = `SELECT listings.id, listings.owner_id, users.email AS owner_email, listings.owner_name, listings.title, listings.type, listings.status, listings.price, listings.size_sqm AS size,
+        let q = `SELECT listings.id, listings.owner_id, users.email AS owner_email, listings.owner_first_name, listings.owner_last_name, listings.title, listings.type, listings.status, listings.price, listings.size_sqm AS size,
         listings.description, listings.image_url, listings.oct_tct_url, listings.tax_declaration_url, listings.doas_url, listings.government_id_url,
         listings.views, listings.inquiries, listings.created_at
       FROM listings
@@ -1842,15 +1787,9 @@ app.get("/admin/listings", async (req, res) => {
 
 // Fallback route for /admin/listings/:status (kept for compatibility with older frontends)
 app.get('/admin/listings/:status', async (req, res) => {
-  // Require admin authentication
-  const sessionUser = req.session && req.session.user;
-  if (!sessionUser || sessionUser.role !== 'admin') {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-
   const status = req.params.status;
   try {
-        const q = `SELECT listings.id, listings.owner_id, users.email AS owner_email, listings.owner_name, listings.title, listings.type, listings.status, listings.price, listings.size_sqm AS size,
+        const q = `SELECT listings.id, listings.owner_id, users.email AS owner_email, listings.owner_first_name, listings.owner_last_name, listings.title, listings.type, listings.status, listings.price, listings.size_sqm AS size,
         listings.description, listings.image_url, listings.oct_tct_url, listings.tax_declaration_url, listings.doas_url, listings.government_id_url,
         listings.views, listings.inquiries, listings.created_at
       FROM listings
@@ -1903,43 +1842,14 @@ app.delete('/admin/listings/:id', async (req, res) => {
       }
     });
 
-    // delete related rows in correct order (respecting foreign key constraints)
-    try { 
-      // Delete email logs first (depends on inquiries)
-      await client.query('DELETE FROM email_logs WHERE inquiry_id IN (SELECT id FROM inquiries WHERE listing_id = $1)', [listingId]); 
-    } catch(e) { 
-      console.warn('Could not delete email_logs:', e.message); 
-    }
-    try { 
-      // Then delete messages
-      await client.query('DELETE FROM messages WHERE inquiry_id IN (SELECT id FROM inquiries WHERE listing_id = $1)', [listingId]); 
-    } catch(e) { 
-      console.warn('Could not delete messages:', e.message); 
-    }
-    try { 
-      // Then delete inquiries
-      await client.query('DELETE FROM inquiries WHERE listing_id = $1', [listingId]); z
-    } catch(e) { 
-      console.warn('Could not delete inquiries:', e.message); 
-    }
-    try { 
-      await client.query('DELETE FROM uploads_meta WHERE listing_id = $1', [listingId]); 
-    } catch(e) { 
-      console.warn('Could not delete uploads_meta:', e.message); 
-    }
-    try { 
-      await client.query('DELETE FROM user_listings WHERE listing_id = $1', [listingId]); 
-    } catch(e) { 
-      console.warn('Could not delete user_listings:', e.message); 
-    }
+    // delete related rows (wrap each in try-catch before transaction ends to avoid aborting it)
+    try { await client.query('DELETE FROM uploads_meta WHERE listing_id = $1', [listingId]); } catch(e) { console.warn('Could not delete uploads_meta:', e.message); }
+    try { await client.query('DELETE FROM messages WHERE inquiry_id IN (SELECT id FROM inquiries WHERE listing_id = $1)', [listingId]); } catch(e) { console.warn('Could not delete messages:', e.message); }
+    try { await client.query('DELETE FROM inquiries WHERE listing_id = $1', [listingId]); } catch(e) { console.warn('Could not delete inquiries:', e.message); }
+    try { await client.query('DELETE FROM user_listings WHERE listing_id = $1', [listingId]); } catch(e) { console.warn('Could not delete user_listings:', e.message); }
 
     // delete the listing (this one should succeed)
-    try {
-      await client.query('DELETE FROM listings WHERE id = $1', [listingId]);
-    } catch(e) {
-      console.error('Critical error deleting listing:', e.message);
-      throw e;
-    }
+    await client.query('DELETE FROM listings WHERE id = $1', [listingId]);
 
     await client.query('COMMIT');
 
@@ -2131,41 +2041,6 @@ app.post("/api/locations", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to add location" });
-  }
-});
-
-// Delete a location (admin only)
-app.delete("/api/locations/:id", async (req, res) => {
-  try {
-    const sessionUser = req.session && req.session.user;
-    
-    // Check if user is admin
-    if (!sessionUser || sessionUser.role !== 'admin') {
-      return res.status(403).json({ error: 'Forbidden - Admin access required' });
-    }
-
-    const { id } = req.params;
-
-    // Validate ID
-    if (!id || isNaN(parseInt(id))) {
-      return res.status(400).json({ error: "Invalid location ID" });
-    }
-
-    // Delete the location
-    const { rows } = await db.query(
-      `DELETE FROM locations WHERE id = $1 RETURNING id`,
-      [parseInt(id)]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Location not found" });
-    }
-
-    res.json({ message: "Location deleted successfully" });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to delete location" });
   }
 });
 
