@@ -14,6 +14,7 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const crypto = require('crypto');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 
 const uploadDir = path.join(__dirname, 'public', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -41,10 +42,18 @@ app.use(express.urlencoded({ extended: true }));
 
 // Session middleware
 app.use(session({
+  store: new pgSession({
+    pool: db,
+    tableName: 'session'
+  }),
   secret: process.env.SESSION_SECRET || 'labo-connect-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, secure: false, maxAge: 24 * 60 * 60 * 1000 } // 24 hours
+  cookie: { 
+    httpOnly: true, 
+    secure: process.env.NODE_ENV === 'production' ? true : false,
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
 }));
 
 // Protect access to the admin dashboard HTML even if someone tries to hit the static file directly.
@@ -802,8 +811,7 @@ app.post("/submit-listing", uploadMultiple.fields([
   }
 
   const { 
-    owner_first_name, 
-    owner_last_name, 
+    owner_name, 
     title, 
     description, 
     type, 
@@ -817,7 +825,7 @@ app.post("/submit-listing", uploadMultiple.fields([
   const files = req.files || {};
 
   // Validate required fields
-  if (!owner_first_name || !owner_last_name || !title || !description || !type || !price) {
+  if (!owner_name || !title || !description || !type || !price) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
@@ -839,9 +847,9 @@ app.post("/submit-listing", uploadMultiple.fields([
 
     // Build insert dynamically depending on available columns
     const insertCols = [
-      'owner_first_name','owner_last_name','title','description','type','price','size_sqm'
+      'owner_name','title','description','type','price','size_sqm'
     ];
-    const values = [owner_first_name, owner_last_name, title, description, type, price, size_sqm || null];
+    const values = [owner_name, title, description, type, price, size_sqm || null];
     
     // Add owner_id if provided (from logged-in user)
     // Prefer server-side session user id to prevent spoofing
@@ -948,7 +956,7 @@ app.post('/api/inquiries', async (req, res) => {
     const listing = listings[0];
 
     // prevent owner submitting inquiry for their own listing (by user_id if available, fallback to name)
-    const ownerName = ((listing.owner_first_name || '') + ' ' + (listing.owner_last_name || '')).trim().toLowerCase();
+    const ownerName = (listing.owner_name || '').trim().toLowerCase();
     const senderName = (full_name || '').trim().toLowerCase();
     if (ownerName && senderName && ownerName === senderName) {
       return res.status(400).json({ error: "Owner cannot send inquiry to their own listing" });
@@ -1765,7 +1773,7 @@ app.get("/admin/listings", async (req, res) => {
   // Supports optional ?status=pending|approved|rejected to filter results
   try {
     const status = req.query.status;
-        let q = `SELECT listings.id, listings.owner_id, users.email AS owner_email, listings.owner_first_name, listings.owner_last_name, listings.title, listings.type, listings.status, listings.price, listings.size_sqm AS size,
+        let q = `SELECT listings.id, listings.owner_id, users.email AS owner_email, listings.owner_name, listings.title, listings.type, listings.status, listings.price, listings.size_sqm AS size,
         listings.description, listings.image_url, listings.oct_tct_url, listings.tax_declaration_url, listings.doas_url, listings.government_id_url,
         listings.views, listings.inquiries, listings.created_at
       FROM listings
@@ -1789,7 +1797,7 @@ app.get("/admin/listings", async (req, res) => {
 app.get('/admin/listings/:status', async (req, res) => {
   const status = req.params.status;
   try {
-        const q = `SELECT listings.id, listings.owner_id, users.email AS owner_email, listings.owner_first_name, listings.owner_last_name, listings.title, listings.type, listings.status, listings.price, listings.size_sqm AS size,
+        const q = `SELECT listings.id, listings.owner_id, users.email AS owner_email, listings.owner_name, listings.title, listings.type, listings.status, listings.price, listings.size_sqm AS size,
         listings.description, listings.image_url, listings.oct_tct_url, listings.tax_declaration_url, listings.doas_url, listings.government_id_url,
         listings.views, listings.inquiries, listings.created_at
       FROM listings
@@ -1842,14 +1850,43 @@ app.delete('/admin/listings/:id', async (req, res) => {
       }
     });
 
-    // delete related rows (wrap each in try-catch before transaction ends to avoid aborting it)
-    try { await client.query('DELETE FROM uploads_meta WHERE listing_id = $1', [listingId]); } catch(e) { console.warn('Could not delete uploads_meta:', e.message); }
-    try { await client.query('DELETE FROM messages WHERE inquiry_id IN (SELECT id FROM inquiries WHERE listing_id = $1)', [listingId]); } catch(e) { console.warn('Could not delete messages:', e.message); }
-    try { await client.query('DELETE FROM inquiries WHERE listing_id = $1', [listingId]); } catch(e) { console.warn('Could not delete inquiries:', e.message); }
-    try { await client.query('DELETE FROM user_listings WHERE listing_id = $1', [listingId]); } catch(e) { console.warn('Could not delete user_listings:', e.message); }
+    // delete related rows in correct order (respecting foreign key constraints)
+    try { 
+      // Delete email logs first (depends on inquiries)
+      await client.query('DELETE FROM email_logs WHERE inquiry_id IN (SELECT id FROM inquiries WHERE listing_id = $1)', [listingId]); 
+    } catch(e) { 
+      console.warn('Could not delete email_logs:', e.message); 
+    }
+    try { 
+      // Then delete messages
+      await client.query('DELETE FROM messages WHERE inquiry_id IN (SELECT id FROM inquiries WHERE listing_id = $1)', [listingId]); 
+    } catch(e) { 
+      console.warn('Could not delete messages:', e.message); 
+    }
+    try { 
+      // Then delete inquiries
+      await client.query('DELETE FROM inquiries WHERE listing_id = $1', [listingId]); 
+    } catch(e) { 
+      console.warn('Could not delete inquiries:', e.message); 
+    }
+    try { 
+      await client.query('DELETE FROM uploads_meta WHERE listing_id = $1', [listingId]); 
+    } catch(e) { 
+      console.warn('Could not delete uploads_meta:', e.message); 
+    }
+    try { 
+      await client.query('DELETE FROM user_listings WHERE listing_id = $1', [listingId]); 
+    } catch(e) { 
+      console.warn('Could not delete user_listings:', e.message); 
+    }
 
     // delete the listing (this one should succeed)
-    await client.query('DELETE FROM listings WHERE id = $1', [listingId]);
+    try {
+      await client.query('DELETE FROM listings WHERE id = $1', [listingId]);
+    } catch(e) {
+      console.error('Critical error deleting listing:', e.message);
+      throw e;
+    }
 
     await client.query('COMMIT');
 
@@ -2041,6 +2078,41 @@ app.post("/api/locations", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to add location" });
+  }
+});
+
+// Delete a location (admin only)
+app.delete("/api/locations/:id", async (req, res) => {
+  try {
+    const sessionUser = req.session && req.session.user;
+    
+    // Check if user is admin
+    if (!sessionUser || sessionUser.role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden - Admin access required' });
+    }
+
+    const { id } = req.params;
+
+    // Validate ID
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({ error: "Invalid location ID" });
+    }
+
+    // Delete the location
+    const { rows } = await db.query(
+      `DELETE FROM locations WHERE id = $1 RETURNING id`,
+      [parseInt(id)]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Location not found" });
+    }
+
+    res.json({ message: "Location deleted successfully" });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete location" });
   }
 });
 

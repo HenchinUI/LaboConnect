@@ -1,0 +1,210 @@
+graph TB
+    subgraph Client["🖥️ CLIENT LAYER"]
+        subgraph Pages["Pages"]
+            Home["Home/Landing<br/>index.html"]
+            Browse["Browse Listings<br/>listings.html"]
+            ListDetail["Listing Detail<br/>listing-detail.html"]
+            MapView["Map View<br/>map.html"]
+            UserProfile["User Profile<br/>profile.html"]
+            PublicProfile["Public Profile<br/>public-profile.html"]
+            Search["User Search<br/>search-users.html"]
+            Conversations["Messages<br/>conversations.html"]
+            Inquiries["Inquiries<br/>inquiries.html"]
+            AdminDash["Admin Dashboard<br/>admin-dashboard.html"]
+        end
+        
+        subgraph Assets["Assets"]
+            CSS["CSS<br/>global.css<br/>home.css"]
+            JS["JavaScript<br/>global.js<br/>home.js<br/>admin.js<br/>profile.js"]
+            Maps["Leaflet Map<br/>Marker Pins<br/>Location Picker"]
+        end
+    end
+
+    subgraph Server["🔧 APPLICATION LAYER - Node.js/Express"]
+        subgraph Auth["Authentication"]
+            RegisterRoute["POST /register<br/>Signup"]
+            LoginRoute["POST /login<br/>Login"]
+            SessionRoute["GET /api/session<br/>Check Auth"]
+            LogoutRoute["POST /logout<br/>Destroy Session"]
+        end
+        
+        subgraph UserAPI["User Management"]
+            GetProfile["GET /api/profile/:id"]
+            UpdateProfile["PUT /api/profile/:id"]
+            UploadProfilePic["POST /profile/:id/picture"]
+            GetPublicProfile["GET /api/profile/:id/public"]
+            SearchUsers["GET /api/users/search"]
+        end
+        
+        subgraph ListingAPI["Listing Management"]
+            SubmitListing["POST /submit-listing<br/>Multi-file upload"]
+            GetMyListings["GET /api/my-listings/:status"]
+            UpdateListing["PUT /api/my-listings/:id"]
+            DeleteListing["DELETE /api/my-listings/:id"]
+            UploadImage["POST /my-listings/:id/image"]
+            GetApprovedListings["GET /api/approved-listings"]
+            GetSingleListing["GET /api/listing/:id"]
+            GetLocations["GET /api/locations<br/>Map pins"]
+        end
+        
+        subgraph MessageAPI["Messaging & Inquiries"]
+            CreateInquiry["POST /api/inquiries<br/>New conversation"]
+            GetInquiries["GET /api/inquiries"]
+            GetMessages["GET /api/inquiries/:id/messages"]
+            SendMessage["POST /api/inquiries/:id/messages"]
+            UploadAttachment["POST /inquiries/:id/messages/upload"]
+            DeleteMessage["PATCH /messages/:id/delete"]
+            ReadMessage["PATCH /messages/:id/read"]
+            ReadInquiry["PATCH /inquiries/:id/read"]
+        end
+        
+        subgraph NotificationAPI["Notifications"]
+            GetNotifications["GET /api/listing-notifications"]
+            NotifCount["GET /listing-notifications/count"]
+            ReadNotif["PATCH /listing-notifications/:id/read"]
+        end
+        
+        subgraph AdminAPI["Admin Operations"]
+            AdminListings["GET /admin/listings/:status<br/>Pending/Approved/Rejected"]
+            ApproveListing["POST /admin/listings/:id/approve"]
+            RejectListing["POST /admin/listings/:id/reject"]
+            GetAdminDash["GET /admin-dashboard"]
+        end
+        
+        subgraph Middleware["Middleware"]
+            SessionMgmt["Express Session<br/>PostgreSQL Store"]
+            AdminProtect["Admin Route Protection"]
+            FileUpload["Multer<br/>File Handling"]
+            JSONParser["JSON Parser"]
+        end
+        
+        subgraph RealTime["Real-time"]
+            SocketIO["Socket.io<br/>Event Broadcasting"]
+            NewListing["new_listing event"]
+            NewInquiry["new_inquiry event"]
+            NewMessage["new_message event"]
+            MessageRead["message_read event"]
+        end
+    end
+
+    subgraph Database["💾 DATA LAYER - PostgreSQL"]
+        subgraph Tables["Tables"]
+            UsersTable["👤 users<br/>id, email, password_hash<br/>first_name, last_name<br/>role, profile_picture_url<br/>bio, phone, address"]
+            
+            ListingsTable["🏢 listings<br/>id, user_id, title<br/>description, type<br/>price, size_sqm<br/>latitude, longitude<br/>image_url, status"]
+            
+            InquiriesTable["💬 inquiries<br/>id, listing_id<br/>sender_id, receiver_id<br/>subject, message<br/>read_at, created_at"]
+            
+            MessagesTable["✉️ messages<br/>id, inquiry_id<br/>sender_id, content<br/>attachment_url<br/>read_at, deleted_at"]
+            
+            NotificationsTable["🔔 notifications<br/>id, user_id<br/>type, related_id<br/>read_at, created_at"]
+            
+            SessionsTable["🔐 session<br/>sid, sess JSON<br/>expire timestamp"]
+        end
+        
+        subgraph Relationships["Relationships"]
+            FK1["FK: listings.user_id → users.id"]
+            FK2["FK: inquiries.listing_id → listings.id"]
+            FK3["FK: inquiries.sender_id → users.id"]
+            FK4["FK: messages.inquiry_id → inquiries.id"]
+            FK5["FK: notifications.user_id → users.id"]
+        end
+    end
+
+    subgraph External["🌐 EXTERNAL SERVICES"]
+        SendGrid["📧 SendGrid/Nodemailer<br/>Email Notifications"]
+        Leaflet["🗺️ Leaflet Library<br/>Interactive Maps"]
+        OSM["🌍 OpenStreetMap<br/>Map Tiles"]
+        FileSystem["💾 File System<br/>public/uploads/"]
+    end
+
+    subgraph Security["🔒 SECURITY"]
+        BCrypt["bcryptjs<br/>Password Hashing"]
+        HTTPS["HTTPS<br/>Encrypted Connection"]
+        HTTPOnly["HttpOnly Cookies<br/>Session Storage"]
+        RoleCheck["Role-based Access<br/>Admin Protected Routes"]
+    end
+
+    %% Client connections
+    Home --> CSS
+    Home --> JS
+    Browse --> JS
+    ListDetail --> JS
+    MapView --> Maps
+    UserProfile --> JS
+    Conversations --> JS
+    AdminDash --> JS
+    
+    %% Client to Server
+    CSS -->|HTTP/HTTPS| SessionRoute
+    JS -->|HTTP/HTTPS| AuthAPI
+    JS -->|HTTP/HTTPS| UserAPI
+    JS -->|HTTP/HTTPS| ListingAPI
+    JS -->|HTTP/HTTPS| MessageAPI
+    Maps -->|HTTP| RealTime
+    JS -->|WebSocket| SocketIO
+
+    %% Server to Middleware
+    RegisterRoute --> FileUpload
+    LoginRoute --> SessionMgmt
+    SubmitListing --> FileUpload
+    UploadImage --> FileUpload
+
+    %% Server to Database
+    RegisterRoute --> UsersTable
+    LoginRoute --> UsersTable
+    SessionRoute --> SessionsTable
+    GetProfile --> UsersTable
+    UpdateProfile --> UsersTable
+    GetMyListings --> ListingsTable
+    SubmitListing --> ListingsTable
+    GetApprovedListings --> ListingsTable
+    CreateInquiry --> InquiriesTable
+    SendMessage --> MessagesTable
+    GetMessages --> MessagesTable
+    GetNotifications --> NotificationsTable
+    AdminListings --> ListingsTable
+
+    %% Database relationships
+    FK1 -.-> UsersTable
+    FK2 -.-> ListingsTable
+    FK3 -.-> UsersTable
+    FK4 -.-> InquiriesTable
+    FK5 -.-> UsersTable
+
+    %% Real-time connections
+    SocketIO --> NewListing
+    SocketIO --> NewInquiry
+    SocketIO --> NewMessage
+    NewMessage -->|Broadcast| JS
+    NewInquiry -->|Broadcast| JS
+    NewListing -->|Broadcast| AdminDash
+
+    %% External service connections
+    SubmitListing --> FileSystem
+    UploadImage --> FileSystem
+    FileSystem -->|Serve| JS
+    SendMessage --> SendGrid
+    Maps --> Leaflet
+    Leaflet --> OSM
+    CreateInquiry --> SendGrid
+
+    %% Security
+    RegisterRoute --> BCrypt
+    LoginRoute --> BCrypt
+    SessionMgmt --> HTTPOnly
+    AdminAPI --> RoleCheck
+    JS -->|Uses| HTTPS
+
+    style Client fill:#e1f5ff
+    style Server fill:#f3e5f5
+    style Database fill:#e8f5e9
+    style External fill:#fff3e0
+    style Security fill:#ffebee
+    style Auth fill:#c8e6c9
+    style UserAPI fill:#c8e6c9
+    style ListingAPI fill:#c8e6c9
+    style MessageAPI fill:#c8e6c9
+    style NotificationAPI fill:#c8e6c9
+    style AdminAPI fill:#c8e6c9
+    style RealTime fill:#ffe0b2
