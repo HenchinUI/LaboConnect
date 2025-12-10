@@ -802,8 +802,7 @@ app.post("/submit-listing", uploadMultiple.fields([
   }
 
   const { 
-    owner_first_name, 
-    owner_last_name, 
+    owner_name,
     title, 
     description, 
     type, 
@@ -817,9 +816,14 @@ app.post("/submit-listing", uploadMultiple.fields([
   const files = req.files || {};
 
   // Validate required fields
-  if (!owner_first_name || !owner_last_name || !title || !description || !type || !price) {
+  if (!owner_name || !title || !description || !type || !price) {
     return res.status(400).json({ error: "Missing required fields" });
   }
+
+  // Split owner_name into first and last name (or use as first name if single word)
+  const nameParts = owner_name.trim().split(/\s+/);
+  const owner_first_name = nameParts[0];
+  const owner_last_name = nameParts.slice(1).join(' ') || nameParts[0];
 
   // Get file URLs
   const imageUrl = files.image ? `/uploads/${files.image[0].filename}` : '';
