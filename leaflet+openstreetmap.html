@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pin Location & Save</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        /* Make sure the map has a defined height */
+        #map { height: 400px; width: 100%; margin-bottom: 20px; border: 2px solid #333; }
+        .form-container { max-width: 600px; margin: 0 auto; font-family: sans-serif; }
+        input, button { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; }
+        button { background-color: #28a745; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #218838; }
+    </style>
+</head>
+<body>
+
+<div class="form-container">
+    <h2>1. Click on the map to Pin a Location</h2>
+    <div id="map"></div>
+
+    <h2>2. Add Details & Save</h2>
+    <input type="text" id="locationName" placeholder="Location Name (e.g. My Shop)">
+    <input type="text" id="description" placeholder="Description (e.g. Best pizza here)">
+    
+    <input type="text" id="lat" placeholder="Latitude" readonly>
+    <input type="text" id="lng" placeholder="Longitude" readonly>
+
+    <button id="saveBtn">Save to Database</button>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    // --- STEP A: Initialize the Map ---
+    // Coordinates for Manila (Start position)
+    const map = L.map('map').setView([14.5995, 120.9842], 13);
+
+    // Add the OpenStreetMap tiles
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    let currentMarker = null;
+
+    // --- STEP B: Handle Map Clicks ---
+    map.on('click', function(e) {
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+
+        // If a marker exists, move it. If not, create a new one.
+        if (currentMarker) {
+            currentMarker.setLatLng([lat, lng]);
+        } else {
+            currentMarker = L.marker([lat, lng]).addTo(map);
+        }
+
+        // Fill the input fields with the coordinates
+        document.getElementById('lat').value = lat;
+        document.getElementById('lng').value = lng;
+    });
+
+    // --- STEP C: Handle the Save Button (Fetch API) ---
+    document.getElementById('saveBtn').addEventListener('click', () => {
+        const name = document.getElementById('locationName').value;
+        const desc = document.getElementById('description').value;
+        const lat = document.getElementById('lat').value;
+        const lng = document.getElementById('lng').value;
+
+        // Validation: Ensure the user actually pinned a location
+        if (!lat || !lng) {
+            alert("Please click on the map to select a location first!");
+            return;
+        }
+
+        // The data object to send
+        const data = {
+            name: name,
+            description: desc,
+            latitude: lat,
+            longitude: lng
+        };
+
+        // --- THE FETCH REQUEST ---
+        // Replace '/api/save-location' with your actual backend URL
+        fetch('/api/save-location', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            if (response.ok) {
+                alert("Success! Location saved.");
+                // Optional: Clear form or redirect
+            } else {
+                alert("Error saving location.");
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert("Failed to connect to server.");
+        });
+    });
+</script>
+
+</body>
+</html>
