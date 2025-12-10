@@ -50,8 +50,8 @@ app.use(session({
     }
   }),
   secret: process.env.SESSION_SECRET || 'labo-connect-secret-key-change-in-production',
-  resave: true,
-  saveUninitialized: true,
+  resave: false,
+  saveUninitialized: false,
   cookie: { 
     httpOnly: true, 
     secure: process.env.NODE_ENV === 'production' ? true : false,
