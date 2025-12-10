@@ -197,8 +197,8 @@ async function handleLogin(e) {
         alert(`Welcome back, ${data.user.username}!`);
 
         if (data.user.role === 'admin') {
-            // Navigate to admin dashboard if admin
-            window.location.href = '/components/admin-dashboard.html';
+            // Navigate to admin dashboard if admin (use server route, not static file)
+            window.location.href = '/admin-dashboard';
         }
 
     } catch (err) {
@@ -268,7 +268,7 @@ function setUserRole(role, user) {
   if (adminNav) {
       if (role === 'admin') {
           adminNav.style.display = '';
-          adminNav.href = '/components/admin-dashboard.html';
+          adminNav.href = '/admin-dashboard';
           adminNav.textContent = 'Admin Panel';
       } else if (role === 'business') {
           adminNav.style.display = '';
@@ -410,7 +410,7 @@ fetch("/components/header.html")
                 try {
                     const stored = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
                     if (stored && stored.role === 'admin') {
-                        window.location.href = '/components/admin-dashboard.html';
+                        window.location.href = '/admin-dashboard';
                         return;
                     }
                 } catch (e) { /* ignore */ }
