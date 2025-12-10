@@ -52,6 +52,7 @@ app.use(session({
   cookie: { 
     httpOnly: true, 
     secure: process.env.NODE_ENV === 'production' ? true : false,
+    sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
@@ -1036,7 +1037,8 @@ app.get('/api/inquiries', async (req, res) => {
 app.get('/api/inquiries/count', async (req, res) => {
   try {
     const sessionUser = req.session && req.session.user;
-    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    // Return 0 count for unauthenticated users instead of 401 (allows guests to see UI)
+    if (!sessionUser) return res.json({ cnt: 0 });
     const isAdmin = sessionUser.role === 'admin';
 
     const { listing_id } = req.query;
@@ -1318,8 +1320,9 @@ app.get('/api/listing-notifications', async (req, res) => {
 app.get('/api/listing-notifications/count', async (req, res) => {
   try {
     const sessionUser = req.session && req.session.user;
+    // Return 0 count for unauthenticated users (allows guests to see UI)
     if (!sessionUser) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return res.json({ count: 0 });
     }
 
     // Ensure table exists
