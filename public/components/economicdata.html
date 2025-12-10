@@ -865,12 +865,14 @@
       }
     });
 
-    // Dummy download
+    // Download PDF file
     function downloadDummy(){
-      const a = document.createElement("a");
-      a.href = "data:text/plain;charset=utf-8," + encodeURIComponent("Sample Download File");
-      a.download = "report.txt";
-      a.click();
+      const link = document.createElement("a");
+      link.href = "/assets/docs/LABOCONNECT-ECONOMIC-PROFILE-2025.pdf";
+      link.download = "LABOCONNECT-ECONOMIC-PROFILE-2025.pdf";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
 
     // Upload feature removed on this page: no file input, upload or send buttons.

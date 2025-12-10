@@ -10,6 +10,7 @@
   <!-- GLOBAL + PAGE CSS -->
 <link rel="stylesheet" href="../css/global.css">
 <link rel="stylesheet" href="../css/home.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
     /* submit section animation and CTA */
@@ -152,10 +153,7 @@
               
               <!-- LEFT COLUMN: Property Details -->
               <div style="display:flex;flex-direction:column;gap:12px;">
-                <div class="form-row" style="display:flex;gap:12px;">
-                  <div class="field" style="flex:1;"><label for="owner_first_name">First Name *</label><input id="owner_first_name" type="text" name="owner_first_name" required></div>
-                  <div class="field" style="flex:1;"><label for="owner_last_name">Last Name *</label><input id="owner_last_name" type="text" name="owner_last_name" required></div>
-                </div>
+                <div class="field"><label for="owner_name">Owner Name *</label><input id="owner_name" type="text" name="owner_name" placeholder="Full name of property owner" required></div>
 
                 <div class="field"><label for="title">Property Title *</label><input id="title" type="text" name="title" placeholder="e.g., Commercial Lot in Downtown Labo" required></div>
 
@@ -172,6 +170,8 @@
                   <div class="field" style="flex:1;"><label for="latitude">Latitude (optional)</label><input id="latitude" type="number" name="latitude" step="0.00000001" placeholder="14.117507"></div>
                   <div class="field" style="flex:1;"><label for="longitude">Longitude (optional)</label><input id="longitude" type="number" name="longitude" step="0.00000001" placeholder="122.350692"></div>
                 </div>
+
+                <button type="button" id="selectLocationBtn" class="btn btn-secondary" style="width: 100%;">📍 Select Location on Map</button>
 
                 <div class="field"><label for="description">Description *</label><textarea id="description" name="description" rows="4" placeholder="Describe the property details, location, amenities, etc." required></textarea></div>
               </div>
@@ -726,6 +726,131 @@ document.addEventListener('DOMContentLoaded', () => {
   if (profileBtn) profileBtn.addEventListener('click', (e) => { e.preventDefault(); window.location.href = '/components/business/index.html'; });
 });
 
+// ===============================================
+// LOCATION PICKER MODAL FUNCTIONALITY
+// ===============================================
+let locationPickerMap = null;
+let locationPickerMarker = null;
+let selectedCoordinates = null;
+
+function initializeLocationPickerMap() {
+  const mapContainer = document.getElementById('locationPickerMap');
+  
+  // Remove old map instance if exists
+  if (locationPickerMap) {
+    locationPickerMap.remove();
+  }
+
+  // Create new map instance
+  locationPickerMap = L.map('locationPickerMap').setView([14.153887, 122.828522], 13);
+
+  // Add OpenStreetMap tiles
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(locationPickerMap);
+
+  // Handle map clicks to place marker
+  locationPickerMap.on('click', function(e) {
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+
+    // Store selected coordinates
+    selectedCoordinates = { lat, lng };
+
+    // Remove old marker if exists
+    if (locationPickerMarker) {
+      locationPickerMap.removeLayer(locationPickerMarker);
+    }
+
+    // Create popup with coordinates
+    const popupContent = `<div style="text-align: center;">
+      <strong>Selected Location</strong>
+      <p style="margin: 5px 0; font-size: 0.85rem; color: #666;">
+        ${lat.toFixed(6)}<br/>${lng.toFixed(6)}
+      </p>
+    </div>`;
+
+    // Add new marker
+    locationPickerMarker = L.marker([lat, lng])
+      .bindPopup(popupContent)
+      .addTo(locationPickerMap)
+      .openPopup();
+
+    // Enable confirm button
+    document.getElementById('confirmLocationBtn').disabled = false;
+  });
+
+  // Trigger map resize after initialization
+  setTimeout(() => {
+    locationPickerMap.invalidateSize();
+  }, 100);
+}
+
+// Attach event listeners when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  // Open location picker modal
+  const selectBtn = document.getElementById('selectLocationBtn');
+  if (selectBtn) {
+    selectBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      console.log('Select location button clicked');
+      const modal = document.getElementById('locationPickerModal');
+      modal.style.display = 'flex';
+      
+      // Initialize map when modal opens
+      setTimeout(() => {
+        initializeLocationPickerMap();
+      }, 100);
+    });
+  } else {
+    console.warn('selectLocationBtn not found');
+  }
+
+  // Close modal - X button
+  const closeBtn = document.getElementById('closeLocationModal');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('Close button clicked');
+      document.getElementById('locationPickerModal').style.display = 'none';
+      selectedCoordinates = null;
+      document.getElementById('confirmLocationBtn').disabled = true;
+    });
+  }
+
+  // Close modal - Cancel button
+  const cancelBtn = document.getElementById('cancelLocationBtn');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('Cancel button clicked');
+      document.getElementById('locationPickerModal').style.display = 'none';
+      selectedCoordinates = null;
+      document.getElementById('confirmLocationBtn').disabled = true;
+    });
+  }
+
+  // Confirm location selection
+  const confirmBtn = document.getElementById('confirmLocationBtn');
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('Confirm button clicked', selectedCoordinates);
+      if (selectedCoordinates) {
+        document.getElementById('latitude').value = selectedCoordinates.lat.toFixed(8);
+        document.getElementById('longitude').value = selectedCoordinates.lng.toFixed(8);
+        document.getElementById('locationPickerModal').style.display = 'none';
+        selectedCoordinates = null;
+        document.getElementById('confirmLocationBtn').disabled = true;
+      }
+    });
+  }
+});
+
 listingForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   // Verify server session before submitting
@@ -827,6 +952,28 @@ listingForm.addEventListener("submit", async (e) => {
     })();
   })();
 </script>
+
+<!-- Location Picker Modal -->
+<div id="locationPickerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center;">
+  <div style="background: white; border-radius: 12px; width: 90%; max-width: 800px; height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); position: relative;">
+    <!-- Modal Header -->
+    <div style="padding: 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+      <h2 style="margin: 0; font-size: 1.3rem; color: #1f2937;">Select Location on Map</h2>
+      <button id="closeLocationModal" type="button" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280; padding: 0; width: 30px; height: 30px; flex-shrink: 0;">✕</button>
+    </div>
+
+    <!-- Modal Map Container -->
+    <div id="locationPickerMap" style="flex: 1; position: relative; width: 100%; min-height: 0;"></div>
+
+    <!-- Modal Footer -->
+    <div style="padding: 20px; border-top: 1px solid #e5e7eb; display: flex; gap: 12px; justify-content: flex-end; flex-shrink: 0;">
+      <button id="cancelLocationBtn" type="button" class="btn btn-ghost" style="margin: 0;">Cancel</button>
+      <button id="confirmLocationBtn" type="button" class="btn btn-primary" disabled style="margin: 0;">Confirm Location</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 </body>
 </html>

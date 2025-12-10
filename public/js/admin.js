@@ -45,6 +45,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load listings and stats (start with pending)
   switchView('pending');
   loadAdminStats();
+
+  // Setup image preview modal close handlers
+  const imagePreviewModal = document.getElementById('imagePreviewModal');
+  if (imagePreviewModal) {
+    // Close on background click
+    imagePreviewModal.addEventListener('click', (e) => {
+      if (e.target === imagePreviewModal) {
+        closeImagePreview();
+      }
+    });
+    
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && imagePreviewModal.style.display === 'flex') {
+        closeImagePreview();
+      }
+    });
+  }
 });
 
 // ---------------- Header & Logout ----------------
@@ -316,9 +334,13 @@ function openAppDetails(id){
 
       // Ensure the preview modal has a click-to-close handler (attach once)
       const previewModal = document.getElementById("imagePreviewModal");
-      const previewImg = document.getElementById("imagePreview");
-      if (previewModal && previewImg && !previewModal._listenerAttached) {
-        previewModal.addEventListener("click", () => { previewModal.style.display = "none"; });
+      if (previewModal && !previewModal._listenerAttached) {
+        previewModal.addEventListener("click", (e) => { 
+          // Only close if clicking on the modal background, not the image
+          if (e.target === previewModal) {
+            previewModal.style.display = "none";
+          }
+        });
         previewModal._listenerAttached = true;
       }
 
@@ -359,6 +381,14 @@ function openImagePreview(url) {
     previewImg.src = url;
     previewModal.style.display = 'flex';
   } catch (e) { console.warn('Preview open failed', e); }
+}
+
+// Close the image preview modal
+function closeImagePreview() {
+  const previewModal = document.getElementById('imagePreviewModal');
+  if (previewModal) {
+    previewModal.style.display = 'none';
+  }
 }
 
 // ---------------- Approve / Reject (no pop-ups) ----------------
