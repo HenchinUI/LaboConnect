@@ -2113,6 +2113,27 @@ app.get('/admin/listings/:status', async (req, res) => {
   }
 });
 
+// GET single listing by ID
+app.get('/admin/listings/single/:id', async (req, res) => {
+  const listingId = req.params.id;
+  try {
+    const q = `SELECT listings.id, listings.owner_id, users.email AS owner_email, users.username AS owner_username, listings.owner_first_name, listings.owner_last_name, listings.title, listings.type, listings.status, listings.price, listings.size_sqm AS size,
+        listings.description, listings.image_url, listings.oct_tct_url, listings.tax_declaration_url, listings.doas_url, listings.government_id_url,
+        listings.views, listings.inquiries, listings.created_at
+      FROM listings
+      LEFT JOIN users ON listings.owner_id = users.id
+      WHERE listings.id = $1`;
+    const { rows } = await db.query(q, [listingId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Get listing by id error', err);
+    res.status(500).json({ error: 'Failed to load listing' });
+  }
+});
+
 // DELETE a listing (admin only). Cleans up uploads, uploads_meta, user_listings, inquiries, messages.
 app.delete('/admin/listings/:id', async (req, res) => {
   const listingId = req.params.id;
@@ -2152,11 +2173,12 @@ app.delete('/admin/listings/:id', async (req, res) => {
       }
     });
 
-    // delete related rows (wrap each in try-catch before transaction ends to avoid aborting it)
-    try { await client.query('DELETE FROM uploads_meta WHERE listing_id = $1', [listingId]); } catch(e) { console.warn('Could not delete uploads_meta:', e.message); }
+    // delete related rows in the correct order to respect foreign key constraints
+    try { await client.query('DELETE FROM email_logs WHERE inquiry_id IN (SELECT id FROM inquiries WHERE listing_id = $1)', [listingId]); } catch(e) { console.warn('Could not delete email_logs:', e.message); }
     try { await client.query('DELETE FROM messages WHERE inquiry_id IN (SELECT id FROM inquiries WHERE listing_id = $1)', [listingId]); } catch(e) { console.warn('Could not delete messages:', e.message); }
     try { await client.query('DELETE FROM inquiries WHERE listing_id = $1', [listingId]); } catch(e) { console.warn('Could not delete inquiries:', e.message); }
     try { await client.query('DELETE FROM user_listings WHERE listing_id = $1', [listingId]); } catch(e) { console.warn('Could not delete user_listings:', e.message); }
+    try { await client.query('DELETE FROM uploads_meta WHERE listing_id = $1', [listingId]); } catch(e) { console.warn('Could not delete uploads_meta:', e.message); }
 
     // delete the listing (this one should succeed)
     await client.query('DELETE FROM listings WHERE id = $1', [listingId]);
@@ -2183,14 +2205,21 @@ app.delete('/admin/listings/:id', async (req, res) => {
 
 app.get("/admin/stats", async (req, res) => {
   try {
-    const { rows: total } = await db.query("SELECT COUNT(*) FROM listings");
-    const { rows: pending } = await db.query("SELECT COUNT(*) FROM listings WHERE status = 'pending'");
-    const { rows: approved } = await db.query("SELECT COUNT(*) FROM listings WHERE status = 'approved'");
+    // Query from listing_approvals table which is the actual workflow table
+    const { rows: pending } = await db.query("SELECT COUNT(*) FROM listing_approvals WHERE listing_status = 'submitted'");
+    const { rows: approved } = await db.query("SELECT COUNT(*) FROM listing_approvals WHERE listing_status IN ('admin_approved', 'listing_admin_approved')");
+    const { rows: awaitingHead } = await db.query("SELECT COUNT(*) FROM listing_approvals WHERE listing_status IN ('admin_approved', 'listing_admin_approved')");
+    const { rows: published } = await db.query("SELECT COUNT(*) FROM listing_approvals WHERE listing_status = 'published'");
+    const { rows: rejected } = await db.query("SELECT COUNT(*) FROM listing_approvals WHERE listing_status = 'rejected'");
+    const { rows: total } = await db.query("SELECT COUNT(*) FROM listing_approvals");
 
     res.json({
       total: parseInt(total[0].count),
       pending: parseInt(pending[0].count),
-      approved: parseInt(approved[0].count)
+      approved: parseInt(approved[0].count),
+      awaitingHead: parseInt(awaitingHead[0].count),
+      published: parseInt(published[0].count),
+      rejected: parseInt(rejected[0].count)
     });
   } catch (err) {
     console.error(err);
@@ -2609,6 +2638,165 @@ app.post('/api/verification/send-otp', requireAuth, async (req, res) => {
   }
 });
 
+// POST: Send OTP to Email (NEW FLOW)
+app.post('/api/verification/send-email-otp', requireAuth, async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    // Generate and store OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Store OTP in session temporarily (valid for 10 minutes)
+    req.session.verificationOTP = otp;
+    req.session.verificationOTPTime = Date.now();
+    req.session.save();
+    
+    // Send email
+    const emailService = require('./lib/emailService');
+    try {
+      await emailService.sendVerificationEmail(email, otp);
+    } catch (emailErr) {
+      console.warn('Email sending failed:', emailErr.message);
+      // In development, still allow verification
+      if (process.env.NODE_ENV !== 'development') {
+        return res.status(500).json({ error: 'Failed to send email' });
+      }
+    }
+    
+    res.json({
+      message: 'OTP sent to email',
+      otp: process.env.NODE_ENV === 'development' ? otp : undefined
+    });
+  } catch (err) {
+    console.error('Error sending email OTP:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Verify Email OTP (NEW FLOW)
+app.post('/api/verification/verify-email-otp', requireAuth, async (req, res) => {
+  try {
+    const { otp, email } = req.body;
+    
+    if (!otp || !email) {
+      return res.status(400).json({ error: 'OTP and email required' });
+    }
+    
+    // Check OTP validity (10 minute window)
+    const otpTime = req.session.verificationOTPTime || 0;
+    const currentTime = Date.now();
+    const timeDiff = (currentTime - otpTime) / 1000 / 60; // in minutes
+    
+    if (timeDiff > 10) {
+      return res.status(400).json({ error: 'OTP expired. Please request a new one.' });
+    }
+    
+    // Verify OTP (in dev mode, accept any 6-digit code)
+    if (process.env.NODE_ENV === 'development' && /^\d{6}$/.test(otp)) {
+      return res.json({ message: 'OTP verified successfully' });
+    }
+    
+    if (req.session.verificationOTP !== otp) {
+      return res.status(400).json({ error: 'Invalid OTP code' });
+    }
+    
+    // Clear OTP
+    delete req.session.verificationOTP;
+    delete req.session.verificationOTPTime;
+    req.session.save();
+    
+    res.json({ message: 'OTP verified successfully' });
+  } catch (err) {
+    console.error('Error verifying email OTP:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Submit verification with new flow (selfie + ID + OTP-verified)
+app.post('/api/verification/submit-new-flow', requireAuth, upload.fields([
+  { name: 'selfiePhoto', maxCount: 1 },
+  { name: 'idDocument', maxCount: 1 }
+]), async (req, res) => { 
+  try {
+    const userId = req.session.user.id;
+    const { email } = req.body;
+    
+    if (!email || !req.files || !req.files.selfiePhoto || !req.files.idDocument) {
+      return res.status(400).json({ error: 'Email, selfie photo, and ID document required' });
+    }
+    
+    // Create verification request directly with INSERT query (email-based verification)
+    const insertQuery = `
+      INSERT INTO verification_requests (user_id, email, status)
+      VALUES ($1, $2, 'pending_admin_review')
+      RETURNING id, user_id, email, status, created_at
+    `;
+    
+    const { rows: verReqs } = await db.query(insertQuery, [userId, email]);
+    
+    if (!verReqs || verReqs.length === 0) {
+      return res.status(500).json({ error: 'Failed to create verification request' });
+    }
+    
+    const verReq = verReqs[0];
+    
+    // Save selfie photo
+    const selfieUrl = '/uploads/' + req.files.selfiePhoto[0].filename;
+    
+    // Save ID document
+    const idUrl = '/uploads/' + req.files.idDocument[0].filename;
+    
+    // Update verification request with documents
+    const updateQuery = `
+      UPDATE verification_requests 
+      SET selfie_photo_url = $1,
+          id_document_url = $2,
+          updated_at = NOW()
+      WHERE id = $3
+      RETURNING *
+    `;
+    
+    const { rows: updated } = await db.query(updateQuery, [selfieUrl, idUrl, verReq.id]);
+    
+    if (!updated || updated.length === 0) {
+      return res.status(500).json({ error: 'Failed to save documents' });
+    }
+    
+    res.json({
+      message: 'Verification submitted successfully. Our team will review it within 24-48 hours.',
+      verificationId: verReq.id,
+      status: 'pending_admin_review'
+    });
+  } catch (err) {
+    console.error('Error submitting new verification:', err);
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  }
+});
+
+// GET: Get user info endpoint (needed for email display)
+app.get('/api/user-info', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { rows } = await db.query(
+      'SELECT id, username, email, user_type FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Error getting user info:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // POST: Verify OTP
 app.post('/api/verification/verify-otp', requireAuth, async (req, res) => {
   try {
@@ -2782,6 +2970,33 @@ app.get('/api/admin/verifications/pending', requireRole('verification_admin'), a
   }
 });
 
+// GET: Verification stats for admin dashboard
+app.get('/api/admin/verifications/stats', requireRole('verification_admin'), async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        COUNT(CASE WHEN status IN ('pending_admin_review', 'pending', 'document_submitted') THEN 1 END) as pending,
+        COUNT(CASE WHEN status IN ('approved', 'verified') THEN 1 END) as verified,
+        COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected,
+        COUNT(*) as total
+      FROM verification_requests
+    `;
+    
+    const result = await db.query(query);
+    const stats = result.rows[0] || { pending: 0, verified: 0, rejected: 0, total: 0 };
+    
+    res.json({
+      pending: parseInt(stats.pending) || 0,
+      verified: parseInt(stats.verified) || 0,
+      rejected: parseInt(stats.rejected) || 0,
+      total: parseInt(stats.total) || 0
+    });
+  } catch (err) {
+    console.error('Error getting verification stats:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET: Fetch specific verification details
 app.get('/api/admin/verification/:id', requireRole('verification_admin'), async (req, res) => {
   try {
@@ -2797,6 +3012,8 @@ app.get('/api/admin/verification/:id', requireRole('verification_admin'), async 
         vr.user_id,
         vr.status,
         vr.phone_number,
+        vr.email,
+        vr.selfie_photo_url,
         vr.id_document_url,
         vr.otp_code,
         vr.otp_sent_at,
@@ -3344,6 +3561,16 @@ app.post('/api/success-stories', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'You can only share stories for listings you have purchased' });
     }
 
+    // Check if a published success story already exists for this listing
+    const { rows: existingStory } = await db.query(
+      'SELECT id FROM public.success_stories WHERE investor_id = $1 AND listing_id = $2 AND status = $3',
+      [userId, listingId, 'published']
+    );
+
+    if (existingStory && existingStory.length > 0) {
+      return res.status(409).json({ error: 'You have already published a success story for this listing' });
+    }
+
     // Insert success story with pending status
     const { rows: story } = await db.query(
       `INSERT INTO public.success_stories (
@@ -3400,7 +3627,46 @@ app.get('/api/success-stories', async (req, res) => {
   }
 });
 
-// GET: Single success story (only if approved)
+// GET: Success story by listing ID for investor
+app.get('/api/investor/success-story/:listingId', requireAuth, async (req, res) => {
+  try {
+    const listingId = req.params.listingId;
+    const userId = req.session.user.id;
+
+    // Get success story for this listing created by the investor
+    const { rows: story } = await db.query(
+      `SELECT 
+        ss.id,
+        ss.investor_id,
+        ss.listing_id,
+        ss.image_url,
+        ss.location,
+        ss.business_name,
+        ss.description,
+        ss.business_type,
+        ss.established_year,
+        ss.key_achievement,
+        ss.contact_email,
+        ss.status,
+        ss.category,
+        ss.created_at
+      FROM public.success_stories ss
+      WHERE ss.listing_id = $1 AND ss.investor_id = $2`,
+      [listingId, userId]
+    );
+
+    if (!story || story.length === 0) {
+      return res.status(404).json({ error: 'Success story not found' });
+    }
+
+    res.json(story[0]);
+  } catch (err) {
+    console.error('Error fetching success story by listing:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Single success story (only if published)
 app.get('/api/success-stories/:storyId', async (req, res) => {
   try {
     const storyId = req.params.storyId;
@@ -3425,7 +3691,7 @@ app.get('/api/success-stories/:storyId', async (req, res) => {
         u.email as investor_email
       FROM public.success_stories ss
       JOIN users u ON ss.investor_id = u.id
-      WHERE ss.id = $1 AND ss.status = 'approved'`,
+      WHERE ss.id = $1 AND ss.status = 'published'`,
       [storyId]
     );
 
@@ -3455,7 +3721,7 @@ app.get('/api/admin/success-stories/pending', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // Get pending stories
+    // Get all stories (not just pending) so frontend can filter by status
     const { rows: stories } = await db.query(
       `SELECT 
         ss.id,
@@ -3472,14 +3738,16 @@ app.get('/api/admin/success-stories/pending', requireAuth, async (req, res) => {
         ss.status,
         ss.category,
         ss.created_at,
+        ss.listing_admin_notes,
+        ss.head_admin_notes,
         u.username as investor_name,
         u.email as investor_email,
         l.title as listing_title
       FROM public.success_stories ss
       JOIN users u ON ss.investor_id = u.id
       JOIN listings l ON ss.listing_id = l.id
-      WHERE ss.status IN ('pending', 'listing_admin_approved')
-      ORDER BY ss.created_at ASC`
+      WHERE ss.status IN ('pending', 'listing_admin_approved', 'published', 'rejected')
+      ORDER BY ss.created_at DESC`
     );
 
     res.json(stories);
@@ -3546,10 +3814,10 @@ app.patch('/api/admin/success-stories/:storyId/head-admin-approve', requireAuth,
       return res.status(403).json({ error: 'Head admin access required' });
     }
 
-    // Update story status
+    // Update story status to published
     const { rows: updated } = await db.query(
       `UPDATE public.success_stories
-       SET status = 'approved',
+       SET status = 'published',
            head_admin_notes = $1,
            approved_by_head_admin_id = $2,
            approved_at = NOW(),

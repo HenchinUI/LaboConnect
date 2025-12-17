@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS public.success_stories (
 );
 
 -- Create index for faster queries
-CREATE INDEX idx_success_stories_investor_id ON public.success_stories(investor_id);
-CREATE INDEX idx_success_stories_listing_id ON public.success_stories(listing_id);
-CREATE INDEX idx_success_stories_status ON public.success_stories(status);
-CREATE INDEX idx_success_stories_created_at ON public.success_stories(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_success_stories_investor_id ON public.success_stories(investor_id);
+CREATE INDEX IF NOT EXISTS idx_success_stories_listing_id ON public.success_stories(listing_id);
+CREATE INDEX IF NOT EXISTS idx_success_stories_status ON public.success_stories(status);
+CREATE INDEX IF NOT EXISTS idx_success_stories_created_at ON public.success_stories(created_at DESC);
