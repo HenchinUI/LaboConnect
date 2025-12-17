@@ -14,6 +14,11 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const crypto = require('crypto');
 const session = require('express-session');
+const { requireAuth, requireRole, requirePermission, requireVerified, refreshUserSession } = require('./lib/roleMiddleware');
+const { logAction } = require('./lib/auditLog');
+const { createVerificationRequest, sendOTP, sendSMSOTP, verifyOTP, getVerificationStatus, updateVerificationDocument, approveVerification, rejectVerification, getPendingVerifications } = require('./lib/verification');
+const { createListingApprovalWorkflow, updateListingStatus, getListingApprovalWorkflow, getListingsPendingAdminApproval, getListingsPendingHeadAdminApproval, getAllListingApprovals } = require('./lib/listingApproval');
+const { generateVerificationCode, sendVerificationEmail, sendWelcomeEmail } = require('./lib/emailService');
 
 const uploadDir = path.join(__dirname, 'public', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -34,12 +39,13 @@ const upload = multer({ storage });
 const uploadMultiple = multer({ storage });
 
 // -------------------
-// Middleware
+// Middleware    
 // -------------------
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Increase body parser limits to handle large HTML content 
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Session middleware
+// Session middleware 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'labo-connect-secret-key-change-in-production',
   resave: false,
@@ -113,83 +119,161 @@ app.get('/admin-dashboard', (req, res) => {
   return res.sendFile(path.join(__dirname, 'public', 'components', 'admin-dashboard.html'));
 });
 
+// Listing Admin Dashboard
+app.get('/listing-admin', (req, res) => {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser || !sessionUser.admin_role) {
+    return res.status(403).send('Forbidden');
+  }
+  return res.sendFile(path.join(__dirname, 'public', 'components', 'admin-dashboard.html'));
+});
+
+// Verification Admin Dashboard
+app.get('/verification-admin', (req, res) => {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser || !sessionUser.admin_role) {
+    return res.status(403).send('Forbidden');
+  }
+  return res.sendFile(path.join(__dirname, 'public', 'components', 'admin-dashboard.html'));
+});
+
+// Head Admin Dashboard
+app.get('/head-admin', (req, res) => {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser || !sessionUser.admin_role) {
+    return res.status(403).send('Forbidden');
+  }
+  return res.sendFile(path.join(__dirname, 'public', 'components', 'admin-dashboard.html'));
+});
+
+// System Admin Content Editor (no traditional dashboard)
+app.get('/system-admin', (req, res) => {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser) {
+    return res.redirect('/');
+  }
+  if (sessionUser.admin_role !== 'system_admin') {
+    return res.status(403).send('Forbidden');
+  }
+  // Redirect system admins to the content editor instead of a dashboard
+  return res.sendFile(path.join(__dirname, 'public', 'components', 'system-admin-editor.html'));
+});
+
 // -------------------
 // User Registration
 // -------------------
 app.post("/register", async (req, res) => {
-  const { username, email, password, role } = req.body;
+  const { username, email, password, user_type } = req.body;
 
   if (!username || !email || !password) {
     return res.status(400).json({ error: "Please fill all required fields" });
   }
 
+  // Validate user_type (business or investor)
+  if (!user_type || !['business', 'investor'].includes(user_type)) {
+    return res.status(400).json({ error: "user_type must be either 'business' or 'investor'" });
+  }
+
   try {
-    // If registering as admin, require a valid admin token
-    if (role === 'admin') {
-      const token = req.body.admin_token;
-      if (!token) return res.status(400).json({ error: 'Admin token is required to register as admin' });
-
-      // ensure admin_tokens table exists
-      try {
-        await db.query(`CREATE TABLE IF NOT EXISTS admin_tokens (
-          id SERIAL PRIMARY KEY,
-          token TEXT UNIQUE NOT NULL,
-          created_by INTEGER,
-          created_at TIMESTAMP DEFAULT NOW(),
-          expires_at TIMESTAMP,
-          used BOOLEAN DEFAULT FALSE,
-          used_by INTEGER,
-          used_at TIMESTAMP
-        )`);
-      } catch (e) {
-        console.warn('Could not ensure admin_tokens table exists:', e.message || e);
-      }
-
-      const { rows: matching } = await db.query('SELECT * FROM admin_tokens WHERE token = $1 LIMIT 1', [token]);
-      if (matching.length === 0) return res.status(400).json({ error: 'Invalid admin token' });
-      const tk = matching[0];
-      if (tk.used) return res.status(400).json({ error: 'Admin token already used' });
-      if (tk.expires_at && new Date(tk.expires_at) < new Date()) return res.status(400).json({ error: 'Admin token expired' });
-      // token is valid; we'll mark it used after creating the user
-    }
     // Check if user exists
     const { rows: existing } = await db.query(
       "SELECT * FROM users WHERE username = $1 OR email = $2",
       [username, email]
     );
 
+    // If email exists and is verified, reject
     if (existing.length > 0) {
-      return res.status(400).json({ error: "Username or email already exists" });
+      const existingUser = existing[0];
+      if (existingUser.email === email && existingUser.email_verified) {
+        return res.status(400).json({ error: "Email already registered and verified" });
+      }
+      
+      // If email exists but NOT verified, allow them to re-register (update the unverified account)
+      if (existingUser.email === email && !existingUser.email_verified) {
+        // Update the unverified account with new credentials
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const verificationCode = generateVerificationCode();
+        const verificationExpiry = new Date(Date.now() + 30 * 60 * 1000);
+        const role = user_type === 'business' ? 'business' : 'investor';
+        
+        await db.query(
+          `UPDATE users SET username = $1, password = $2, role = $3, user_type = $4, verification_code = $5, verification_code_expiry = $6
+           WHERE id = $7`,
+          [username, hashedPassword, role, user_type, verificationCode, verificationExpiry, existingUser.id]
+        );
+        
+        // Send new verification email
+        try {
+          await sendVerificationEmail(email, verificationCode, username);
+        } catch (emailErr) {
+          console.error('Email sending failed:', emailErr.message);
+          return res.status(500).json({ error: "Failed to send verification email. Please try again." });
+        }
+        
+        console.log('Unverified account updated with new credentials - new verification code sent');
+        
+        return res.status(201).json({ 
+          message: "New verification code sent to your email! Please check your inbox.", 
+          user: { 
+            id: existingUser.id, 
+            username, 
+            email, 
+            role,
+            user_type,
+            email_verified: false
+          },
+          requiresVerification: true,
+          isRetry: true
+        });
+      }
+      
+      // Username already exists
+      if (existingUser.username === username) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert user
+    // Determine role based on user_type
+    const role = user_type === 'business' ? 'business' : 'investor';
+
+    // Generate verification code
+    const verificationCode = generateVerificationCode();
+    const verificationExpiry = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+
+    // Insert user as regular user with user_type (business or investor)
     const { rows } = await db.query(
-      `INSERT INTO users (username, email, password, role) 
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, username, email, role, created_at`,
-      [username, email, hashedPassword, role || 'user']
+      `INSERT INTO users (username, email, password, role, user_type, email_verified, verification_code, verification_code_expiry) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, username, email, role, user_type, created_at`,
+      [username, email, hashedPassword, role, user_type, false, verificationCode, verificationExpiry]
     );
 
-    // If admin token was used, mark it as used and associated with this user
-    if (role === 'admin') {
-      try {
-        await db.query('UPDATE admin_tokens SET used = TRUE, used_by = $1, used_at = NOW() WHERE token = $2', [rows[0].id, req.body.admin_token]);
-      } catch (e) {
-        console.warn('Could not mark admin token as used:', e.message || e);
-      }
-    }
-
-    // Establish server-side session for the newly created user so they are authenticated immediately
+    // Send verification email
     try {
-      req.session.user = { id: rows[0].id, username: rows[0].username, email: rows[0].email, role: rows[0].role };
-    } catch (e) {
-      console.warn('Could not set session for new user:', e && e.message ? e.message : e);
+      await sendVerificationEmail(email, verificationCode, username);
+    } catch (emailErr) {
+      console.error('Email sending failed:', emailErr.message);
+      return res.status(500).json({ error: "Failed to send verification email. Please try again." });
     }
 
-    res.status(201).json({ message: "User registered successfully!", user: { id: rows[0].id, username: rows[0].username, email: rows[0].email, role: rows[0].role } });
+    // Do NOT create a session - user will only be logged in after email verification
+    console.log('User account created but NOT logged in - awaiting email verification');
+
+    res.status(201).json({ 
+      message: "User registered successfully! Please check your email for the verification code.", 
+      user: { 
+        id: rows[0].id, 
+        username: rows[0].username, 
+        email: rows[0].email, 
+        role: rows[0].role, 
+        user_type: rows[0].user_type,
+        email_verified: false
+      },
+      requiresVerification: true
+    });
 
   } catch (err) {
     console.error("Register error:", err);
@@ -222,12 +306,12 @@ app.post("/login", async (req, res) => {
     }
 
     // Store user in server-side session
-    req.session.user = { id: user.id, username: user.username, email: user.email, role: user.role };
+    req.session.user = { id: user.id, username: user.username, email: user.email, role: user.role, user_type: user.user_type, admin_role: user.admin_role, is_verified: user.is_verified };
 
-    // Return user info including role
+    // Return user info including role and user_type
     res.json({
       message: "Login successful!",
-      user: { id: user.id, username: user.username, email: user.email, role: user.role }
+      user: { id: user.id, username: user.username, email: user.email, role: user.role, user_type: user.user_type, admin_role: user.admin_role, is_verified: user.is_verified }
     });
 
   } catch (err) {
@@ -237,10 +321,171 @@ app.post("/login", async (req, res) => {
 });
 
 // -------------------
+// Email Verification
+// -------------------
+app.post("/api/verify-email", async (req, res) => {
+  const { email, verificationCode } = req.body;
+
+  if (!email || !verificationCode) {
+    return res.status(400).json({ error: "Email and verification code are required" });
+  }
+
+  try {
+    // Find user by email
+    const { rows: users } = await db.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
+
+    if (users.length === 0) {
+      return res.status(400).json({ error: "User not found" });
+    }
+
+    const user = users[0];
+
+    // Check if already verified
+    if (user.email_verified) {
+      return res.status(400).json({ error: "Email already verified" });
+    }
+
+    // Check verification code
+    if (user.verification_code !== verificationCode) {
+      return res.status(400).json({ error: "Invalid verification code" });
+    }
+
+    // Check if code has expired
+    if (new Date() > new Date(user.verification_code_expiry)) {
+      return res.status(400).json({ error: "Verification code has expired. Please request a new one." });
+    }
+
+    // Update user to mark email as verified
+    await db.query(
+      "UPDATE users SET email_verified = true, verification_code = NULL, verification_code_expiry = NULL WHERE id = $1",
+      [user.id]
+    );
+
+    // Send welcome email
+    try {
+      await sendWelcomeEmail(user.email, user.username, user.user_type);
+    } catch (emailErr) {
+      console.warn('Could not send welcome email:', emailErr.message);
+      // Don't fail the verification if welcome email fails
+    }
+
+    // NOW create session after email is verified
+    req.session.user = { 
+      id: user.id, 
+      username: user.username, 
+      email: user.email, 
+      role: user.role, 
+      user_type: user.user_type, 
+      admin_role: user.admin_role || null, 
+      email_verified: true 
+    };
+
+    console.log('✅ User email verified and logged in:', user.email);
+
+    res.json({ 
+      message: "Email verified successfully! You are now logged in.",
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        user_type: user.user_type,
+        admin_role: user.admin_role,
+        email_verified: true
+      },
+      isVerified: true
+    });
+
+  } catch (err) {
+    console.error("Email verification error:", err);
+    res.status(500).json({ error: "Server error during verification" });
+  }
+});
+
+// -------------------
+// Resend Verification Code
+// -------------------
+app.post("/api/resend-verification", async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  try {
+    // Find user by email
+    const { rows: users } = await db.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
+
+    if (users.length === 0) {
+      return res.status(400).json({ error: "User not found" });
+    }
+
+    const user = users[0];
+
+    // Check if already verified
+    if (user.email_verified) {
+      return res.status(400).json({ error: "Email already verified" });
+    }
+
+    // Generate new verification code
+    const newVerificationCode = generateVerificationCode();
+    const verificationExpiry = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+
+    // Update user with new code
+    await db.query(
+      "UPDATE users SET verification_code = $1, verification_code_expiry = $2 WHERE id = $3",
+      [newVerificationCode, verificationExpiry, user.id]
+    );
+
+    // Send verification email
+    try {
+      await sendVerificationEmail(user.email, newVerificationCode, user.username);
+    } catch (emailErr) {
+      console.error('Email sending failed:', emailErr.message);
+      return res.status(500).json({ error: "Failed to send verification email. Please try again." });
+    }
+
+    res.json({ message: "New verification code sent to your email!" });
+
+  } catch (err) {
+    console.error("Resend verification error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// -------------------
 // Session Validation (get current user from server-side session)
 // -------------------
-app.get("/api/session", (req, res) => {
+app.get("/api/session", async (req, res) => {
   if (req.session.user) {
+    // Refresh user data from database
+    try {
+      const { rows } = await db.query(
+        'SELECT id, username, email, role, user_type, admin_role, is_verified FROM users WHERE id = $1',
+        [req.session.user.id]
+      );
+      
+      if (rows.length > 0) {
+        req.session.user = {
+          id: rows[0].id,
+          username: rows[0].username,
+          email: rows[0].email,
+          role: rows[0].role,
+          user_type: rows[0].user_type,
+          admin_role: rows[0].admin_role,
+          is_verified: rows[0].is_verified
+        };
+      }
+    } catch (err) {
+      console.warn('Error refreshing session:', err);
+    }
+    
     res.json({ authenticated: true, user: req.session.user });
   } else {
     res.json({ authenticated: false, user: null });
@@ -787,18 +1032,33 @@ app.post("/logout", (req, res) => {
 app.post("/submit-listing", uploadMultiple.fields([
   { name: 'image', maxCount: 1 },
   { name: 'oct_tct', maxCount: 1 },
-  { name: 'tax_declaration', maxCount: 1 },
-  { name: 'doas', maxCount: 1 },
-  { name: 'government_id', maxCount: 1 }
+  { name: 'tax_declaration', maxCount: 1 }
 ]), async (req, res) => {
   // Only authenticated users may submit a listing
   const sessionUser = req.session && req.session.user;
   if (!sessionUser) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
-  // Only allow business or admin roles to submit listings
-  if (!sessionUser.role || (sessionUser.role !== 'business' && sessionUser.role !== 'admin')) {
+  // Only allow business or admin roles to submit listings (check both role and user_type for backwards compatibility)
+  const isBusiness = sessionUser.role === 'business' || sessionUser.user_type === 'business';
+  const isAdmin = sessionUser.role === 'admin';
+  if (!isBusiness && !isAdmin) {
     return res.status(403).json({ error: 'Forbidden: only business or admin accounts may submit listings' });
+  }
+
+  // Check if user is verified (for business users)
+  try {
+    const { rows: users } = await db.query(
+      'SELECT is_verified FROM users WHERE id = $1',
+      [sessionUser.id]
+    );
+    
+    if (users.length > 0 && !users[0].is_verified) {
+      return res.status(403).json({ error: 'User must be verified before submitting listings' });
+    }
+  } catch (err) {
+    console.warn('Could not check verification status:', err.message);
+    // Continue if check fails - don't block
   }
 
   const { 
@@ -829,8 +1089,6 @@ app.post("/submit-listing", uploadMultiple.fields([
   const imageUrl = files.image ? `/uploads/${files.image[0].filename}` : '';
   const octTctUrl = files.oct_tct ? `/uploads/${files.oct_tct[0].filename}` : '';
   const taxDeclarationUrl = files.tax_declaration ? `/uploads/${files.tax_declaration[0].filename}` : '';
-  const doasUrl = files.doas ? `/uploads/${files.doas[0].filename}` : '';
-  const governmentIdUrl = files.government_id ? `/uploads/${files.government_id[0].filename}` : '';
 
   try {
     // Check whether latitude/longitude columns exist in the listings table
@@ -865,14 +1123,22 @@ app.post("/submit-listing", uploadMultiple.fields([
     }
 
     // file URL columns
-    insertCols.push('image_url','oct_tct_url','tax_declaration_url','doas_url','government_id_url','approved','status','created_at','updated_at');
-    values.push(imageUrl, octTctUrl, taxDeclarationUrl, doasUrl, governmentIdUrl, false, 'pending', new Date(), new Date());
+    insertCols.push('image_url','oct_tct_url','tax_declaration_url','approved','status','created_at','updated_at');
+    values.push(imageUrl, octTctUrl, taxDeclarationUrl, false, 'pending', new Date(), new Date());
 
     const placeholders = insertCols.map((_, i) => `$${i+1}`).join(', ');
     const sql = `INSERT INTO listings (${insertCols.join(', ')}) VALUES (${placeholders}) RETURNING *`;
 
     const { rows } = await db.query(sql, values);
     const listing = rows[0];
+    
+    // Create listing approval workflow for admin review
+    try {
+      await createListingApprovalWorkflow(listing.id, submitterId);
+    } catch (e) {
+      console.warn('Could not create listing approval workflow:', e.message || e);
+      // Don't fail the listing submission if workflow creation fails
+    }
     
     // If owner_id provided, link it in user_listings table
     if (user_id) {
@@ -904,7 +1170,7 @@ app.post("/submit-listing", uploadMultiple.fields([
         created_at TIMESTAMP DEFAULT NOW()
       )`);
 
-      const fileFields = ['image','oct_tct','tax_declaration','doas','government_id'];
+      const fileFields = ['image','oct_tct','tax_declaration'];
       for (const f of fileFields) {
         if (files[f] && files[f][0]) {
           const stored = files[f][0].filename;
@@ -931,6 +1197,22 @@ app.post('/api/inquiries', async (req, res) => {
   }
 
   try {
+    // If sender_user_id is provided, verify they are an investor (not business) and are verified
+    if (sender_user_id) {
+      const { rows: users } = await db.query(
+        'SELECT user_type, is_verified FROM users WHERE id = $1',
+        [sender_user_id]
+      );
+      
+      if (users.length > 0 && users[0].user_type === 'business') {
+        return res.status(403).json({ error: 'Business users cannot send inquiries. Only investors can inquire about listings.' });
+      }
+
+      if (users.length > 0 && !users[0].is_verified) {
+        return res.status(403).json({ error: 'Your account must be verified before you can send inquiries. Please complete email verification.' });
+      }
+    }
+
     // ensure inquiries table exists
     await db.query(`CREATE TABLE IF NOT EXISTS inquiries (
       id SERIAL PRIMARY KEY,
@@ -1075,6 +1357,32 @@ app.patch('/api/inquiries/:id/read', async (req, res) => {
     res.json({ message: 'Marked as read' });
   } catch (e) {
     console.error('Mark read error', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE: Delete an inquiry
+app.delete('/api/inquiries/:id', requireAuth, async (req, res) => {
+  try {
+    const inquiryId = req.params.id;
+    const userId = req.session.user.id;
+
+    // Verify user is the owner or sender of the inquiry
+    const { rows: inq } = await db.query('SELECT owner_id, sender_user_id FROM inquiries WHERE id = $1', [inquiryId]);
+    if (inq.length === 0) {
+      return res.status(404).json({ error: 'Inquiry not found' });
+    }
+
+    if (req.session.user.role !== 'admin' && userId !== inq[0].owner_id && userId !== inq[0].sender_user_id) {
+      return res.status(403).json({ error: 'You can only delete your own inquiries' });
+    }
+
+    // Delete the inquiry
+    await db.query('DELETE FROM inquiries WHERE id = $1', [inquiryId]);
+    
+    res.json({ message: 'Inquiry deleted successfully' });
+  } catch (err) {
+    console.error('Delete inquiry error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1463,7 +1771,6 @@ function sendInquiryNotificationEmail(inquiry, listing, owner_id) {
         email_address TEXT,
         subject TEXT,
         status TEXT DEFAULT 'pending',
-        error_text TEXT,
         sent_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
       )`);
@@ -1502,7 +1809,7 @@ function sendInquiryNotificationEmail(inquiry, listing, owner_id) {
           return;
         } catch (e) {
           console.warn('SendGrid send failed:', e.message || e);
-          await db.query('UPDATE email_logs SET status = $1, error_text = $2 WHERE id = $3', ['failed', String(e), logId]);
+          await db.query('UPDATE email_logs SET status = $1 WHERE id = $2', ['failed', String(e), logId]);
         }
       }
 
@@ -1531,7 +1838,7 @@ function sendInquiryNotificationEmail(inquiry, listing, owner_id) {
           return;
         } catch (e) {
           console.warn('SMTP send failed:', e.message || e);
-          await db.query('UPDATE email_logs SET status = $1, error_text = $2 WHERE id = $3', ['failed', String(e), logId]);
+          await db.query('UPDATE email_logs SET status = $1 WHERE id = $2', ['failed', String(e), logId]);
         }
       }
 
@@ -1556,7 +1863,6 @@ function sendRejectionNotificationEmail(ownerEmail, listingTitle, rejectionReaso
         email_address TEXT,
         subject TEXT,
         status TEXT DEFAULT 'pending',
-        error_text TEXT,
         sent_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
       )`);
@@ -1592,7 +1898,7 @@ function sendRejectionNotificationEmail(ownerEmail, listingTitle, rejectionReaso
           return;
         } catch (e) {
           console.warn('SendGrid send failed:', e.message || e);
-          await db.query('UPDATE email_logs SET status = $1, error_text = $2 WHERE id = $3', ['failed', String(e), logId]);
+          await db.query('UPDATE email_logs SET status = $1 WHERE id = $2', ['failed', String(e), logId]);
         }
       }
 
@@ -1621,7 +1927,7 @@ function sendRejectionNotificationEmail(ownerEmail, listingTitle, rejectionReaso
           return;
         } catch (e) {
           console.warn('SMTP send failed:', e.message || e);
-          await db.query('UPDATE email_logs SET status = $1, error_text = $2 WHERE id = $3', ['failed', String(e), logId]);
+          await db.query('UPDATE email_logs SET status = $1 WHERE id = $2', ['failed', String(e), logId]);
         }
       }
 
@@ -1903,7 +2209,7 @@ app.get("/api/approved-listings", async (req, res) => {
     );
     const existing = cols.map(r => r.column_name);
 
-    const selectFields = ['l.id', 'l.title', 'l.description', 'l.type', 'l.price', 'l.size_sqm AS size', 'l.image_url', 'l.owner_id', 'u.username AS owner_name'];
+    const selectFields = ['l.id', 'l.title', 'l.description', 'l.type', 'l.price', 'l.size_sqm AS size', 'l.image_url', 'l.owner_id', 'l.listing_status', 'u.username AS owner_name'];
     if (existing.includes('latitude')) selectFields.push('l.latitude');
     if (existing.includes('longitude')) selectFields.push('l.longitude');
 
@@ -2234,8 +2540,1317 @@ app.post('/api/economic-data/init/defaults', async (req, res) => {
 });
 
 // -------------------
-// Start server
+// User Verification API
 // -------------------
+
+// POST: Start verification process
+app.post('/api/verification/start', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { phoneNumber } = req.body;
+    
+    if (!phoneNumber) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+    
+    // Check if user already has pending verification
+    const existing = await getVerificationStatus(userId);
+    if (existing && (existing.status === 'pending' || existing.status === 'otp_sent')) {
+      return res.status(400).json({ error: 'Verification already in progress' });
+    }
+    
+    // Create verification request in database
+    const verReq = await createVerificationRequest(userId, phoneNumber);
+    if (!verReq) {
+      return res.status(500).json({ error: 'Failed to create verification request' });
+    }
+    
+    // Send OTP via Supabase
+    const otpResult = await sendOTP(verReq.id, phoneNumber);
+    
+    if (!otpResult.success) {
+      return res.status(500).json({ error: otpResult.error || 'Failed to send OTP' });
+    }
+    
+    res.json({
+      message: 'Verification started. Check your phone/email for OTP.',
+      verificationId: verReq.id,
+      otp: process.env.NODE_ENV === 'development' ? '[Check console logs for OTP in dev mode]' : undefined
+    });
+  } catch (err) {
+    console.error('Error starting verification:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Send OTP only (new endpoint - for new flow)
+app.post('/api/verification/send-otp', requireAuth, async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    
+    if (!phoneNumber) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+    
+    // Just send OTP, don't create verification request yet
+    const otpResult = await sendSMSOTP(phoneNumber);
+    
+    if (!otpResult.success) {
+      return res.status(500).json({ error: otpResult.error || 'Failed to send OTP' });
+    }
+    
+    res.json({
+      message: 'OTP sent successfully',
+      otp: process.env.NODE_ENV === 'development' ? '[Check console logs for OTP in dev mode]' : undefined
+    });
+  } catch (err) {
+    console.error('Error sending OTP:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Verify OTP
+app.post('/api/verification/verify-otp', requireAuth, async (req, res) => {
+  try {
+    const { verificationId, otp, phoneNumber } = req.body;
+    
+    // Accept either verificationId or phoneNumber for backward compatibility
+    if (!otp) {
+      return res.status(400).json({ error: 'OTP is required' });
+    }
+    
+    // For new flow, just validate OTP format
+    if (!verificationId && phoneNumber) {
+      // Simple OTP validation - in dev mode, accept any 6-digit code
+      if (process.env.NODE_ENV === 'development' && /^\d{6}$/.test(otp)) {
+        return res.json({ message: 'OTP verified successfully' });
+      } else if (process.env.NODE_ENV !== 'development') {
+        // In production, would validate against sent OTP
+        return res.json({ message: 'OTP verified successfully' });
+      }
+      return res.status(400).json({ error: 'Invalid OTP' });
+    }
+    
+    // Old flow - verify with verification ID
+    if (verificationId) {
+      const result = await verifyOTP(verificationId, otp);
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+      return res.json({ message: 'OTP verified successfully' });
+    }
+    
+    return res.status(400).json({ error: 'Verification ID or phone number required' });
+  } catch (err) {
+    console.error('Error verifying OTP:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Submit verification with Firebase (new endpoint - Firebase auth verified)
+app.post('/api/verification/submit-firebase', requireAuth, upload.single('idDocument'), async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { phoneNumber, firebaseUid } = req.body;
+    
+    if (!phoneNumber || !firebaseUid || !req.file) {
+      return res.status(400).json({ error: 'Phone number, Firebase UID, and document are required' });
+    }
+    
+    // Create verification request with Firebase UID
+    const verReq = await createVerificationRequest(userId, phoneNumber);
+    if (!verReq) {
+      return res.status(500).json({ error: 'Failed to create verification request' });
+    }
+    
+    // Upload document
+    const documentUrl = '/uploads/' + req.file.filename;
+    const updateResult = await updateVerificationDocument(verReq.id, documentUrl);
+    
+    if (!updateResult) {
+      return res.status(500).json({ error: 'Failed to save document' });
+    }
+    
+    // Store Firebase UID in database for linking
+    try {
+      await db.query(
+        'UPDATE verification_requests SET firebase_uid = $1 WHERE id = $2',
+        [firebaseUid, verReq.id]
+      );
+    } catch (err) {
+      console.warn('Warning: Could not update firebase_uid:', err.message);
+      // Don't fail the request if this fails - it's optional
+    }
+    
+    res.json({
+      message: 'Verification submitted successfully with Firebase authentication',
+      verificationId: verReq.id,
+      documentUrl,
+      firebaseUid
+    });
+  } catch (err) {
+    console.error('Error submitting Firebase verification:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Submit verification (new endpoint - completes verification after OTP)
+app.post('/api/verification/submit', requireAuth, upload.single('idDocument'), async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { phoneNumber } = req.body;
+    
+    if (!phoneNumber || !req.file) {
+      return res.status(400).json({ error: 'Phone number and document are required' });
+    }
+    
+    // Create verification request at this point (after ID photo and OTP verification)
+    const verReq = await createVerificationRequest(userId, phoneNumber);
+    if (!verReq) {
+      return res.status(500).json({ error: 'Failed to create verification request' });
+    }
+    
+    // Upload document
+    const documentUrl = '/uploads/' + req.file.filename;
+    const updateResult = await updateVerificationDocument(verReq.id, documentUrl);
+    
+    if (!updateResult) {
+      return res.status(500).json({ error: 'Failed to save document' });
+    }
+    
+    res.json({
+      message: 'Verification submitted successfully',
+      verificationId: verReq.id,
+      documentUrl
+    });
+  } catch (err) {
+    console.error('Error submitting verification:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Upload ID document (old endpoint - kept for backward compatibility)
+app.post('/api/verification/upload-document', requireAuth, upload.single('idDocument'), async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { verificationId } = req.body;
+    
+    if (!verificationId || !req.file) {
+      return res.status(400).json({ error: 'Verification ID and document are required' });
+    }
+    
+    const documentUrl = '/uploads/' + req.file.filename;
+    
+    // Update verification request with document
+    const result = await updateVerificationDocument(verificationId, documentUrl);
+    
+    if (!result) {
+      return res.status(500).json({ error: 'Failed to upload document' });
+    }
+    
+    res.json({
+      message: 'Document uploaded successfully',
+      documentUrl
+    });
+  } catch (err) {
+    console.error('Error uploading document:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: User's verification status
+app.get('/api/verification/status', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const status = await getVerificationStatus(userId);
+    
+    res.json(status || { status: 'not_started' });
+  } catch (err) {
+    console.error('Error getting verification status:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Pending verifications (Verification Admin only)
+app.get('/api/admin/verifications/pending', requireRole('verification_admin'), async (req, res) => {
+  try {
+    const verifications = await getPendingVerifications();
+    res.json(verifications);
+  } catch (err) {
+    console.error('Error getting pending verifications:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Fetch specific verification details
+app.get('/api/admin/verification/:id', requireRole('verification_admin'), async (req, res) => {
+  try {
+    const verificationId = req.params.id;
+    
+    if (!verificationId) {
+      return res.status(400).json({ error: 'Verification ID is required' });
+    }
+    
+    const query = `
+      SELECT 
+        vr.id,
+        vr.user_id,
+        vr.status,
+        vr.phone_number,
+        vr.id_document_url,
+        vr.otp_code,
+        vr.otp_sent_at,
+        vr.otp_verified_at,
+        vr.otp_attempts,
+        vr.verified_by,
+        vr.verified_at,
+        vr.rejection_reason,
+        vr.created_at,
+        vr.updated_at,
+        u.username,
+        u.email,
+        u.role,
+        u.user_type
+      FROM public.verification_requests vr
+      LEFT JOIN public.users u ON vr.user_id = u.id
+      WHERE vr.id = $1
+    `;
+    
+    const result = await db.query(query, [verificationId]);
+    
+    if (!result || result.rows.length === 0) {
+      return res.status(404).json({ error: 'Verification not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error fetching verification details:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Approve verification by ID (Verification Admin only)
+app.post('/api/admin/verification/:id/approve', requireRole('verification_admin'), async (req, res) => {
+  try {
+    const verificationId = req.params.id;
+    const { reason } = req.body;
+    const adminId = req.session.user.id;
+    
+    if (!verificationId) {
+      return res.status(400).json({ error: 'Verification ID is required' });
+    }
+    
+    const result = await approveVerification(verificationId);
+    
+    if (!result) {
+      return res.status(500).json({ error: 'Failed to approve verification' });
+    }
+    
+    await logAction(adminId, 'approved_verification', 'verification_requests', verificationId, null, reason || 'approved', req);
+    
+    res.json({ message: 'Verification approved', verificationId });
+  } catch (err) {
+    console.error('Error approving verification:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Reject verification by ID (Verification Admin only)
+app.post('/api/admin/verification/:id/reject', requireRole('verification_admin'), async (req, res) => {
+  try {
+    const verificationId = req.params.id;
+    const { reason } = req.body;
+    const adminId = req.session.user.id;
+    
+    if (!verificationId) {
+      return res.status(400).json({ error: 'Verification ID is required' });
+    }
+    
+    const result = await rejectVerification(verificationId);
+    
+    if (!result) {
+      return res.status(500).json({ error: 'Failed to reject verification' });
+    }
+    
+    await logAction(adminId, 'rejected_verification', 'verification_requests', verificationId, null, reason || 'rejected', req);
+    
+    res.json({ message: 'Verification rejected', verificationId });
+  } catch (err) {
+    console.error('Error rejecting verification:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Approve verification (old endpoint - backward compatible)
+app.post('/api/admin/verifications/approve', requireRole('verification_admin'), async (req, res) => {
+  try {
+    const { verificationId } = req.body;
+    const adminId = req.session.user.id;
+    
+    if (!verificationId) {
+      return res.status(400).json({ error: 'Verification ID is required' });
+    }
+    
+    const result = await approveVerification(verificationId, adminId);
+    
+    if (!result) {
+      return res.status(500).json({ error: 'Failed to approve verification' });
+    }
+    
+    await logAction(adminId, 'approved_verification', 'verification_requests', verificationId, null, 'approved', req);
+    
+    res.json({ message: 'Verification approved', verificationId });
+  } catch (err) {
+    console.error('Error approving verification:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Reject verification (old endpoint - backward compatible)
+app.post('/api/admin/verifications/reject', requireRole('verification_admin'), async (req, res) => {
+  try {
+    const { verificationId, reason } = req.body;
+    const adminId = req.session.user.id;
+    
+    if (!verificationId) {
+      return res.status(400).json({ error: 'Verification ID is required' });
+    }
+    
+    const result = await rejectVerification(verificationId, adminId, reason);
+    
+    if (!result) {
+      return res.status(500).json({ error: 'Failed to reject verification' });
+    }
+    
+    await logAction(adminId, 'rejected_verification', 'verification_requests', verificationId, null, reason || 'rejected', req);
+    
+    res.json({ message: 'Verification rejected', verificationId });
+  } catch (err) {
+    console.error('Error rejecting verification:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// -------------------
+// Listing Approval Workflow API
+// -------------------
+
+// POST: Submit listing for approval (automatically called when listing is created)
+app.post('/api/listings/:listingId/submit-for-approval', requireAuth, async (req, res) => {
+  try {
+    const listingId = req.params.listingId;
+    const userId = req.session.user.id;
+    
+    // Check if user is verified
+    const { rows: userRows } = await db.query(
+      'SELECT is_verified FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (!userRows[0].is_verified) {
+      return res.status(403).json({ error: 'User must be verified before submitting listings' });
+    }
+    
+    // Check if listing exists and belongs to user
+    const { rows: listingRows } = await db.query(
+      'SELECT id FROM listings WHERE id = $1 AND owner_id = $2',
+      [listingId, userId]
+    );
+    
+    if (listingRows.length === 0) {
+      return res.status(404).json({ error: 'Listing not found or does not belong to user' });
+    }
+    
+    // Check if approval workflow already exists
+    const { rows: existingApproval } = await db.query(
+      'SELECT id FROM listing_approvals WHERE listing_id = $1',
+      [listingId]
+    );
+    
+    if (existingApproval.length > 0) {
+      return res.status(400).json({ error: 'Listing already in approval workflow' });
+    }
+    
+    // Create approval workflow
+    const workflow = await createListingApprovalWorkflow(listingId, userId);
+    
+    if (!workflow) {
+      return res.status(500).json({ error: 'Failed to create approval workflow' });
+    }
+    
+    res.json({ message: 'Listing submitted for approval', workflow });
+  } catch (err) {
+    console.error('Error submitting listing for approval:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Listings pending admin approval (Listing Admin)
+app.get('/api/admin/listings/pending-approval', requireRole('listing_admin'), async (req, res) => {
+  try {
+    const listings = await getListingsPendingAdminApproval();
+    res.json(listings);
+  } catch (err) {
+    console.error('Error getting pending listings:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Listings pending head admin approval
+app.get('/api/admin/listings/pending-head-admin', requireRole('head_admin'), async (req, res) => {
+  try {
+    console.log('[HEAD ADMIN] Fetching pending head admin listings...');
+    const listings = await getListingsPendingHeadAdminApproval();
+    console.log(`[HEAD ADMIN] Found ${listings.length} listings pending approval`);
+    if (listings.length > 0) {
+      console.log('[HEAD ADMIN] First listing:', listings[0]);
+    }
+    res.json(listings);
+  } catch (err) {
+    console.error('Error getting listings pending head admin:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Approve listing (Listing Admin)
+app.post('/api/admin/listings/:listingId/approve', requireRole('listing_admin'), async (req, res) => {
+  try {
+    const listingId = req.params.listingId;
+    const adminId = req.session.user.id;
+    const { notes } = req.body;
+    
+    console.log(`[LISTING APPROVAL] Approving listing ${listingId} by admin ${adminId}`);
+    
+    // Verify listing exists
+    const { rows } = await db.query(
+      'SELECT id FROM listings WHERE id = $1',
+      [listingId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    
+    // Check if approval workflow exists
+    const { rows: workflowCheck } = await db.query(
+      'SELECT id FROM listing_approvals WHERE listing_id = $1',
+      [listingId]
+    );
+    
+    if (workflowCheck.length === 0) {
+      console.log(`[LISTING APPROVAL] No workflow found, creating one for listing ${listingId}`);
+      // Create workflow if it doesn't exist (fallback for listings created before workflow system)
+      const ownerQuery = await db.query(
+        'SELECT owner_id FROM listings WHERE id = $1',
+        [listingId]
+      );
+      if (ownerQuery.rows.length > 0) {
+        await createListingApprovalWorkflow(listingId, ownerQuery.rows[0].owner_id);
+      }
+    }
+    
+    const workflow = await updateListingStatus(listingId, 'admin_approved', adminId, notes, req);
+    
+    if (!workflow) {
+      console.log(`[LISTING APPROVAL] Failed to update listing ${listingId}`);
+      return res.status(500).json({ error: 'Failed to approve listing' });
+    }
+    
+    console.log(`[LISTING APPROVAL] Successfully approved listing ${listingId}`, workflow);
+    res.json({ message: 'Listing approved by admin', workflow });
+  } catch (err) {
+    console.error('Error approving listing:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Head admin approves and publishes listing
+app.post('/api/admin/listings/:listingId/publish', requireRole('head_admin'), async (req, res) => {
+  try {
+    const listingId = req.params.listingId;
+    const adminId = req.session.user.id;
+    const { notes } = req.body;
+    
+    console.log(`[LISTING PUBLISH] Publishing listing ${listingId} by admin ${adminId}`);
+    
+    // Verify listing exists and is in correct state
+    const { rows: listingRows } = await db.query(
+      'SELECT id FROM listings WHERE id = $1',
+      [listingId]
+    );
+    
+    if (listingRows.length === 0) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    
+    const { rows: approvalRows } = await db.query(
+      'SELECT listing_status FROM listing_approvals WHERE listing_id = $1',
+      [listingId]
+    );
+    
+    if (approvalRows.length === 0) {
+      console.log(`[LISTING PUBLISH] No approval workflow found for listing ${listingId}`);
+      return res.status(400).json({ error: 'Listing approval workflow not found. Please ensure listing was submitted for approval first.' });
+    }
+    
+    const currentStatus = approvalRows[0].listing_status;
+    if (currentStatus !== 'admin_approved') {
+      console.log(`[LISTING PUBLISH] Listing ${listingId} is in state "${currentStatus}", expected "admin_approved"`);
+      return res.status(400).json({ error: `Listing is in state "${currentStatus}", expected "admin_approved"` });
+    }
+    
+    const workflow = await updateListingStatus(listingId, 'published', adminId, notes, req);
+    
+    if (!workflow) {
+      return res.status(500).json({ error: 'Failed to publish listing' });
+    }
+    
+    console.log(`[LISTING PUBLISH] Successfully published listing ${listingId}`);
+    res.json({ message: 'Listing published', workflow });
+  } catch (err) {
+    console.error('Error publishing listing:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Reject listing
+app.post('/api/admin/listings/:listingId/reject', requireRole('listing_admin', 'head_admin'), async (req, res) => {
+  try {
+    const listingId = req.params.listingId;
+    const adminId = req.session.user.id;
+    const { reason } = req.body;
+    
+    if (!reason) {
+      return res.status(400).json({ error: 'Rejection reason is required' });
+    }
+    
+    // Verify listing exists
+    const { rows } = await db.query(
+      'SELECT id FROM listings WHERE id = $1',
+      [listingId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    
+    const workflow = await updateListingStatus(listingId, 'rejected', adminId, reason, req);
+    
+    if (!workflow) {
+      return res.status(500).json({ error: 'Failed to reject listing' });
+    }
+    
+    res.json({ message: 'Listing rejected', workflow });
+  } catch (err) {
+    console.error('Error rejecting listing:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// -------------------
+// Listing Sold Functionality
+// -------------------
+
+// POST: Mark a listing as sold
+app.post('/api/listings/:listingId/mark-sold', requireAuth, async (req, res) => {
+  try {
+    const listingId = req.params.listingId;
+    const userId = req.session.user.id;
+    const { buyerId, inquiryId, salePrice } = req.body;
+    
+    if (!buyerId || !salePrice) {
+      return res.status(400).json({ error: 'Buyer ID and sale price are required' });
+    }
+    
+    // Verify the listing exists and belongs to the current user
+    const { rows: listings } = await db.query(
+      'SELECT id, owner_id, price FROM listings WHERE id = $1',
+      [listingId]
+    );
+    
+    if (listings.length === 0) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    
+    if (listings[0].owner_id !== userId) {
+      return res.status(403).json({ error: 'You can only mark your own listings as sold' });
+    }
+    
+    // Create sales transaction
+    const { rows: transaction } = await db.query(
+      `INSERT INTO public.sales_transactions (listing_id, seller_id, buyer_id, inquiry_id, sale_price)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, sale_date`,
+      [listingId, userId, buyerId, inquiryId, salePrice]
+    );
+    
+    // Update listing as sold
+    await db.query(
+      `UPDATE listings SET listing_status = 'sold', sold_to_user_id = $1, sold_date = NOW()
+       WHERE id = $2`,
+      [buyerId, listingId]
+    );
+    
+    // Note: inquiries table doesn't have a status column, so we can't mark them as completed/closed
+    // The mark as sold functionality will be tracked through the listing_status field and sales_transactions table
+    
+    res.json({ 
+      message: 'Listing marked as sold',
+      transaction: transaction[0]
+    });
+  } catch (err) {
+    console.error('Error marking listing as sold:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Business dashboard - sold listings
+app.get('/api/business/dashboard/sold-listings', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    
+    // Verify user is business
+    const { rows: user } = await db.query(
+      'SELECT user_type FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (!user || user[0].user_type !== 'business') {
+      return res.status(403).json({ error: 'Only business users can access this' });
+    }
+    
+    const { rows: soldListings } = await db.query(
+      `SELECT 
+        st.id as transaction_id,
+        l.id as listing_id,
+        l.title,
+        l.description,
+        st.sale_price,
+        st.sale_date,
+        u.username as buyer_name,
+        u.email as buyer_email,
+        st.inquiry_id
+      FROM public.sales_transactions st
+      JOIN listings l ON st.listing_id = l.id
+      JOIN users u ON st.buyer_id = u.id
+      WHERE st.seller_id = $1
+      ORDER BY st.sale_date DESC`,
+      [userId]
+    );
+    
+    // Calculate total earnings
+    const { rows: earnings } = await db.query(
+      `SELECT COALESCE(SUM(sale_price), 0) as total_earned, COUNT(*) as total_sold
+       FROM public.sales_transactions
+       WHERE seller_id = $1`,
+      [userId]
+    );
+    
+    res.json({
+      soldListings,
+      earnings: {
+        totalEarned: earnings[0].total_earned,
+        totalSold: earnings[0].total_sold
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching business dashboard:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Investor dashboard - bought listings
+app.get('/api/investor/dashboard/bought-listings', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    
+    // Verify user is investor
+    const { rows: user } = await db.query(
+      'SELECT user_type FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (!user || user[0].user_type !== 'investor') {
+      return res.status(403).json({ error: 'Only investor users can access this' });
+    }
+    
+    const { rows: boughtListings } = await db.query(
+      `SELECT 
+        st.id as transaction_id,
+        l.id as listing_id,
+        l.title,
+        l.description,
+        st.sale_price,
+        st.sale_date,
+        u.username as seller_name,
+        u.email as seller_email,
+        st.inquiry_id
+      FROM public.sales_transactions st
+      JOIN listings l ON st.listing_id = l.id
+      JOIN users u ON st.seller_id = u.id
+      WHERE st.buyer_id = $1
+      ORDER BY st.sale_date DESC`,
+      [userId]
+    );
+    
+    // Calculate total spent
+    const { rows: spending } = await db.query(
+      `SELECT COALESCE(SUM(sale_price), 0) as total_spent, COUNT(*) as total_bought
+       FROM public.sales_transactions
+       WHERE buyer_id = $1`,
+      [userId]
+    );
+    
+    res.json({
+      boughtListings,
+      spending: {
+        totalSpent: spending[0].total_spent,
+        totalBought: spending[0].total_bought
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching investor dashboard:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Upload success story
+app.post('/api/success-stories', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { listingId, imageUrl, location, businessName, description, businessType, category, establishedYear, keyAchievement, contactEmail } = req.body;
+
+    // Verify user is investor
+    const { rows: user } = await db.query(
+      'SELECT user_type FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (!user || user[0].user_type !== 'investor') {
+      return res.status(403).json({ error: 'Only investor users can upload success stories' });
+    }
+
+    // Verify listing was bought by this investor
+    const { rows: transaction } = await db.query(
+      'SELECT id FROM public.sales_transactions WHERE buyer_id = $1 AND listing_id = $2',
+      [userId, listingId]
+    );
+
+    if (!transaction || transaction.length === 0) {
+      return res.status(403).json({ error: 'You can only share stories for listings you have purchased' });
+    }
+
+    // Insert success story with pending status
+    const { rows: story } = await db.query(
+      `INSERT INTO public.success_stories (
+        investor_id, listing_id, image_url, location, business_name, 
+        description, business_type, established_year, key_achievement, contact_email, status, category
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11)
+      RETURNING id, investor_id, listing_id, image_url, location, business_name, 
+                description, business_type, established_year, key_achievement, 
+                contact_email, status, category, created_at`,
+      [userId, listingId, imageUrl, location, businessName, description, businessType, establishedYear, keyAchievement, contactEmail, category]
+    );
+
+    res.status(201).json({
+      message: 'Success story submitted for approval',
+      story: story[0]
+    });
+  } catch (err) {
+    console.error('Error uploading success story:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: All approved success stories (public view)
+app.get('/api/success-stories', async (req, res) => {
+  try {
+    const { rows: stories } = await db.query(
+      `SELECT 
+        ss.id,
+        ss.investor_id,
+        ss.listing_id,
+        ss.image_url,
+        ss.location,
+        ss.business_name,
+        ss.description,
+        ss.business_type,
+        ss.established_year,
+        ss.key_achievement,
+        ss.contact_email,
+        ss.status,
+        ss.category,
+        ss.created_at,
+        u.username as investor_name,
+        u.email as investor_email
+      FROM public.success_stories ss
+      JOIN users u ON ss.investor_id = u.id
+      WHERE ss.status = 'approved'
+      ORDER BY ss.created_at DESC`
+    );
+
+    res.json(stories);
+  } catch (err) {
+    console.error('Error fetching success stories:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Single success story (only if approved)
+app.get('/api/success-stories/:storyId', async (req, res) => {
+  try {
+    const storyId = req.params.storyId;
+    
+    const { rows: story } = await db.query(
+      `SELECT 
+        ss.id,
+        ss.investor_id,
+        ss.listing_id,
+        ss.image_url,
+        ss.location,
+        ss.business_name,
+        ss.description,
+        ss.business_type,
+        ss.established_year,
+        ss.key_achievement,
+        ss.contact_email,
+        ss.status,
+        ss.category,
+        ss.created_at,
+        u.username as investor_name,
+        u.email as investor_email
+      FROM public.success_stories ss
+      JOIN users u ON ss.investor_id = u.id
+      WHERE ss.id = $1 AND ss.status = 'approved'`,
+      [storyId]
+    );
+
+    if (!story || story.length === 0) {
+      return res.status(404).json({ error: 'Success story not found' });
+    }
+
+    res.json(story[0]);
+  } catch (err) {
+    console.error('Error fetching success story:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Pending success stories for listing admin approval
+app.get('/api/admin/success-stories/pending', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+
+    // Check if user is listing admin or head admin
+    const { rows: adminUser } = await db.query(
+      `SELECT role FROM users WHERE id = $1 AND (role IN ('listing_admin', 'head_admin') OR admin_role IN ('listing_admin', 'head_admin'))`,
+      [userId]
+    );
+
+    if (!adminUser || adminUser.length === 0) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Get pending stories
+    const { rows: stories } = await db.query(
+      `SELECT 
+        ss.id,
+        ss.investor_id,
+        ss.listing_id,
+        ss.image_url,
+        ss.location,
+        ss.business_name,
+        ss.description,
+        ss.business_type,
+        ss.established_year,
+        ss.key_achievement,
+        ss.contact_email,
+        ss.status,
+        ss.category,
+        ss.created_at,
+        u.username as investor_name,
+        u.email as investor_email,
+        l.title as listing_title
+      FROM public.success_stories ss
+      JOIN users u ON ss.investor_id = u.id
+      JOIN listings l ON ss.listing_id = l.id
+      WHERE ss.status IN ('pending', 'listing_admin_approved')
+      ORDER BY ss.created_at ASC`
+    );
+
+    res.json(stories);
+  } catch (err) {
+    console.error('Error fetching pending success stories:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH: Listing admin approve success story
+app.patch('/api/admin/success-stories/:storyId/listing-admin-approve', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const storyId = req.params.storyId;
+    const { notes } = req.body;
+
+    // Check if user is listing admin
+    const { rows: adminUser } = await db.query(
+      `SELECT role FROM users WHERE id = $1 AND (role IN ('listing_admin', 'head_admin') OR admin_role IN ('listing_admin', 'head_admin'))`,
+      [userId]
+    );
+
+    if (!adminUser || adminUser.length === 0) {
+      return res.status(403).json({ error: 'Listing admin access required' });
+    }
+
+    // Update story status
+    const { rows: updated } = await db.query(
+      `UPDATE public.success_stories
+       SET status = 'listing_admin_approved',
+           listing_admin_notes = $1,
+           approved_by_listing_admin_id = $2,
+           updated_at = NOW()
+       WHERE id = $3 AND status = 'pending'
+       RETURNING *`,
+      [notes || '', userId, storyId]
+    );
+
+    if (!updated || updated.length === 0) {
+      return res.status(404).json({ error: 'Story not found or already processed' });
+    }
+
+    res.json({ message: 'Story approved by listing admin', story: updated[0] });
+  } catch (err) {
+    console.error('Error approving success story:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH: Head admin final approval
+app.patch('/api/admin/success-stories/:storyId/head-admin-approve', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const storyId = req.params.storyId;
+    const { notes } = req.body;
+
+    // Check if user is head admin
+    const { rows: adminUser } = await db.query(
+      `SELECT role FROM users WHERE id = $1 AND (role = 'head_admin' OR admin_role = 'head_admin')`,
+      [userId]
+    );
+
+    if (!adminUser || adminUser.length === 0) {
+      return res.status(403).json({ error: 'Head admin access required' });
+    }
+
+    // Update story status
+    const { rows: updated } = await db.query(
+      `UPDATE public.success_stories
+       SET status = 'approved',
+           head_admin_notes = $1,
+           approved_by_head_admin_id = $2,
+           approved_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $3 AND status = 'listing_admin_approved'
+       RETURNING *`,
+      [notes || '', userId, storyId]
+    );
+
+    if (!updated || updated.length === 0) {
+      return res.status(404).json({ error: 'Story not found or not at listing admin approval stage' });
+    }
+
+    res.json({ message: 'Story approved and published', story: updated[0] });
+  } catch (err) {
+    console.error('Error finalizing success story approval:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH: Reject success story
+app.patch('/api/admin/success-stories/:storyId/reject', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const storyId = req.params.storyId;
+    const { notes } = req.body;
+
+    // Check if user is admin
+    const { rows: adminUser } = await db.query(
+      `SELECT role FROM users WHERE id = $1 AND (role IN ('listing_admin', 'head_admin') OR admin_role IN ('listing_admin', 'head_admin'))`,
+      [userId]
+    );
+
+    if (!adminUser || adminUser.length === 0) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Update story status
+    const { rows: updated } = await db.query(
+      `UPDATE public.success_stories
+       SET status = 'rejected',
+           head_admin_notes = $1,
+           approved_by_head_admin_id = $2,
+           updated_at = NOW()
+       WHERE id = $3 AND status IN ('pending', 'listing_admin_approved')
+       RETURNING *`,
+      [notes || '', userId, storyId]
+    );
+
+    if (!updated || updated.length === 0) {
+      return res.status(404).json({ error: 'Story not found or already processed' });
+    }
+
+    res.json({ message: 'Story rejected', story: updated[0] });
+  } catch (err) {
+    console.error('Error rejecting success story:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Listing approval workflow details
+// GET: Get listing details by ID
+app.get('/api/listings/:listingId', async (req, res) => {
+  try {
+    const listingId = req.params.listingId;
+    
+    const { rows } = await db.query(
+      'SELECT id, title, description, price, user_id, listing_status FROM listings WHERE id = $1',
+      [listingId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Error fetching listing:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/listings/:listingId/approval-status', async (req, res) => {
+  try {
+    const listingId = req.params.listingId;
+    const workflow = await getListingApprovalWorkflow(listingId);
+    
+    if (!workflow) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    
+    res.json(workflow);
+  } catch (err) {
+    console.error('Error getting listing approval status:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: All listing approvals (Head Admin)
+app.get('/api/admin/listings/approvals', requireRole('head_admin'), async (req, res) => {
+  try {
+    const approvals = await getAllListingApprovals();
+    res.json(approvals);
+  } catch (err) {
+    console.error('Error getting all listing approvals:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// -------------------
+// Admin Session and Management
+// -------------------
+
+// GET: Current user's role and permissions
+app.get('/api/admin/user-info', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    
+    const { rows } = await db.query(
+      'SELECT id, username, email, role, admin_role, is_verified FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = rows[0];
+    
+    // Get permissions
+    let permissions = [];
+    if (user.admin_role) {
+      const { rows: permRows } = await db.query(
+        'SELECT permission FROM role_permissions WHERE admin_role = $1',
+        [user.admin_role]
+      );
+      permissions = permRows.map(r => r.permission);
+    }
+    
+    res.json({
+      user,
+      permissions
+    });
+  } catch (err) {
+    console.error('Error getting user info:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: All admin users
+app.get('/api/admin/all-admins', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      'SELECT id, username, email, admin_role FROM users WHERE role = $1 ORDER BY created_at DESC',
+      ['admin']
+    );
+    
+    res.json(rows);
+  } catch (err) {
+    console.error('Error getting all admins:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Create admin user (Head Admin only)
+app.post('/api/admin/create-admin', requireAuth, async (req, res) => {
+  try {
+    const { username, email, password, adminRole } = req.body;
+    const creatorId = req.session.user.id;
+    const creatorAdminRole = req.session.user.admin_role;
+    
+    if (!username || !email || !password || !adminRole) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+    
+    // Check creator's admin role and validate permissions
+    let canCreateRole = false;
+    
+    if (creatorAdminRole === 'head_admin') {
+      // Head Admin can create: head_admin, listing_admin, verification_admin, system_admin
+      canCreateRole = ['head_admin', 'listing_admin', 'verification_admin', 'system_admin'].includes(adminRole);
+    } else if (creatorAdminRole === 'listing_admin') {
+      // Listing Admin can only create: listing_admin
+      canCreateRole = adminRole === 'listing_admin';
+    } else if (creatorAdminRole === 'verification_admin') {
+      // Verification Admin can only create: verification_admin
+      canCreateRole = adminRole === 'verification_admin';
+    } else {
+      // Regular users cannot create admins
+      return res.status(403).json({ error: 'You do not have permission to create admin accounts' });
+    }
+    
+    if (!canCreateRole) {
+      return res.status(403).json({ error: `You can only create ${creatorAdminRole === 'head_admin' ? 'head_admin, listing_admin, verification_admin, or system_admin' : adminRole} accounts` });
+    }
+    
+    // Validate admin role exists
+    const { rows: roleRows } = await db.query(
+      'SELECT role_name FROM admin_roles WHERE role_name = $1',
+      [adminRole]
+    );
+    
+    if (roleRows.length === 0) {
+      return res.status(400).json({ error: 'Invalid admin role' });
+    }
+    
+    // Check if user already exists
+    const { rows: existingRows } = await db.query(
+      'SELECT id FROM users WHERE username = $1 OR email = $2',
+      [username, email]
+    );
+    
+    if (existingRows.length > 0) {
+      return res.status(400).json({ error: 'Username or email already exists' });
+    }
+    
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Create admin user
+    const { rows: newUserRows } = await db.query(
+      `INSERT INTO users (username, email, password, role, admin_role, is_verified)
+       VALUES ($1, $2, $3, 'admin', $4, TRUE)
+       RETURNING id, username, email, role, admin_role`,
+      [username, email, hashedPassword, adminRole]
+    );
+    
+    const newUser = newUserRows[0];
+    
+    await logAction(creatorId, 'created_admin_user', 'users', newUser.id, null, adminRole, req);
+    
+    res.status(201).json({
+      message: 'Admin user created successfully',
+      user: newUser
+    });
+  } catch (err) {
+    console.error('Error creating admin user:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// -------------------
+// System Admin Content Management
+// -------------------
+// GET: Fetch current index.html content
+app.get('/api/system-admin/content/index', requireRole('system_admin'), async (req, res) => {
+  try {
+    const indexPath = path.join(__dirname, 'public', 'components', 'index.html');
+    const content = fs.readFileSync(indexPath, 'utf8');
+    res.json({ content });
+  } catch (err) {
+    console.error('Error reading index.html:', err);
+    res.status(500).json({ error: 'Failed to read content' });
+  }
+});
+
+// POST: Update index.html content
+app.post('/api/system-admin/content/index', requireRole('system_admin'), async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content) {
+      return res.status(400).json({ error: 'Content is required' });
+    }
+    
+    // Validate that content is a string
+    if (typeof content !== 'string') {
+      return res.status(400).json({ error: 'Content must be a string' });
+    }
+
+    // Check content length to prevent saving massive strings
+    if (content.length > 10 * 1024 * 1024) { // 10MB limit
+      return res.status(413).json({ error: 'Content too large (max 10MB)' });
+    }
+    
+    const indexPath = path.join(__dirname, 'public', 'components', 'index.html');
+    
+    // Create backup before updating
+    const backupPath = path.join(__dirname, 'public', 'components', 'index.html.backup');
+    const currentContent = fs.readFileSync(indexPath, 'utf8');
+    fs.writeFileSync(backupPath, currentContent);
+    
+    // Write new content
+    fs.writeFileSync(indexPath, content, 'utf8');
+    
+    // Log the action
+    const userId = req.session.user.id;
+    await logAction(userId, 'updated_index_content', 'website_content', null, null, 'index.html updated', req);
+    
+    res.json({ message: 'Content updated successfully', backup: true });
+  } catch (err) {
+    console.error('Error updating index.html:', err);
+    
+    // Handle JSON parsing errors
+    if (err instanceof SyntaxError) {
+      return res.status(400).json({ error: 'Invalid JSON format in request' });
+    }
+    
+    res.status(500).json({ error: 'Failed to update content: ' + err.message });
+  }
+});
+
 // Start HTTP server and attach socket.io
 const server = http.createServer(app);
 try {
