@@ -3,62 +3,99 @@
   <div class="modal-content verification-modal">
     <button class="modal-close" onclick="closeVerificationModal()">&times;</button>
     
+    <!-- Step 1: Selfie/Profile Photo -->
     <div id="verificationStep1" class="verification-step">
       <h2>Complete Your Identity Verification</h2>
-      <p>To submit listings, you need to verify your identity. This helps us maintain a trusted community.</p>
+      <p>To submit listings and send inquiries, you need to verify your identity. This helps us maintain a trusted community.</p>
       
       <div class="form-group">
-        <label for="phoneNumber">Phone Number *</label>
-        <input type="tel" id="phoneNumber" placeholder="+63..." required>
+        <label for="selfiePhoto">Take a Selfie or Upload Your Photo *</label>
+        <div style="display:flex;gap:10px;margin-bottom:10px">
+          <button class="btn btn-secondary" style="flex:1" onclick="startSelfieCamera()">📷 Take Selfie</button>
+          <button class="btn btn-secondary" style="flex:1" onclick="document.getElementById('selfiePhotoInput').click()">📁 Upload Photo</button>
+        </div>
+        <input type="file" id="selfiePhotoInput" accept="image/*" style="display:none">
+        <div id="selfiePreview" style="margin: 15px 0;"></div>
       </div>
       
-      <button onclick="startVerification()" class="btn btn-primary">Send OTP Code</button>
+      <button onclick="goToStep2()" class="btn btn-primary" id="nextFromStep1Btn" disabled>Next</button>
       <p class="text-muted" style="margin-top: 10px; font-size: 12px;">
-        We'll send a one-time password to your phone to verify your identity.
+        We need a clear photo of your face to verify your identity.
       </p>
     </div>
 
+    <!-- Step 2: ID Document -->
     <div id="verificationStep2" class="verification-step" style="display: none;">
-      <h2>Enter OTP Code</h2>
-      <p>Enter the 6-digit code we sent to your phone.</p>
-      
-      <div class="form-group">
-        <label for="otpCode">OTP Code *</label>
-        <input type="text" id="otpCode" placeholder="000000" maxlength="6" inputmode="numeric">
-      </div>
-      
-      <button onclick="verifyOTPCode()" class="btn btn-primary">Verify Code</button>
-      <button onclick="goBackToPhoneEntry()" class="btn btn-secondary">Change Phone Number</button>
-    </div>
-
-    <div id="verificationStep3" class="verification-step" style="display: none;">
-      <h2>Upload ID Document</h2>
-      <p>Upload a clear photo or scan of your ID (Driver's License, Passport, or Government ID)</p>
+      <h2>Upload Valid ID</h2>
+      <p>Upload a clear photo or scan of your government-issued ID (Driver's License, Passport, or National ID)</p>
       
       <div class="form-group">
         <label for="idDocument">ID Document *</label>
-        <input type="file" id="idDocument" accept="image/*,.pdf" required>
-        <small style="color: #666;">Accepted: PDF, JPG, PNG (Max 5MB)</small>
+        <div style="display:flex;gap:10px;margin-bottom:10px">
+          <button class="btn btn-secondary" style="flex:1" onclick="startIDCamera()">📷 Take Photo</button>
+          <button class="btn btn-secondary" style="flex:1" onclick="document.getElementById('idDocumentInput').click()">📁 Upload ID</button>
+        </div>
+        <input type="file" id="idDocumentInput" accept="image/*,.pdf" style="display:none">
+        <small style="color: #666;">Accepted: JPG, PNG, PDF (Max 5MB)</small>
+        <div id="idPreview" style="margin: 15px 0;"></div>
       </div>
       
-      <div id="documentPreview" style="margin: 15px 0;"></div>
-      
-      <button onclick="uploadIDDocument()" class="btn btn-primary">Submit Document</button>
+      <button onclick="goToStep3()" class="btn btn-primary" id="nextFromStep2Btn" disabled>Next</button>
+      <button onclick="goBackToStep1()" class="btn btn-secondary">Back</button>
     </div>
 
+    <!-- Step 3: Email OTP -->
+    <div id="verificationStep3" class="verification-step" style="display: none;">
+      <h2>Verify Email Address</h2>
+      <p>We'll send a one-time password to the email you used for registration.</p>
+      
+      <div class="form-group" style="background:#f5f5f5;padding:15px;border-radius:4px">
+        <label style="display:block;margin-bottom:8px;color:#666">Email:</label>
+        <div id="emailDisplay" style="font-size:16px;font-weight:500;color:#333"></div>
+      </div>
+      
+      <button onclick="sendEmailOTP()" class="btn btn-primary" id="sendOTPBtn">Send OTP Code</button>
+      <button onclick="goBackToStep2()" class="btn btn-secondary">Back</button>
+      <p class="text-muted" style="margin-top: 10px; font-size: 12px;">
+        Check your email for a 6-digit verification code.
+      </p>
+    </div>
+
+    <!-- Step 4: Enter OTP -->
     <div id="verificationStep4" class="verification-step" style="display: none;">
+      <h2>Enter Verification Code</h2>
+      <p>Enter the 6-digit code we sent to your email.</p>
+      
+      <div class="form-group">
+        <label for="otpCode">Verification Code *</label>
+        <input type="text" id="otpCode" placeholder="000000" maxlength="6" inputmode="numeric" style="font-size:24px;text-align:center;letter-spacing:8px">
+      </div>
+      
+      <button onclick="verifyOTPCode()" class="btn btn-primary">Verify & Submit</button>
+      <button onclick="goBackToStep3()" class="btn btn-secondary">Back</button>
+      <p class="text-muted" style="margin-top: 10px; font-size: 12px;">
+        Didn't receive the code? Check your spam folder.
+      </p>
+    </div>
+
+    <!-- Step 5: Success -->
+    <div id="verificationStep5" class="verification-step" style="display: none;">
       <div class="verification-success">
         <div class="success-icon">✓</div>
         <h2>Verification Submitted</h2>
         <p>Your identity verification has been submitted. Our team will review your information within 24-48 hours.</p>
         <p style="margin-top: 10px; color: #666; font-size: 14px;">
-          You'll receive an email notification once your verification is approved.
+          You'll receive an email notification once your verification is approved. In the meantime, you cannot send inquiries.
         </p>
         <button onclick="closeVerificationModal()" class="btn btn-primary">Close</button>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Hidden video element for camera capture -->
+<video id="cameraVideo" style="display:none" playsinline></video>
+<canvas id="cameraCanvas" style="display:none"></canvas>
 
 <style>
 .modal-overlay {
@@ -170,8 +207,13 @@
   color: white;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: #45a049;
+}
+
+.btn-primary:disabled {
+  background: #ccc;
+  cursor: not-allowed;
 }
 
 .btn-secondary {
@@ -207,75 +249,120 @@
 .verification-success h2 {
   color: #4CAF50;
 }
+
+.preview-image {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 4px;
+  margin-top: 10px;
+}
 </style>
 
 <script>
-let currentVerificationId = null;
-let currentPhoneNumber = null;
+let currentSelfieFile = null;
+let currentIDFile = null;
+let userEmail = null;
+let otpSentTime = null;
 
 function openVerificationModal() {
   document.getElementById('verificationModal').style.display = 'flex';
-  // Reset to step 1
+  // Get user email
+  fetch('/api/user-info')
+    .then(r => r.json())
+    .then(data => {
+      userEmail = data.email;
+      document.getElementById('emailDisplay').textContent = userEmail;
+    })
+    .catch(err => {
+      console.error('Error getting user info:', err);
+      userEmail = 'your registered email';
+      document.getElementById('emailDisplay').textContent = userEmail;
+    });
   showVerificationStep(1);
 }
 
 function closeVerificationModal() {
   document.getElementById('verificationModal').style.display = 'none';
-  // Reset form
-  document.getElementById('phoneNumber').value = '';
+  resetVerificationForm();
+}
+
+function resetVerificationForm() {
+  currentSelfieFile = null;
+  currentIDFile = null;
+  document.getElementById('selfiePhotoInput').value = '';
+  document.getElementById('idDocumentInput').value = '';
   document.getElementById('otpCode').value = '';
-  document.getElementById('idDocument').value = '';
+  document.getElementById('selfiePreview').innerHTML = '';
+  document.getElementById('idPreview').innerHTML = '';
 }
 
 function showVerificationStep(step) {
-  // Hide all steps
-  document.querySelectorAll('.verification-step').forEach(el => {
-    el.style.display = 'none';
-  });
-  
-  // Show target step
-  const stepId = `verificationStep${step}`;
-  const stepEl = document.getElementById(stepId);
-  if (stepEl) {
-    stepEl.style.display = 'block';
-  }
+  document.querySelectorAll('.verification-step').forEach(el => el.style.display = 'none');
+  const stepEl = document.getElementById(`verificationStep${step}`);
+  if (stepEl) stepEl.style.display = 'block';
 }
 
-async function startVerification() {
-  const phoneNumber = document.getElementById('phoneNumber').value.trim();
-  
-  if (!phoneNumber) {
-    alert('Please enter a phone number');
+function goToStep2() {
+  if (!currentSelfieFile) {
+    alert('Please upload or take a selfie');
     return;
   }
+  showVerificationStep(2);
+}
+
+function goToStep3() {
+  if (!currentIDFile) {
+    alert('Please upload or take a photo of your ID');
+    return;
+  }
+  showVerificationStep(3);
+}
+
+function goBackToStep1() {
+  showVerificationStep(1);
+}
+
+function goBackToStep2() {
+  showVerificationStep(2);
+}
+
+function goBackToStep3() {
+  showVerificationStep(3);
+}
+
+async function sendEmailOTP() {
+  const btn = document.getElementById('sendOTPBtn');
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
   
   try {
-    const response = await fetch('/api/verification/start', {
+    const response = await fetch('/api/verification/send-email-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phoneNumber })
+      body: JSON.stringify({ email: userEmail })
     });
     
     const data = await response.json();
     
     if (!response.ok) {
-      alert(data.error || 'Failed to start verification');
+      alert(data.error || 'Failed to send OTP');
+      btn.disabled = false;
+      btn.textContent = 'Send OTP Code';
       return;
     }
     
-    currentVerificationId = data.verificationId;
-    currentPhoneNumber = phoneNumber;
-    
-    // In development mode, show the OTP
+    otpSentTime = Date.now();
+    showVerificationStep(4);
+    // In dev mode, show OTP if provided
     if (data.otp) {
-      console.log('Development OTP:', data.otp);
+      console.log('[DEV] OTP:', data.otp);
       alert(`[DEV] OTP: ${data.otp}`);
     }
-    
-    showVerificationStep(2);
   } catch (err) {
-    console.error('Error starting verification:', err);
-    alert('Error starting verification. Please try again.');
+    console.error('Error sending OTP:', err);
+    alert('Error sending OTP. Please try again.');
+    btn.disabled = false;
+    btn.textContent = 'Send OTP Code';
   }
 }
 
@@ -283,109 +370,108 @@ async function verifyOTPCode() {
   const otp = document.getElementById('otpCode').value.trim();
   
   if (!otp || otp.length !== 6) {
-    alert('Please enter a valid 6-digit OTP');
+    alert('Please enter a valid 6-digit code');
     return;
   }
   
   try {
-    const response = await fetch('/api/verification/verify-otp', {
+    // First verify the OTP
+    const otpResponse = await fetch('/api/verification/verify-email-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ verificationId: currentVerificationId, otp })
+      body: JSON.stringify({ otp, email: userEmail })
     });
     
-    const data = await response.json();
-    
-    if (!response.ok) {
-      alert(data.error || 'Failed to verify OTP');
+    if (!otpResponse.ok) {
+      const otpData = await otpResponse.json();
+      alert(otpData.error || 'Invalid OTP code');
       return;
     }
     
-    showVerificationStep(3);
-  } catch (err) {
-    console.error('Error verifying OTP:', err);
-    alert('Error verifying OTP. Please try again.');
-  }
-}
-
-async function uploadIDDocument() {
-  const fileInput = document.getElementById('idDocument');
-  const file = fileInput.files[0];
-  
-  if (!file) {
-    alert('Please select an ID document');
-    return;
-  }
-  
-  // Validate file size (5MB)
-  if (file.size > 5 * 1024 * 1024) {
-    alert('File size must be less than 5MB');
-    return;
-  }
-  
-  try {
+    // Now submit the verification with photos
     const formData = new FormData();
-    formData.append('verificationId', currentVerificationId);
-    formData.append('idDocument', file);
+    formData.append('selfiePhoto', currentSelfieFile);
+    formData.append('idDocument', currentIDFile);
+    formData.append('email', userEmail);
     
-    const response = await fetch('/api/verification/upload-document', {
+    const submitResponse = await fetch('/api/verification/submit-new-flow', {
       method: 'POST',
       body: formData
     });
     
-    const data = await response.json();
+    const submitData = await submitResponse.json();
     
-    if (!response.ok) {
-      alert(data.error || 'Failed to upload document');
+    if (!submitResponse.ok) {
+      alert(submitData.error || 'Failed to submit verification');
       return;
     }
     
-    showVerificationStep(4);
+    showVerificationStep(5);
   } catch (err) {
-    console.error('Error uploading document:', err);
-    alert('Error uploading document. Please try again.');
+    console.error('Error verifying:', err);
+    alert('Error completing verification. Please try again.');
   }
 }
 
-function goBackToPhoneEntry() {
-  currentVerificationId = null;
-  currentPhoneNumber = null;
-  document.getElementById('otpCode').value = '';
-  showVerificationStep(1);
-}
-
-// Show file preview
+// File input handlers
 document.addEventListener('DOMContentLoaded', () => {
-  const idDocumentInput = document.getElementById('idDocument');
-  if (idDocumentInput) {
-    idDocumentInput.addEventListener('change', (e) => {
+  const selfieInput = document.getElementById('selfiePhotoInput');
+  if (selfieInput) {
+    selfieInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
-      const preview = document.getElementById('documentPreview');
-      
       if (file && file.type.startsWith('image/')) {
+        currentSelfieFile = file;
         const reader = new FileReader();
         reader.onload = (event) => {
-          preview.innerHTML = `<img src="${event.target.result}" style="max-width: 100%; max-height: 200px; border-radius: 4px;">`;
+          document.getElementById('selfiePreview').innerHTML = `<img src="${event.target.result}" class="preview-image" alt="Selfie">`;
+          document.getElementById('nextFromStep1Btn').disabled = false;
         };
         reader.readAsDataURL(file);
-      } else if (file) {
-        preview.innerHTML = `<p style="color: #666; font-size: 14px;">✓ File selected: ${file.name}</p>`;
       }
     });
   }
   
-  // Close modal on outside click
+  const idInput = document.getElementById('idDocumentInput');
+  if (idInput) {
+    idInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        if (file.size > 5 * 1024 * 1024) {
+          alert('File size must be less than 5MB');
+          return;
+        }
+        currentIDFile = file;
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            document.getElementById('idPreview').innerHTML = `<img src="${event.target.result}" class="preview-image" alt="ID">`;
+            document.getElementById('nextFromStep2Btn').disabled = false;
+          };
+          reader.readAsDataURL(file);
+        } else {
+          document.getElementById('idPreview').innerHTML = `<p style="color:#666">✓ ${file.name}</p>`;
+          document.getElementById('nextFromStep2Btn').disabled = false;
+        }
+      }
+    });
+  }
+  
   document.getElementById('verificationModal')?.addEventListener('click', (e) => {
-    if (e.target.id === 'verificationModal') {
-      closeVerificationModal();
-    }
+    if (e.target.id === 'verificationModal') closeVerificationModal();
   });
   
-  // Close on Escape key
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && document.getElementById('verificationModal').style.display === 'flex') {
       closeVerificationModal();
     }
   });
 });
+
+function startSelfieCamera() {
+  alert('Camera feature coming soon. Please use the upload option for now.');
+}
+
+function startIDCamera() {
+  alert('Camera feature coming soon. Please use the upload option for now.');
+}
 </script>

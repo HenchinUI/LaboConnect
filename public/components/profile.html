@@ -476,7 +476,7 @@
     <!-- My Listings Section (Business Users Only) -->
     <div id="myListingsSection" class="profile-section">
       <h2>My Listings</h2>
-      
+        
       <!-- Listing Status Tabs -->
       <div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 0;">
         <button class="listing-tab active" data-status="approved" style="flex: 1; padding: 12px; border: none; background: none; border-bottom: 3px solid var(--accent); cursor: pointer; font-weight: 500;">
@@ -521,61 +521,99 @@
     </div>
   </main>
 
-  <!-- Verification Modal -->
+  <!-- Camera Modal -->
+  <div id="cameraModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; overflow: hidden; flex-direction: column; align-items: center; justify-content: center;">
+    <div style="position: relative; width: 100%; max-width: 500px; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; color: white;">
+      <h3 id="cameraModalTitle" style="margin: 20px 0 0 0; font-size: 18px; text-align: center;">Position your face in the center</h3>
+      <video id="cameraVideo" style="width: 100%; max-width: 400px; max-height: 500px; background: #000; border-radius: 8px; transform: scaleX(-1);"></video>
+      <canvas id="captureCanvas" style="display: none;"></canvas>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button id="captureCameraBtn" type="button" class="btn btn-primary" style="background: white; color: #333; padding: 12px 30px; border-radius: 50px; font-weight: bold; border: none; cursor: pointer;">Capture Photo</button>
+        <button id="cancelCameraBtn" type="button" class="btn btn-ghost" style="color: white; border: 2px solid white; padding: 12px 30px; border-radius: 50px; font-weight: bold; cursor: pointer; background: transparent;">Cancel</button>
+      </div>
+      <p style="font-size: 13px; text-align: center; margin: 0 20px; color: #ddd;">Make sure your face is clearly visible and well-lit</p>
+    </div>
+  </div>
+
+  <!-- Verification Modal - NEW FLOW -->
   <div id="verificationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
     <div style="background: #ffffff; max-width: 500px; margin: 40px auto; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h3 style="margin: 0; font-size: 22px;" id="verificationModalTitle">Verify Your Account</h3>
+        <h3 style="margin: 0; font-size: 22px;" id="verificationModalTitle">Complete Your Identity Verification</h3>
         <button id="closeVerificationModal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);">×</button>
       </div>
 
       <form id="verificationForm" style="display: flex; flex-direction: column; gap: 15px;">
-        <!-- Step 1: Document Upload (ID Photo) -->
-        <div id="verificationStep1" style="display: none;">
-          <p style="color: var(--text-muted); margin-bottom: 15px;">Upload a valid government-issued ID document photo for verification.</p>
+        
+        <!-- Step 1: Selfie Photo -->
+        <div id="verificationStep1" style="display: block;">
+          <p style="color: var(--text-muted); margin-bottom: 15px;">Take a selfie or upload a photo of yourself for identity verification.</p>
           <div style="border: 2px dashed var(--border); border-radius: 8px; padding: 20px; text-align: center;">
-            <img id="verificationPreviewImage" style="max-width: 100%; max-height: 200px; margin-bottom: 15px; border-radius: 6px; display: none;" />
-            <input type="file" id="verificationDocInput" accept="image/*" style="display: none;" />
-            <button type="button" id="uploadDocBtn" class="btn btn-primary" style="margin-bottom: 10px;">Choose File</button>
-            <p id="verificationFileName" style="margin: 10px 0 0 0; color: var(--text-muted); font-size: 13px;">No file chosen</p>
-            <p style="margin: 5px 0 0 0; color: var(--text-muted); font-size: 13px;">JPG, PNG, or GIF (Max 5MB)</p>
+            <img id="selfiePreviewImage" style="max-width: 100%; max-height: 200px; margin-bottom: 15px; border-radius: 6px; display: none;" />
+            <input type="file" id="selfiePhotoInput" accept="image/*" style="display: none;" />
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+              <button type="button" id="takeSelfieBtn" class="btn btn-secondary" style="flex: 1; background: #f1f1f1; color: #333;">📷 Take Selfie</button>
+              <button type="button" id="uploadSelfieBtn" class="btn btn-primary" style="flex: 1;">📁 Upload Photo</button>
+            </div>
+            <p id="selfieFileName" style="margin: 10px 0 0 0; color: var(--text-muted); font-size: 13px;">No photo selected</p>
           </div>
-          <button type="button" id="proceedToOTPBtn" class="btn btn-primary" style="width: 100%; margin-top: 15px;">Proceed to OTP</button>
+          <button type="button" id="proceedFromStep1Btn" class="btn btn-primary" style="width: 100%; margin-top: 15px;" disabled>Next: ID Document</button>
         </div>
 
-        <!-- Step 2: Phone Number & OTP -->
+        <!-- Step 2: ID Document -->
         <div id="verificationStep2" style="display: none;">
-          <p style="color: var(--text-muted); margin-bottom: 15px;">Enter your phone number to receive an OTP (One-Time Password).</p>
-          <div>
-            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Phone Number</label>
-            <input 
-              type="tel" 
-              id="verificationPhone" 
-              placeholder="e.g., +63 912 345 6789" 
-              style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" 
-              required 
-            />
+          <p style="color: var(--text-muted); margin-bottom: 15px;">Upload a clear photo of your government-issued ID (Driver's License, Passport, or National ID).</p>
+          <div style="border: 2px dashed var(--border); border-radius: 8px; padding: 20px; text-align: center;">
+            <img id="idPreviewImage" style="max-width: 100%; max-height: 200px; margin-bottom: 15px; border-radius: 6px; display: none;" />
+            <input type="file" id="idDocumentInput" accept="image/*,.pdf" style="display: none;" />
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+              <button type="button" id="takeIDBtn" class="btn btn-secondary" style="flex: 1; background: #f1f1f1; color: #333;">📷 Take Photo</button>
+              <button type="button" id="uploadIDBtn" class="btn btn-primary" style="flex: 1;">📁 Upload ID</button>
+            </div>
+            <p id="idFileName" style="margin: 10px 0 0 0; color: var(--text-muted); font-size: 13px;">No document selected</p>
+            <p style="margin: 5px 0 0 0; color: var(--text-muted); font-size: 13px;">JPG, PNG, or PDF (Max 5MB)</p>
           </div>
-          <button type="button" id="sendOTPBtn" class="btn btn-primary" style="width: 100%; margin-top: 15px;">Send OTP</button>
-          <button type="button" id="backToDocBtn" class="btn btn-ghost" style="width: 100%; margin-top: 10px;">Back</button>
+          <button type="button" id="proceedFromStep2Btn" class="btn btn-primary" style="width: 100%; margin-top: 15px;" disabled>Next: Email Verification</button>
+          <button type="button" id="backToStep1Btn" class="btn btn-ghost" style="width: 100%; margin-top: 10px;">Back</button>
         </div>
 
-        <!-- Step 3: OTP Verification -->
+        <!-- Step 3: Send Email OTP -->
         <div id="verificationStep3" style="display: none;">
-          <p style="color: var(--text-muted); margin-bottom: 15px;">Enter the OTP sent to your phone number.</p>
+          <p style="color: var(--text-muted); margin-bottom: 15px;">We'll send a verification code to your registered email address.</p>
+          <div style="background: #f9f9f9; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+            <p style="margin: 0; color: #666; font-size: 13px;">Email:</p>
+            <p id="userEmailDisplay" style="margin: 8px 0 0 0; font-size: 16px; font-weight: 500; color: #333;"></p>
+          </div>
+          <button type="button" id="sendEmailOTPBtn" class="btn btn-primary" style="width: 100%;">Send Verification Code</button>
+          <button type="button" id="backToStep2Btn" class="btn btn-ghost" style="width: 100%; margin-top: 10px;">Back</button>
+        </div>
+
+        <!-- Step 4: Verify OTP -->
+        <div id="verificationStep4" style="display: none;">
+          <p style="color: var(--text-muted); margin-bottom: 15px;">Enter the 6-digit code sent to your email.</p>
           <div>
-            <label style="display: block; margin-bottom: 8px; font-weight: 500;">One-Time Password (OTP)</label>
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Verification Code</label>
             <input 
               type="text" 
-              id="verificationOTP" 
-              placeholder="Enter 6-digit OTP" 
+              id="verificationOTPInput" 
+              placeholder="000000" 
               maxlength="6"
-              style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; font-size: 18px; letter-spacing: 2px;" 
+              inputmode="numeric"
+              style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; font-size: 20px; letter-spacing: 4px; text-align: center;" 
               required 
             />
           </div>
-          <button type="submit" id="verifyOTPBtn" class="btn btn-primary" style="width: 100%; margin-top: 15px;">Verify OTP & Submit</button>
-          <button type="button" id="backToPhoneBtn" class="btn btn-ghost" style="width: 100%; margin-top: 10px;">Back</button>
+          <button type="submit" id="verifyOTPBtn" class="btn btn-primary" style="width: 100%; margin-top: 15px;">Verify & Submit</button>
+          <button type="button" id="backToStep3Btn" class="btn btn-ghost" style="width: 100%; margin-top: 10px;">Back</button>
+        </div>
+
+        <!-- Step 5: Success -->
+        <div id="verificationStep5" style="display: none; text-align: center;">
+          <div style="width: 80px; height: 80px; background: #4CAF50; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 40px; margin: 0 auto 20px;">✓</div>
+          <h3 style="color: #4CAF50; margin: 0 0 10px 0;">Verification Submitted</h3>
+          <p style="color: #666; margin-bottom: 20px;">Your identity verification has been submitted successfully. Our team will review it within 24-48 hours.</p>
+          <p style="color: #999; font-size: 13px; margin: 0;">You'll receive an email notification once your verification is approved.</p>
+          <button type="button" id="closeVerificationSuccessBtn" class="btn btn-primary" style="width: 100%; margin-top: 20px;">Close</button>
         </div>
 
         <!-- Status Messages -->

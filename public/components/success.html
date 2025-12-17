@@ -903,7 +903,42 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       loadSuccessStories();
+      
+      // Check if we should open a specific story modal
+      const params = new URLSearchParams(window.location.search);
+      const storyId = params.get('storyId');
+      const viewModal = params.get('viewModal');
+      
+      if (storyId && viewModal === 'true') {
+        // Load and display the story modal
+        setTimeout(() => {
+          loadAndDisplayStory(storyId);
+        }, 500); // Wait for stories to load first
+      }
     });
+
+    async function loadAndDisplayStory(storyId) {
+      try {
+        const response = await fetch(`/api/success-stories/${storyId}`);
+        if (!response.ok) {
+          console.error('Story not found');
+          return;
+        }
+        
+        const story = await response.json();
+        
+        // Find the story card in the DOM using the prefixed ID and click it to open modal
+        const cardId = `story_${storyId}`;
+        const storyCard = document.querySelector(`[data-id="${cardId}"]`);
+        if (storyCard) {
+          storyCard.click();
+        } else {
+          console.warn(`Story card with data-id="${cardId}" not found`);
+        }
+      } catch (err) {
+        console.error('Error loading story:', err);
+      }
+    }
 
     (async () => {
       try {

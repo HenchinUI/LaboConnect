@@ -403,6 +403,11 @@
       <div class="user-info" id="userInfo"></div>
       
       <div class="form-group">
+        <label>Selfie Photo</label>
+        <div class="document-preview" id="selfiePreview"></div>
+      </div>
+
+      <div class="form-group">
         <label>ID Document</label>
         <div class="document-preview" id="documentPreview"></div>
       </div>
@@ -461,7 +466,7 @@
       }
 
       container.innerHTML = pendingVerifications.map(ver => {
-        const statusLabel = ver.status === 'otp_verified' ? 'OTP Verified' : 'Document Verified';
+        const statusLabel = ver.status === 'otp_verified' ? 'OTP Verified' : 'Pending Admin Review';
         const statusClass = `status-${ver.status}`;
         
         return `
@@ -473,14 +478,14 @@
               <span class="verification-status-badge ${statusClass}">${statusLabel}</span>
             </div>
             <div class="verification-actions">
-              <button class="btn btn-view" onclick="openVerificationModal(${ver.id}, '${ver.username}', '${ver.email}', '${ver.phone_number}', '${ver.id_document_url}')">Review</button>
+              <button class="btn btn-view" onclick="openVerificationModal(${ver.id}, '${ver.username}', '${ver.email}', '${ver.phone_number}', '${ver.id_document_url || ''}', '${ver.selfie_photo_url || ''}')">Review</button>
             </div>
           </div>
         `;
       }).join('');
     }
 
-    function openVerificationModal(verificationId, username, email, phone, documentUrl) {
+    function openVerificationModal(verificationId, username, email, phone, documentUrl, selfieUrl) {
       currentVerificationId = verificationId;
       
       document.getElementById('userInfo').innerHTML = `
@@ -489,6 +494,17 @@
         <p><strong>Phone:</strong> ${phone}</p>
       `;
 
+      // Selfie photo preview
+      const selfiePreviewHtml = selfieUrl ? 
+        (selfieUrl.endsWith('.pdf') ? 
+          `<p><a href="${selfieUrl}" target="_blank">📄 View File</a></p>` :
+          `<img src="${selfieUrl}" alt="Selfie Photo">`
+        ) : 
+        '<p>No selfie uploaded</p>';
+      
+      document.getElementById('selfiePreview').innerHTML = selfiePreviewHtml;
+
+      // ID document preview
       const previewHtml = documentUrl ? 
         (documentUrl.endsWith('.pdf') ? 
           `<p><a href="${documentUrl}" target="_blank">📄 View PDF</a></p>` :

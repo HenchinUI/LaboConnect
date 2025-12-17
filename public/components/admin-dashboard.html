@@ -40,7 +40,7 @@
     /* modal */
     .admin-modal{display:none;position:fixed;inset:0;z-index:1400;align-items:center;justify-content:center;padding:20px;background:rgba(8,12,10,0.4)}
     .admin-modal.open{display:flex}
-    .admin-modal-panel{width:100%;max-width:900px;background:#fff;border-radius:12px;padding:18px}
+    .admin-modal-panel{width:100%;max-width:900px;background:#fff;border-radius:12px;padding:18px;max-height:90vh;overflow-y:auto}
     /* image preview modal */
     #imagePreviewModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); justify-content:center; align-items:center; z-index:3000; cursor:pointer; }
     #imagePreviewModal.open { display:flex; }
@@ -244,16 +244,56 @@
           <div class="muted">Awaiting Final Approval</div>
           <h3 id="stat-stories-head-pending">0</h3>
         </div>
+        <div class="stat">
+          <div class="muted">Published</div>
+          <h3 id="stat-stories-head-published">0</h3>
+        </div>
+        <div class="stat">
+          <div class="muted">Rejected</div>
+          <h3 id="stat-stories-head-rejected">0</h3>
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px;display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="switchHeadAdminStoriesView('pending')">Awaiting Final Approval</button>
+        <button class="btn btn-ghost" onclick="switchHeadAdminStoriesView('published')">Published</button>
+        <button class="btn btn-ghost" onclick="switchHeadAdminStoriesView('rejected')">Rejected</button>
       </div>
 
       <div class="card">
         <h2 style="margin:0 0 12px 0">Success Stories Awaiting Final Approval</h2>
-        <div class="admin-table-wrap">
+        <div class="admin-table-wrap" id="pending-stories-view">
           <table>
             <thead>
               <tr><th style="width:80px">Image</th><th>Business</th><th>Investor</th><th>Listing Admin Approved</th><th>Status</th><th></th></tr>
             </thead>
             <tbody id="headStoriesTable">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" id="published-stories-view" style="display:none">
+        <h2 style="margin:0 0 12px 0">Published Success Stories</h2>
+        <div class="admin-table-wrap">
+          <table>
+            <thead>
+              <tr><th style="width:80px">Image</th><th>Business</th><th>Investor</th><th>Status</th></tr>
+            </thead>
+            <tbody id="headPublishedStoriesTable">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" id="rejected-stories-view" style="display:none">
+        <h2 style="margin:0 0 12px 0">Rejected Success Stories</h2>
+        <div class="admin-table-wrap">
+          <table>
+            <thead>
+              <tr><th style="width:80px">Image</th><th>Business</th><th>Investor</th><th>Reason</th><th>Status</th></tr>
+            </thead>
+            <tbody id="headRejectedStoriesTable">
             </tbody>
           </table>
         </div>

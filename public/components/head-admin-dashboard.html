@@ -359,6 +359,14 @@
         <div class="stat-label">Pending Final Approval</div>
         <div class="stat-value" id="pendingCount">0</div>
       </div>
+      <div class="stat-card listings">
+        <div class="stat-label">Published</div>
+        <div class="stat-value" id="publishedCount">0</div>
+      </div>
+      <div class="stat-card listings">
+        <div class="stat-label">Rejected</div>
+        <div class="stat-value" id="rejectedCount">0</div>
+      </div>
       <div class="stat-card verifications">
         <div class="stat-label">User Verifications</div>
         <div class="stat-value" id="verificationCount">0</div>
@@ -400,9 +408,33 @@
           <div class="stat-label">Awaiting Final Approval</div>
           <div class="stat-value" id="pendingStoriesCount">0</div>
         </div>
+        <div class="stat-card listings">
+          <div class="stat-label">Published</div>
+          <div class="stat-value" id="publishedStoriesCount">0</div>
+        </div>
+        <div class="stat-card listings">
+          <div class="stat-label">Rejected</div>
+          <div class="stat-value" id="rejectedStoriesCount">0</div>
+        </div>
       </div>
 
-      <div id="pendingStories" class="listings-grid"></div>
+      <div class="tabs">
+        <button class="tab-button active" onclick="switchStoriesTab('pending-stories')">Awaiting Final Approval</button>
+        <button class="tab-button" onclick="switchStoriesTab('published-stories')">Published</button>
+        <button class="tab-button" onclick="switchStoriesTab('rejected-stories')">Rejected</button>
+      </div>
+
+      <div id="pending-stories" class="tab-content active">
+        <div id="pendingStories" class="listings-grid"></div>
+      </div>
+
+      <div id="published-stories" class="tab-content">
+        <div id="publishedStories" class="listings-grid"></div>
+      </div>
+
+      <div id="rejected-stories" class="tab-content">
+        <div id="rejectedStories" class="listings-grid"></div>
+      </div>
     </div>
   </div>
 
@@ -496,6 +528,9 @@
     let pendingListings = [];
     let allListings = [];
     let pendingStories = [];
+    let publishedStories = [];
+    let rejectedStories = [];
+    let allStories = [];
 
     async function loadPendingListings() {
       try {
@@ -513,11 +548,32 @@
         pendingListings = data;
         document.getElementById('pendingCount').textContent = data.length;
         renderPendingListings();
+
+        // Load all listings to get published and rejected counts
+        await loadAllListingsForStats();
       } catch (err) {
         console.error('Error loading pending listings:', err);
         console.error('Error details:', err.message);
         document.getElementById('pendingListings').innerHTML = 
           '<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>Error loading listings</p></div>';
+      }
+    }
+
+    async function loadAllListingsForStats() {
+      try {
+        const response = await fetch('/api/admin/listings/approvals');
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error);
+        
+        // Count published and rejected
+        const published = data.filter(l => l.listing_status === 'published').length;
+        const rejected = data.filter(l => l.listing_status === 'rejected').length;
+        
+        document.getElementById('publishedCount').textContent = published;
+        document.getElementById('rejectedCount').textContent = rejected;
+      } catch (err) {
+        console.error('Error loading stats:', err);
       }
     }
 
@@ -528,10 +584,22 @@
         
         if (!response.ok) throw new Error(data.error);
         
+        // Store all stories for filtering
+        allStories = Array.isArray(data) ? data : [];
+        
         // Filter to only show stories with status 'listing_admin_approved' (awaiting head admin final approval)
-        pendingStories = data.filter(s => s.status === 'listing_admin_approved');
+        pendingStories = allStories.filter(s => s.status === 'listing_admin_approved');
+        publishedStories = allStories.filter(s => s.status === 'published');
+        rejectedStories = allStories.filter(s => s.status === 'rejected');
+        
+        // Update counts
         document.getElementById('pendingStoriesCount').textContent = pendingStories.length;
+        document.getElementById('publishedStoriesCount').textContent = publishedStories.length;
+        document.getElementById('rejectedStoriesCount').textContent = rejectedStories.length;
+        
         renderPendingStories();
+        renderPublishedStories();
+        renderRejectedStories();
       } catch (err) {
         console.error('Error loading stories:', err);
         document.getElementById('pendingStories').innerHTML = 
@@ -754,6 +822,21 @@
       }
     }
 
+    function switchStoriesTab(tab) {
+      // Hide all story tabs
+      document.getElementById('pending-stories').classList.remove('active');
+      document.getElementById('published-stories').classList.remove('active');
+      document.getElementById('rejected-stories').classList.remove('active');
+      
+      // Remove active class from all buttons in success stories section
+      const storyButtons = document.querySelectorAll('.dashboard-header:last-of-type ~ .tabs .tab-button');
+      storyButtons.forEach(btn => btn.classList.remove('active'));
+      
+      // Show the selected tab and mark button active
+      document.getElementById(tab).classList.add('active');
+      if (event && event.target) event.target.classList.add('active');
+    }
+
     // Success Stories Functions
     function renderPendingStories() {
       const container = document.getElementById('pendingStories');
@@ -775,6 +858,49 @@
               <button class="btn btn-approve" onclick="openStoryApprovalModal(${story.id}, '${story.business_name}')">Publish</button>
               <button class="btn btn-reject" onclick="openStoryRejectionModal(${story.id}, '${story.business_name}')">Reject</button>
             </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderPublishedStories() {
+      const container = document.getElementById('publishedStories');
+      
+      if (publishedStories.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✓</div><p>No published success stories</p></div>';
+        return;
+      }
+
+      container.innerHTML = publishedStories.map(story => `
+        <div class="listing-card">
+          <img src="${story.image_url || 'https://via.placeholder.com/350x200'}" alt="${story.business_name}" class="listing-image">
+          <div class="listing-info">
+            <div class="listing-title" title="${story.business_name}">${story.business_name}</div>
+            <div class="listing-owner">Investor: ${story.investor_name}</div>
+            <div style="font-size: 12px; color: #999; margin: 5px 0;">📍 ${story.location}</div>
+            <span class="listing-status-badge" style="background: #4CAF50; color: white;">Published</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderRejectedStories() {
+      const container = document.getElementById('rejectedStories');
+      
+      if (rejectedStories.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✓</div><p>No rejected success stories</p></div>';
+        return;
+      }
+
+      container.innerHTML = rejectedStories.map(story => `
+        <div class="listing-card">
+          <img src="${story.image_url || 'https://via.placeholder.com/350x200'}" alt="${story.business_name}" class="listing-image">
+          <div class="listing-info">
+            <div class="listing-title" title="${story.business_name}">${story.business_name}</div>
+            <div class="listing-owner">Investor: ${story.investor_name}</div>
+            <div style="font-size: 12px; color: #999; margin: 5px 0;">📍 ${story.location}</div>
+            <span class="listing-status-badge" style="background: #f44336; color: white;">Rejected</span>
+            ${story.head_admin_notes ? `<div style="font-size: 12px; color: #f44336; margin-top: 5px;"><strong>Reason:</strong> ${story.head_admin_notes}</div>` : ''}
           </div>
         </div>
       `).join('');

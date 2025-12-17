@@ -178,8 +178,29 @@ async function loadVerificationAdminData() {
     const response = await fetch('/api/admin/verifications/pending');
     const data = await response.json();
     renderVerificationQueue(data);
+    
+    // Load stats for verification admin
+    loadVerificationStats();
   } catch (err) {
     console.warn('Error loading verifications:', err);
+  }
+}
+
+async function loadVerificationStats() {
+  try {
+    const response = await fetch('/api/admin/verifications/stats');
+    const stats = await response.json();
+    
+    // Update verification stats
+    const pending = document.getElementById('stat-verify-pending');
+    const verified = document.getElementById('stat-verified');
+    const rejected = document.getElementById('stat-verify-rejected');
+    
+    if (pending) pending.textContent = stats.pending || 0;
+    if (verified) verified.textContent = stats.verified || 0;
+    if (rejected) rejected.textContent = stats.rejected || 0;
+  } catch (err) {
+    console.warn('Error loading verification stats:', err);
   }
 }
 
@@ -259,28 +280,20 @@ function viewVerificationDetails(requestId) {
           <h3 style="margin: 0 0 12px 0; color: #1f2937;">Verification Information</h3>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div>
-              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">Phone Number</label>
-              <p style="margin: 4px 0 0 0; font-size: 14px;"><strong>${data.phone_number || 'N/A'}</strong></p>
+              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">Verification Email</label>
+              <p style="margin: 4px 0 0 0; font-size: 14px;"><strong>${data.email || 'N/A'}</strong></p>
             </div>
             <div>
               <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">Status</label>
               <p style="margin: 4px 0 0 0; font-size: 14px;"><span style="background: #dbeafe; color: #1e40af; padding: 4px 8px; border-radius: 4px; font-weight: 600;">${(data.status || 'N/A').replace('_', ' ').toUpperCase()}</span></p>
             </div>
             <div>
-              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">OTP Code Used</label>
-              <p style="margin: 4px 0 0 0; font-size: 14px; font-family: monospace; letter-spacing: 2px;">${data.otp_code || 'Not generated'}</p>
+              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">Submitted On</label>
+              <p style="margin: 4px 0 0 0; font-size: 14px;">${data.created_at ? new Date(data.created_at).toLocaleString() : 'N/A'}</p>
             </div>
             <div>
-              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">OTP Attempts</label>
-              <p style="margin: 4px 0 0 0; font-size: 14px;">${data.otp_attempts || 0}</p>
-            </div>
-            <div>
-              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">OTP Sent At</label>
-              <p style="margin: 4px 0 0 0; font-size: 14px;">${data.otp_sent_at ? new Date(data.otp_sent_at).toLocaleString() : 'Not sent'}</p>
-            </div>
-            <div>
-              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">OTP Verified At</label>
-              <p style="margin: 4px 0 0 0; font-size: 14px;">${data.otp_verified_at ? new Date(data.otp_verified_at).toLocaleString() : 'Not verified'}</p>
+              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">Last Updated</label>
+              <p style="margin: 4px 0 0 0; font-size: 14px;">${data.updated_at ? new Date(data.updated_at).toLocaleString() : 'N/A'}</p>
             </div>
           </div>
         </div>
@@ -292,6 +305,16 @@ function viewVerificationDetails(requestId) {
             <h3 style="margin: 0 0 12px 0; color: #1f2937;">Valid ID Document</h3>
             <img src="${data.id_document_url}" alt="Valid ID" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid #e5e7eb; cursor: pointer;" onclick="previewImage('${data.id_document_url}')">
             <p style="margin: 8px 0 0 0; font-size: 12px; color: #6b7280;"><a href="${data.id_document_url}" target="_blank" style="color: #667eea; text-decoration: none;">View full size</a></p>
+          </div>
+        `;
+      }
+      
+      if (data.selfie_photo_url) {
+        detailsHTML += `
+          <div style="background: #f9fafb; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+            <h3 style="margin: 0 0 12px 0; color: #1f2937;">User Selfie</h3>
+            <img src="${data.selfie_photo_url}" alt="User Selfie" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid #e5e7eb; cursor: pointer;" onclick="previewImage('${data.selfie_photo_url}')">
+            <p style="margin: 8px 0 0 0; font-size: 12px; color: #6b7280;"><a href="${data.selfie_photo_url}" target="_blank" style="color: #667eea; text-decoration: none;">View full size</a></p>
           </div>
         `;
       }
@@ -434,10 +457,30 @@ function switchHeadAdminTab(tab) {
     tabEl.classList.add('active');
     event.target.classList.add('active');
     
+    // Load data for listings tab
+    if (tab === 'listings') {
+      loadAdminStats();
+    }
     // Load data for success stories tab
-    if (tab === 'success-stories') {
+    else if (tab === 'success-stories') {
       loadHeadAdminStories();
     }
+  }
+}
+
+function switchHeadAdminStoriesView(view) {
+  // Hide all story views
+  document.getElementById('pending-stories-view').style.display = 'none';
+  document.getElementById('published-stories-view').style.display = 'none';
+  document.getElementById('rejected-stories-view').style.display = 'none';
+  
+  // Show selected view
+  if (view === 'pending') {
+    document.getElementById('pending-stories-view').style.display = 'block';
+  } else if (view === 'published') {
+    document.getElementById('published-stories-view').style.display = 'block';
+  } else if (view === 'rejected') {
+    document.getElementById('rejected-stories-view').style.display = 'block';
   }
 }
 
@@ -935,7 +978,7 @@ function openAppDetails(id){
     render(app);
   } else {
     // fetch single listing
-    fetch(`/admin/listings/${id}`)
+    fetch(`/admin/listings/single/${id}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => render(data))
       .catch(() => render(null));
@@ -1352,14 +1395,25 @@ async function loadAdminStats() {
     const res = await fetch("/admin/stats");
     const data = await res.json();
     
-    // Update stats based on what's available in the data
-    const statActive = document.getElementById('stat-active');
+    // Update listing admin stats (Listing Admin dashboard)
     const statPending = document.getElementById('stat-pending');
-    const statApproved = document.getElementById('stat-approved');
+    const statAwaitingHead = document.getElementById('stat-awaiting-head');
+    const statPublished = document.getElementById('stat-published');
+    const statRejected = document.getElementById('stat-rejected');
     
-    if (statActive) statActive.textContent = data.total || 0;
     if (statPending) statPending.textContent = data.pending || 0;
-    if (statApproved) statApproved.textContent = data.approved || 0;
+    if (statAwaitingHead) statAwaitingHead.textContent = data.awaitingHead || 0;
+    if (statPublished) statPublished.textContent = data.published || 0;
+    if (statRejected) statRejected.textContent = data.rejected || 0;
+    
+    // Update head admin listing stats (Head Admin dashboard - Listings section)
+    const statHeadPending = document.getElementById('stat-head-pending');
+    const statHeadPublished = document.getElementById('stat-head-published');
+    const statHeadRejected = document.getElementById('stat-head-rejected');
+    
+    if (statHeadPending) statHeadPending.textContent = data.awaitingHead || 0;
+    if (statHeadPublished) statHeadPublished.textContent = data.published || 0;
+    if (statHeadRejected) statHeadRejected.textContent = data.rejected || 0;
   } catch (err) {
     console.error("Failed to load stats:", err);
   }
@@ -1425,6 +1479,9 @@ async function createAdminToken() {
 
 let pendingStories = [];
 let headPendingStories = [];
+let headPublishedStories = [];
+let headRejectedStories = [];
+let allHeadAdminStories = [];
 
 // Load pending stories for listing admin
 async function loadPendingStories() {
@@ -1456,10 +1513,24 @@ async function loadHeadAdminStories() {
     }
     const data = await response.json();
     
-    // Filter only 'listing_admin_approved' stories (awaiting head admin approval)
-    headPendingStories = Array.isArray(data) ? data.filter(s => s.status === 'listing_admin_approved') : [];
+    // Store all stories
+    allHeadAdminStories = Array.isArray(data) ? data : [];
+    
+    // Filter by status
+    headPendingStories = allHeadAdminStories.filter(s => s.status === 'listing_admin_approved');
+    headPublishedStories = allHeadAdminStories.filter(s => s.status === 'published');
+    headRejectedStories = allHeadAdminStories.filter(s => s.status === 'rejected');
+    
+    // Update counts
     document.getElementById('stat-stories-head-pending').textContent = headPendingStories.length;
+    const statPublished = document.getElementById('stat-stories-head-published');
+    const statRejected = document.getElementById('stat-stories-head-rejected');
+    if (statPublished) statPublished.textContent = headPublishedStories.length;
+    if (statRejected) statRejected.textContent = headRejectedStories.length;
+    
     renderHeadStoriesTable();
+    renderHeadPublishedStoriesTable();
+    renderHeadRejectedStoriesTable();
   } catch (err) {
     console.error('Error loading head admin stories:', err);
     document.getElementById('headStoriesTable').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#f44336">Error: ' + err.message + '</td></tr>';
@@ -1516,6 +1587,43 @@ function renderHeadStoriesTable() {
       <td style="text-align:right">
         <button class="btn btn-sm btn-primary" onclick="openStoryModal(${story.id}, 'head-admin')">Review</button>
       </td>
+    </tr>
+  `).join('');
+}
+
+function renderHeadPublishedStoriesTable() {
+  const tbody = document.getElementById('headPublishedStoriesTable');
+  
+  if (!headPublishedStories || headPublishedStories.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">No published success stories</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = headPublishedStories.map(story => `
+    <tr>
+      <td><img src="${story.image_url}" alt="${story.business_name}" style="width:60px;height:60px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="previewImage('${story.image_url}')"></td>
+      <td><strong>${story.business_name}</strong></td>
+      <td>${story.investor_name}</td>
+      <td><span class="badge" style="background:#2196F3;color:#fff">Published</span></td>
+    </tr>
+  `).join('');
+}
+
+function renderHeadRejectedStoriesTable() {
+  const tbody = document.getElementById('headRejectedStoriesTable');
+  
+  if (!headRejectedStories || headRejectedStories.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">No rejected success stories</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = headRejectedStories.map(story => `
+    <tr>
+      <td><img src="${story.image_url}" alt="${story.business_name}" style="width:60px;height:60px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="previewImage('${story.image_url}')"></td>
+      <td><strong>${story.business_name}</strong></td>
+      <td>${story.investor_name}</td>
+      <td>${story.head_admin_notes || 'N/A'}</td>
+      <td><span class="badge" style="background:#f44336;color:#fff">Rejected</span></td>
     </tr>
   `).join('');
 }

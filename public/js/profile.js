@@ -379,24 +379,50 @@ function displayInvestorDashboard(data) {
     document.getElementById('lastPurchaseDate').textContent = lastDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
-  // Render table
-  tableBody.innerHTML = data.boughtListings.map(purchase => {
-    const purchaseDate = new Date(purchase.sale_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-    const purchasePrice = parseFloat(purchase.sale_price).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  // Render table with async story status check
+  (async () => {
+    const rows = await Promise.all(data.boughtListings.map(async (purchase) => {
+      const purchaseDate = new Date(purchase.sale_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      const purchasePrice = parseFloat(purchase.sale_price).toLocaleString('en-US', { maximumFractionDigits: 2 });
+      
+      // Check if story exists and is published
+      let storyStatus = null;
+      try {
+        const res = await fetch(`/api/investor/success-story/${purchase.listing_id}`, {
+          credentials: 'same-origin'
+        });
+        if (res.ok) {
+          const story = await res.json();
+          storyStatus = story.status;
+        }
+      } catch (err) {
+        console.error('Error fetching story status:', err);
+      }
+
+      // Determine button text and onclick based on story status
+      let buttonHTML = '';
+      if (storyStatus === 'published') {
+        buttonHTML = `<button onclick="openSuccessStoryModalForListing(${purchase.listing_id}, '${purchase.title.replace(/'/g, "\\'")}', '${purchase.image_url || ''}', ${purchase.inquiry_id})" style="padding: 8px 16px; background: #4CAF50; color: white; border: none; cursor: pointer; font-size: 14px; font-weight: 500; border-radius: 6px; transition: background 0.3s;">See your Success</button>`;
+      } else {
+        buttonHTML = `<button onclick="openSuccessStoryModalForListing(${purchase.listing_id}, '${purchase.title.replace(/'/g, "\\'")}', '${purchase.image_url || ''}', ${purchase.inquiry_id})" style="padding: 8px 16px; background: var(--accent); color: white; border: none; cursor: pointer; font-size: 14px; font-weight: 500; border-radius: 6px; transition: background 0.3s;">Share your Success</button>`;
+      }
+      
+      return `
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 12px; color: var(--text);">${purchase.title || 'N/A'}</td>
+          <td style="padding: 12px; color: var(--text);">${purchase.seller_name || 'N/A'}</td>
+          <td style="padding: 12px; text-align: right; color: var(--accent); font-weight: 600;">₱${purchasePrice}</td>
+          <td style="padding: 12px; color: var(--text-muted); font-size: 14px;">${purchaseDate}</td>
+          <td style="padding: 12px; text-align: center; display: flex; gap: 8px; justify-content: center;">
+            <a href="/components/listing-detail.html?id=${purchase.listing_id}" style="padding: 8px 16px; background: var(--accent); color: white; text-decoration: none; cursor: pointer; font-size: 14px; font-weight: 500; border-radius: 6px; transition: background 0.3s; display: inline-block;">View</a>
+            ${buttonHTML}
+          </td>
+        </tr>
+      `;
+    }));
     
-    return `
-      <tr style="border-bottom: 1px solid var(--border);">
-        <td style="padding: 12px; color: var(--text);">${purchase.title || 'N/A'}</td>
-        <td style="padding: 12px; color: var(--text);">${purchase.seller_name || 'N/A'}</td>
-        <td style="padding: 12px; text-align: right; color: var(--accent); font-weight: 600;">₱${purchasePrice}</td>
-        <td style="padding: 12px; color: var(--text-muted); font-size: 14px;">${purchaseDate}</td>
-        <td style="padding: 12px; text-align: center; display: flex; gap: 8px; justify-content: center;">
-          <a href="/components/listing-detail.html?id=${purchase.listing_id}" style="color: var(--accent); text-decoration: none; cursor: pointer; font-size: 14px;">View</a>
-          <button onclick="openSuccessStoryModalForListing(${purchase.listing_id}, '${purchase.title.replace(/'/g, "\\'")}', '${purchase.image_url || ''}', ${purchase.inquiry_id})" style="background: none; border: none; color: var(--accent); cursor: pointer; text-decoration: none; font-size: 14px; font-weight: 500;">📸 Story</button>
-        </td>
-      </tr>
-    `;
-  }).join('');
+    tableBody.innerHTML = rows.join('');
+  })();
 }
 
 // Setup event listeners
@@ -688,108 +714,267 @@ function displayVerificationStatus(status) {
 // Setup verification modal
 function setupVerificationModal() {
   const modal = document.getElementById('verificationModal');
+  const cameraModal = document.getElementById('cameraModal');
   const closeBtn = document.getElementById('closeVerificationModal');
   const requestBtn = document.getElementById('requestVerificationBtn');
-  const phoneInput = document.getElementById('verificationPhone');
-  const otpInput = document.getElementById('verificationOTP');
-  const docInput = document.getElementById('verificationDocInput');
-  const uploadBtn = document.getElementById('uploadDocBtn');
-  const proceedToOTPBtn = document.getElementById('proceedToOTPBtn');
-  const sendOTPBtn = document.getElementById('sendOTPBtn');
-  const verifyOTPBtn = document.getElementById('verifyOTPBtn');
-  const backToDocBtn = document.getElementById('backToDocBtn');
-  const backToPhoneBtn = document.getElementById('backToPhoneBtn');
   const form = document.getElementById('verificationForm');
   
-  let uploadedIdDocument = null;
-  let generatedOTP = null; // Store the generated OTP for dev mode
+  let selfieFile = null;
+  let idFile = null;
+  let userEmail = null;
+  let currentCameraMode = null; // 'selfie' or 'id'
+  let cameraStream = null;
+  
+  // Camera functions
+  async function startCamera(mode) {
+    currentCameraMode = mode;
+    const cameraTitle = document.getElementById('cameraModalTitle');
+    const video = document.getElementById('cameraVideo');
+    
+    if (mode === 'selfie') {
+      cameraTitle.textContent = 'Position your face in the center';
+    } else {
+      cameraTitle.textContent = 'Capture your ID document clearly';
+    }
+    
+    cameraModal.style.display = 'flex';
+    
+    try {
+      const constraints = {
+        video: {
+          facingMode: mode === 'selfie' ? 'user' : 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      };
+      
+      cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = cameraStream;
+      video.play();
+    } catch (err) {
+      console.error('Camera error:', err);
+      showVerificationMessage('Camera access denied or not available. Please use upload option.', 'error');
+      cameraModal.style.display = 'none';
+    }
+  }
+  
+  function stopCamera() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream = null;
+    }
+    cameraModal.style.display = 'none';
+  }
+  
+  function capturePhoto() {
+    const video = document.getElementById('cameraVideo');
+    const canvas = document.getElementById('captureCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas size to match video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // Flip horizontally for selfie
+    if (currentCameraMode === 'selfie') {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
+    
+    // Draw video frame to canvas
+    ctx.drawImage(video, 0, 0);
+    
+    // Convert canvas to blob
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        showVerificationMessage('Failed to capture photo. Please try again.', 'error');
+        return;
+      }
+      
+      if (currentCameraMode === 'selfie') {
+        selfieFile = blob;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          document.getElementById('selfiePreviewImage').src = e.target.result;
+          document.getElementById('selfiePreviewImage').style.display = 'block';
+        };
+        reader.onerror = () => {
+          showVerificationMessage('Failed to process selfie. Please try again.', 'error');
+        };
+        reader.readAsDataURL(blob);
+        document.getElementById('selfieFileName').textContent = 'Selfie captured';
+        document.getElementById('proceedFromStep1Btn').disabled = false;
+      } else {
+        idFile = blob;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          document.getElementById('idPreviewImage').src = e.target.result;
+          document.getElementById('idPreviewImage').style.display = 'block';
+        };
+        reader.onerror = () => {
+          showVerificationMessage('Failed to process ID document. Please try again.', 'error');
+        };
+        reader.readAsDataURL(blob);
+        document.getElementById('idFileName').textContent = 'ID captured';
+        document.getElementById('proceedFromStep2Btn').disabled = false;
+      }
+      
+      stopCamera();
+    }, 'image/jpeg', 0.95);
+  }
   
   // Open modal
-  requestBtn.addEventListener('click', () => {
+  requestBtn.addEventListener('click', async () => {
     modal.style.display = 'block';
     showVerificationStep(1);
-    phoneInput.value = '';
-    otpInput.value = '';
-    docInput.value = '';
-    uploadedIdDocument = null;
-    generatedOTP = null;
-    document.getElementById('verificationFileName').textContent = 'No file chosen';
-    document.getElementById('verificationPreviewImage').style.display = 'none';
-    hideVerificationMessage();
+    resetVerificationForm();
+    
+    // Get user email
+    try {
+      const res = await fetch('/api/user-info');
+      if (res.ok) {
+        const data = await res.json();
+        userEmail = data.email;
+        document.getElementById('userEmailDisplay').textContent = userEmail;
+      }
+    } catch (err) {
+      console.error('Error getting user email:', err);
+      userEmail = 'your registered email';
+      document.getElementById('userEmailDisplay').textContent = userEmail;
+    }
   });
   
   // Close modal
   closeBtn.addEventListener('click', () => {
     modal.style.display = 'none';
+    stopCamera();
+  });
+  
+  document.getElementById('closeVerificationSuccessBtn').addEventListener('click', () => {
+    modal.style.display = 'none';
+    stopCamera();
   });
   
   // Click outside modal to close
   modal.addEventListener('click', (e) => {
     if (e.target === modal) {
       modal.style.display = 'none';
+      stopCamera();
     }
   });
   
-  // Handle file selection (Step 1)
-  uploadBtn.addEventListener('click', () => {
-    docInput.click();
+  // Camera modal controls
+  document.getElementById('captureCameraBtn').addEventListener('click', () => {
+    capturePhoto();
   });
   
-  docInput.addEventListener('change', (e) => {
+  document.getElementById('cancelCameraBtn').addEventListener('click', () => {
+    stopCamera();
+  });
+  
+  // ===== STEP 1: SELFIE UPLOAD =====
+  document.getElementById('uploadSelfieBtn').addEventListener('click', () => {
+    document.getElementById('selfiePhotoInput').click();
+  });
+  
+  document.getElementById('takeSelfieBtn').addEventListener('click', () => {
+    startCamera('selfie');
+  });
+  
+  document.getElementById('selfiePhotoInput').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Check file size (5MB)
       if (file.size > 5 * 1024 * 1024) {
         showVerificationMessage('File size must be less than 5MB', 'error');
-        docInput.value = '';
-        uploadedIdDocument = null;
         return;
       }
       
-      // Preview image
+      selfieFile = file;
       const reader = new FileReader();
       reader.onload = (ev) => {
-        document.getElementById('verificationPreviewImage').src = ev.target.result;
-        document.getElementById('verificationPreviewImage').style.display = 'block';
+        document.getElementById('selfiePreviewImage').src = ev.target.result;
+        document.getElementById('selfiePreviewImage').style.display = 'block';
       };
       reader.readAsDataURL(file);
       
-      document.getElementById('verificationFileName').textContent = file.name;
-      uploadedIdDocument = file;
+      document.getElementById('selfieFileName').textContent = file.name;
+      document.getElementById('proceedFromStep1Btn').disabled = false;
       hideVerificationMessage();
     }
   });
   
-  // Proceed to OTP step (after ID document is uploaded)
-  proceedToOTPBtn.addEventListener('click', () => {
-    if (!uploadedIdDocument) {
+  document.getElementById('proceedFromStep1Btn').addEventListener('click', () => {
+    if (!selfieFile) {
+      showVerificationMessage('Please upload a selfie first', 'error');
+      return;
+    }
+    showVerificationStep(2);
+  });
+  
+  // ===== STEP 2: ID DOCUMENT UPLOAD =====
+  document.getElementById('uploadIDBtn').addEventListener('click', () => {
+    document.getElementById('idDocumentInput').click();
+  });
+  
+  document.getElementById('takeIDBtn').addEventListener('click', () => {
+    startCamera('id');
+  });
+  
+  document.getElementById('idDocumentInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        showVerificationMessage('File size must be less than 5MB', 'error');
+        return;
+      }
+      
+      idFile = file;
+      
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          document.getElementById('idPreviewImage').src = ev.target.result;
+          document.getElementById('idPreviewImage').style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+      }
+      
+      document.getElementById('idFileName').textContent = file.name;
+      document.getElementById('proceedFromStep2Btn').disabled = false;
+      hideVerificationMessage();
+    }
+  });
+  
+  document.getElementById('proceedFromStep2Btn').addEventListener('click', () => {
+    if (!idFile) {
       showVerificationMessage('Please upload an ID document first', 'error');
       return;
     }
-    
-    showVerificationStep(2);
-    phoneInput.value = '';
+    showVerificationStep(3);
   });
   
-  // Send OTP in development mode (Step 2)
-  sendOTPBtn.addEventListener('click', async () => {
-    const phone = phoneInput.value.trim();
-    
-    if (!phone) {
-      showVerificationMessage('Please enter a phone number', 'error');
+  document.getElementById('backToStep1Btn').addEventListener('click', () => {
+    showVerificationStep(1);
+  });
+  
+  // ===== STEP 3: SEND EMAIL OTP =====
+  document.getElementById('sendEmailOTPBtn').addEventListener('click', async () => {
+    if (!userEmail) {
+      showVerificationMessage('Email not found. Please refresh the page.', 'error');
       return;
     }
     
+    const btn = document.getElementById('sendEmailOTPBtn');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    
     try {
-      sendOTPBtn.disabled = true;
-      sendOTPBtn.textContent = 'Sending...';
-      
-      // Call backend to generate and log OTP
-      const res = await fetch('/api/verification/send-otp', {
+      const res = await fetch('/api/verification/send-email-otp', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: phone })
+        body: JSON.stringify({ email: userEmail })
       });
       
       if (!res.ok) {
@@ -798,64 +983,71 @@ function setupVerificationModal() {
       }
       
       const data = await res.json();
-      generatedOTP = data.otp; // Store OTP for dev mode
       
-      // Show message
-      showVerificationMessage('OTP sent! Check your browser console (F12) to see the OTP code. You can also paste it below to verify.', 'success');
+      showVerificationMessage('OTP sent to your email!', 'success');
       
-      setTimeout(() => showVerificationStep(3), 1500);
-    } catch (e) {
-      showVerificationMessage(e.message || 'Failed to send OTP', 'error');
+      setTimeout(() => {
+        showVerificationStep(4);
+        hideVerificationMessage();
+      }, 2000);
+    } catch (err) {
+      showVerificationMessage(err.message || 'Failed to send OTP', 'error');
     } finally {
-      sendOTPBtn.disabled = false;
-      sendOTPBtn.textContent = 'Send OTP';
+      btn.disabled = false;
+      btn.textContent = 'Send Verification Code';
     }
   });
   
-  // Verify OTP and submit verification (Step 3)
+  document.getElementById('backToStep2Btn').addEventListener('click', () => {
+    showVerificationStep(2);
+  });
+  
+  // ===== STEP 4: VERIFY OTP & SUBMIT =====
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     
+    const otpInput = document.getElementById('verificationOTPInput');
     const otp = otpInput.value.trim();
-    const phone = phoneInput.value.trim();
     
     if (!otp || otp.length !== 6) {
-      showVerificationMessage('Please enter a valid 6-digit OTP', 'error');
+      showVerificationMessage('Please enter a valid 6-digit code', 'error');
       return;
     }
     
-    if (!uploadedIdDocument) {
-      showVerificationMessage('ID document is missing', 'error');
+    if (!selfieFile || !idFile) {
+      showVerificationMessage('Missing selfie or ID document', 'error');
       return;
     }
+    
+    const verifyBtn = document.getElementById('verifyOTPBtn');
+    verifyBtn.disabled = true;
+    verifyBtn.textContent = 'Verifying...';
     
     try {
-      verifyOTPBtn.disabled = true;
-      verifyOTPBtn.textContent = 'Verifying...';
-      
-      // Verify OTP (in dev mode, backend accepts any 6-digit code)
-      const verifyRes = await fetch('/api/verification/verify-otp', {
+      // Step 1: Verify OTP
+      const verifyRes = await fetch('/api/verification/verify-email-otp', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otp, phoneNumber: phone })
+        body: JSON.stringify({ otp, email: userEmail })
       });
       
       if (!verifyRes.ok) {
         const err = await verifyRes.json();
-        throw new Error(err.error || 'Invalid OTP');
+        throw new Error(err.error || 'Invalid verification code');
       }
       
-      showVerificationMessage('OTP verified! Submitting your verification...', 'success');
+      showVerificationMessage('Code verified! Submitting verification...', 'success');
       
-      // Submit verification with ID document
+      // Step 2: Submit verification with both photos
       setTimeout(async () => {
         try {
           const formData = new FormData();
-          formData.append('phoneNumber', phone);
-          formData.append('idDocument', uploadedIdDocument);
+          formData.append('selfiePhoto', selfieFile);
+          formData.append('idDocument', idFile);
+          formData.append('email', userEmail);
           
-          const submitRes = await fetch('/api/verification/submit', {
+          const submitRes = await fetch('/api/verification/submit-new-flow', {
             method: 'POST',
             credentials: 'same-origin',
             body: formData
@@ -866,45 +1058,64 @@ function setupVerificationModal() {
             throw new Error(err.error || 'Failed to submit verification');
           }
           
-          showVerificationMessage('Verification submitted successfully! Your request is now under review.', 'success');
+          showVerificationStep(5);
+          hideVerificationMessage();
           
+          // Reload verification status after 3 seconds
           setTimeout(async () => {
-            modal.style.display = 'none';
             await loadVerificationStatus();
-          }, 2000);
+          }, 3000);
         } catch (err) {
           showVerificationMessage(err.message || 'Failed to submit verification', 'error');
-          verifyOTPBtn.disabled = false;
-          verifyOTPBtn.textContent = 'Verify OTP & Submit';
+          verifyBtn.disabled = false;
+          verifyBtn.textContent = 'Verify & Submit';
         }
       }, 1500);
-    } catch (e) {
-      showVerificationMessage(e.message || 'Failed to verify OTP', 'error');
-      verifyOTPBtn.disabled = false;
-      verifyOTPBtn.textContent = 'Verify OTP & Submit';
+    } catch (err) {
+      showVerificationMessage(err.message || 'Invalid verification code', 'error');
+      verifyBtn.disabled = false;
+      verifyBtn.textContent = 'Verify & Submit';
     }
   });
   
-  // Back buttons
-  backToDocBtn.addEventListener('click', () => {
-    showVerificationStep(1);
-  });
-  
-  backToPhoneBtn.addEventListener('click', () => {
-    showVerificationStep(2);
+  document.getElementById('backToStep3Btn').addEventListener('click', () => {
+    showVerificationStep(3);
   });
   
   function showVerificationStep(step) {
     document.getElementById('verificationStep1').style.display = step === 1 ? 'block' : 'none';
     document.getElementById('verificationStep2').style.display = step === 2 ? 'block' : 'none';
     document.getElementById('verificationStep3').style.display = step === 3 ? 'block' : 'none';
+    document.getElementById('verificationStep4').style.display = step === 4 ? 'block' : 'none';
+    document.getElementById('verificationStep5').style.display = step === 5 ? 'block' : 'none';
+    
+    if (step === 4) {
+      document.getElementById('verificationOTPInput').focus();
+    }
+  }
+  
+  function resetVerificationForm() {
+    selfieFile = null;
+    idFile = null;
+    document.getElementById('selfiePhotoInput').value = '';
+    document.getElementById('idDocumentInput').value = '';
+    document.getElementById('verificationOTPInput').value = '';
+    document.getElementById('selfiePreviewImage').style.display = 'none';
+    document.getElementById('idPreviewImage').style.display = 'none';
+    document.getElementById('selfieFileName').textContent = 'No photo selected';
+    document.getElementById('idFileName').textContent = 'No document selected';
+    document.getElementById('proceedFromStep1Btn').disabled = true;
+    document.getElementById('proceedFromStep2Btn').disabled = true;
+    hideVerificationMessage();
   }
   
   function showVerificationMessage(msg, type) {
-    const msgDiv = document.getElementById('verificationMessage');
-    msgDiv.textContent = msg;
-    msgDiv.className = type === 'error' ? 'error-message' : 'success-message';
-    msgDiv.style.display = 'block';
+    const msgEl = document.getElementById('verificationMessage');
+    msgEl.textContent = msg;
+    msgEl.style.background = type === 'error' ? '#ffebee' : '#e8f5e9';
+    msgEl.style.color = type === 'error' ? '#c62828' : '#2e7d32';
+    msgEl.style.borderLeft = `4px solid ${type === 'error' ? '#f44336' : '#4CAF50'}`;
+    msgEl.style.display = 'block';
   }
   
   function hideVerificationMessage() {
@@ -939,31 +1150,96 @@ async function shareProfile() {
 }
 
 // Open success story modal for a specific listing from table
-function openSuccessStoryModalForListing(listingId, listingTitle, listingImage, inquiryId) {
-  const modal = document.getElementById('successStoryModal');
-  const select = document.getElementById('successListingSelect');
-  
-  // Populate the dropdown with the specific listing
-  select.innerHTML = `<option value="${listingId}" selected>${listingTitle}</option>`;
-  select.disabled = true;
-  
-  // Add visual indicator that listing is locked
-  select.style.backgroundColor = '#f3f4f6';
-  select.style.cursor = 'not-allowed';
-  select.style.fontWeight = '500';
-  
-  // Display the listing image at the top of the modal
-  const listingImagePreview = document.getElementById('listingImagePreview');
-  if (listingImagePreview) {
-    if (listingImage) {
+async function openSuccessStoryModalForListing(listingId, listingTitle, listingImage, inquiryId) {
+  try {
+    // Check if a success story exists for this listing and if it's published
+    const res = await fetch(`/api/investor/success-story/${listingId}`, {
+      credentials: 'same-origin'
+    });
+
+    if (res.ok) {
+      const story = await res.json();
+      
+      // If story is published, redirect to success.html with modal open
+      if (story.status === 'published') {
+        window.location.href = `/components/success.html?storyId=${story.id}&viewModal=true`;
+        return;
+      }
+
+      // If story already exists but is not published (pending/listing_admin_approved/rejected)
+      // show a message to user
+      if (story && story.id) {
+        showMessage(`You've already submitted a success story for this listing. Status: ${story.status}. Please wait for admin review.`, 'info');
+        return;
+      }
+    }
+
+    // Otherwise, open modal to create/edit success story
+    const modal = document.getElementById('successStoryModal');
+    const select = document.getElementById('successListingSelect');
+    const form = document.getElementById('successStoryForm');
+    
+    // Populate the dropdown with the specific listing
+    select.innerHTML = `<option value="${listingId}" selected>${listingTitle}</option>`;
+    select.disabled = true;
+    
+    // Add visual indicator that listing is locked
+    select.style.backgroundColor = '#f3f4f6';
+    select.style.cursor = 'not-allowed';
+    select.style.fontWeight = '500';
+    
+    // Display the listing image at the top of the modal
+    const listingImagePreview = document.getElementById('listingImagePreview');
+    if (listingImagePreview) {
+      if (listingImage) {
+        listingImagePreview.src = listingImage;
+        listingImagePreview.style.display = 'block';
+      } else {
+        listingImagePreview.style.display = 'none';
+      }
+    }
+    
+    // Enable the form for submission
+    form.style.pointerEvents = 'auto';
+    form.style.opacity = '1';
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Share Success Story';
+    }
+    
+    modal.style.display = 'block';
+  } catch (err) {
+    console.error('Error checking success story:', err);
+    
+    // Fallback: open modal to create/edit
+    const modal = document.getElementById('successStoryModal');
+    const select = document.getElementById('successListingSelect');
+    const form = document.getElementById('successStoryForm');
+    
+    select.innerHTML = `<option value="${listingId}" selected>${listingTitle}</option>`;
+    select.disabled = true;
+    select.style.backgroundColor = '#f3f4f6';
+    select.style.cursor = 'not-allowed';
+    select.style.fontWeight = '500';
+    
+    const listingImagePreview = document.getElementById('listingImagePreview');
+    if (listingImagePreview && listingImage) {
       listingImagePreview.src = listingImage;
       listingImagePreview.style.display = 'block';
-    } else {
-      listingImagePreview.style.display = 'none';
     }
+    
+    // Enable the form for submission
+    form.style.pointerEvents = 'auto';
+    form.style.opacity = '1';
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Share Success Story';
+    }
+    
+    modal.style.display = 'block';
   }
-  
-  modal.style.display = 'block';
 }
 
 // Open success story modal and load purchased listings
