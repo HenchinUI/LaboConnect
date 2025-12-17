@@ -1,0 +1,391 @@
+<!-- User Verification Modal Component -->
+<div id="verificationModal" class="modal-overlay" style="display: none;">
+  <div class="modal-content verification-modal">
+    <button class="modal-close" onclick="closeVerificationModal()">&times;</button>
+    
+    <div id="verificationStep1" class="verification-step">
+      <h2>Complete Your Identity Verification</h2>
+      <p>To submit listings, you need to verify your identity. This helps us maintain a trusted community.</p>
+      
+      <div class="form-group">
+        <label for="phoneNumber">Phone Number *</label>
+        <input type="tel" id="phoneNumber" placeholder="+63..." required>
+      </div>
+      
+      <button onclick="startVerification()" class="btn btn-primary">Send OTP Code</button>
+      <p class="text-muted" style="margin-top: 10px; font-size: 12px;">
+        We'll send a one-time password to your phone to verify your identity.
+      </p>
+    </div>
+
+    <div id="verificationStep2" class="verification-step" style="display: none;">
+      <h2>Enter OTP Code</h2>
+      <p>Enter the 6-digit code we sent to your phone.</p>
+      
+      <div class="form-group">
+        <label for="otpCode">OTP Code *</label>
+        <input type="text" id="otpCode" placeholder="000000" maxlength="6" inputmode="numeric">
+      </div>
+      
+      <button onclick="verifyOTPCode()" class="btn btn-primary">Verify Code</button>
+      <button onclick="goBackToPhoneEntry()" class="btn btn-secondary">Change Phone Number</button>
+    </div>
+
+    <div id="verificationStep3" class="verification-step" style="display: none;">
+      <h2>Upload ID Document</h2>
+      <p>Upload a clear photo or scan of your ID (Driver's License, Passport, or Government ID)</p>
+      
+      <div class="form-group">
+        <label for="idDocument">ID Document *</label>
+        <input type="file" id="idDocument" accept="image/*,.pdf" required>
+        <small style="color: #666;">Accepted: PDF, JPG, PNG (Max 5MB)</small>
+      </div>
+      
+      <div id="documentPreview" style="margin: 15px 0;"></div>
+      
+      <button onclick="uploadIDDocument()" class="btn btn-primary">Submit Document</button>
+    </div>
+
+    <div id="verificationStep4" class="verification-step" style="display: none;">
+      <div class="verification-success">
+        <div class="success-icon">✓</div>
+        <h2>Verification Submitted</h2>
+        <p>Your identity verification has been submitted. Our team will review your information within 24-48 hours.</p>
+        <p style="margin-top: 10px; color: #666; font-size: 14px;">
+          You'll receive an email notification once your verification is approved.
+        </p>
+        <button onclick="closeVerificationModal()" class="btn btn-primary">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.modal-close {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: none;
+  border: none;
+  font-size: 28px;
+  cursor: pointer;
+  color: #999;
+}
+
+.modal-close:hover {
+  color: #333;
+}
+
+.verification-modal h2 {
+  margin-top: 0;
+  color: #333;
+  font-size: 22px;
+}
+
+.verification-modal p {
+  color: #666;
+  line-height: 1.5;
+}
+
+.verification-step {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #333;
+  font-weight: 500;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #4CAF50;
+  box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+}
+
+.form-group small {
+  display: block;
+  margin-top: 5px;
+  color: #999;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.btn-primary {
+  background: #4CAF50;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #45a049;
+}
+
+.btn-secondary {
+  background: #f1f1f1;
+  color: #333;
+}
+
+.btn-secondary:hover {
+  background: #e0e0e0;
+}
+
+.text-muted {
+  color: #999;
+}
+
+.verification-success {
+  text-align: center;
+}
+
+.success-icon {
+  width: 80px;
+  height: 80px;
+  background: #4CAF50;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  margin: 0 auto 20px;
+}
+
+.verification-success h2 {
+  color: #4CAF50;
+}
+</style>
+
+<script>
+let currentVerificationId = null;
+let currentPhoneNumber = null;
+
+function openVerificationModal() {
+  document.getElementById('verificationModal').style.display = 'flex';
+  // Reset to step 1
+  showVerificationStep(1);
+}
+
+function closeVerificationModal() {
+  document.getElementById('verificationModal').style.display = 'none';
+  // Reset form
+  document.getElementById('phoneNumber').value = '';
+  document.getElementById('otpCode').value = '';
+  document.getElementById('idDocument').value = '';
+}
+
+function showVerificationStep(step) {
+  // Hide all steps
+  document.querySelectorAll('.verification-step').forEach(el => {
+    el.style.display = 'none';
+  });
+  
+  // Show target step
+  const stepId = `verificationStep${step}`;
+  const stepEl = document.getElementById(stepId);
+  if (stepEl) {
+    stepEl.style.display = 'block';
+  }
+}
+
+async function startVerification() {
+  const phoneNumber = document.getElementById('phoneNumber').value.trim();
+  
+  if (!phoneNumber) {
+    alert('Please enter a phone number');
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/verification/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phoneNumber })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      alert(data.error || 'Failed to start verification');
+      return;
+    }
+    
+    currentVerificationId = data.verificationId;
+    currentPhoneNumber = phoneNumber;
+    
+    // In development mode, show the OTP
+    if (data.otp) {
+      console.log('Development OTP:', data.otp);
+      alert(`[DEV] OTP: ${data.otp}`);
+    }
+    
+    showVerificationStep(2);
+  } catch (err) {
+    console.error('Error starting verification:', err);
+    alert('Error starting verification. Please try again.');
+  }
+}
+
+async function verifyOTPCode() {
+  const otp = document.getElementById('otpCode').value.trim();
+  
+  if (!otp || otp.length !== 6) {
+    alert('Please enter a valid 6-digit OTP');
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/verification/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ verificationId: currentVerificationId, otp })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      alert(data.error || 'Failed to verify OTP');
+      return;
+    }
+    
+    showVerificationStep(3);
+  } catch (err) {
+    console.error('Error verifying OTP:', err);
+    alert('Error verifying OTP. Please try again.');
+  }
+}
+
+async function uploadIDDocument() {
+  const fileInput = document.getElementById('idDocument');
+  const file = fileInput.files[0];
+  
+  if (!file) {
+    alert('Please select an ID document');
+    return;
+  }
+  
+  // Validate file size (5MB)
+  if (file.size > 5 * 1024 * 1024) {
+    alert('File size must be less than 5MB');
+    return;
+  }
+  
+  try {
+    const formData = new FormData();
+    formData.append('verificationId', currentVerificationId);
+    formData.append('idDocument', file);
+    
+    const response = await fetch('/api/verification/upload-document', {
+      method: 'POST',
+      body: formData
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      alert(data.error || 'Failed to upload document');
+      return;
+    }
+    
+    showVerificationStep(4);
+  } catch (err) {
+    console.error('Error uploading document:', err);
+    alert('Error uploading document. Please try again.');
+  }
+}
+
+function goBackToPhoneEntry() {
+  currentVerificationId = null;
+  currentPhoneNumber = null;
+  document.getElementById('otpCode').value = '';
+  showVerificationStep(1);
+}
+
+// Show file preview
+document.addEventListener('DOMContentLoaded', () => {
+  const idDocumentInput = document.getElementById('idDocument');
+  if (idDocumentInput) {
+    idDocumentInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      const preview = document.getElementById('documentPreview');
+      
+      if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          preview.innerHTML = `<img src="${event.target.result}" style="max-width: 100%; max-height: 200px; border-radius: 4px;">`;
+        };
+        reader.readAsDataURL(file);
+      } else if (file) {
+        preview.innerHTML = `<p style="color: #666; font-size: 14px;">✓ File selected: ${file.name}</p>`;
+      }
+    });
+  }
+  
+  // Close modal on outside click
+  document.getElementById('verificationModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'verificationModal') {
+      closeVerificationModal();
+    }
+  });
+  
+  // Close on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('verificationModal').style.display === 'flex') {
+      closeVerificationModal();
+    }
+  });
+});
+</script>

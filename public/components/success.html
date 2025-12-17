@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Success Stories — LaboConnect</title>
+  <link rel="stylesheet" href="/css/global.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --container: 1200px;
+      --accent: #10b981;
+      --accent-dark: #059669;
+      --color-dark: #466942;
+      --color-sub: #6b7280;
+      --muted: #9ca3af;
+      --font-main: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-main);
+      background: linear-gradient(135deg, #f0fdf4 0%, #f9fafb 50%, #eff6ff 100%);
+      color: var(--color-dark);
+      min-height: 100vh;
+    }
+
+    main.wrap {
+      max-width: var(--container);
+      margin: 0 auto;
+      padding: 60px 24px;
+    }
+
+    /* Header Section */
+    .toolbar {
+      display: flex;
+      justify-content: flex-start;
+      margin-bottom: 48px;
+    }
+
+    .back-btn {
+      padding: 10px 20px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 2px solid var(--accent);
+      border-radius: 8px;
+      color: var(--accent);
+      cursor: pointer;
+      font-weight: 600;
+      font-family: var(--font-main);
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .back-btn:hover {
+      background: var(--accent);
+      color: white;
+      transform: translateX(-4px);
+    }
+
+    /* Section Title & Lead */
+    .section-title {
+      font-size: 3rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #047857 0%, #10b981 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.1;
+    }
+
+    .lead {
+      color: var(--color-sub);
+      font-size: 1.05rem;
+      line-height: 1.7;
+      margin-bottom: 48px;
+      max-width: 700px;
+      font-weight: 500;
+    }
+
+    /* Filter Section */
+    .filter-section {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 50px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .filter-btn {
+      padding: 11px 24px;
+      background: white;
+      border: 2px solid var(--muted);
+      color: var(--color-sub);
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      font-family: var(--font-main);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .filter-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .filter-btn.active {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+      color: white;
+      border-color: var(--accent);
+      box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+    }
+
+    /* Category Section */
+    .category-section {
+      margin-bottom: 60px;
+    }
+
+    .category-heading {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 16px;
+      border-bottom: 3px solid var(--accent);
+    }
+
+    .category-heading::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+    }
+
+    /* Stories Grid */
+    .stories-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 28px;
+      margin-bottom: 40px;
+    }
+
+    .story-card {
+      position: relative;
+      cursor: pointer;
+      border-radius: 16px;
+      overflow: hidden;
+      background: white;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .story-card:hover {
+      transform: translateY(-12px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+    }
+
+    .story-card.hidden {
+      display: none;
+    }
+
+    .card-media {
+      width: 100%;
+      height: 240px;
+      background-size: cover;
+      background-position: center;
+      transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+      position: relative;
+    }
+
+    .card-media::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.2) 100%);
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .story-card:hover .card-media {
+      transform: scale(1.08);
+    }
+
+    .story-card:hover .card-media::after {
+      opacity: 1;
+    }
+
+    .card-caption {
+      padding: 28px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .card-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #74d3b3;
+      line-height: 1.3;
+      margin: 0;
+    }
+
+    .card-sub {
+      color: var(--color-sub);
+      font-size: 0.9rem;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card-sub::before {
+      content: '📍';
+      font-size: 1rem;
+    }
+
+    .badge {
+      display: inline-block;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%);
+      color: var(--accent-dark);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      width: fit-content;
+    }
+
+    /* Modal Styles */
+    .story-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .story-modal[aria-hidden="false"] {
+      display: flex;
+      opacity: 1;
+    }
+
+    .story-modal-panel {
+      background: white;
+      border-radius: 20px;
+      width: 100%;
+      max-width: 720px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25);
+      overflow: hidden;
+      animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes slideUp {
+      from {
+        transform: translateY(40px) scale(0.95);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+    }
+
+    .modal-header {
+      padding: 32px 32px 24px;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-shrink: 0;
+    }
+
+    .modal-header-content h2 {
+      margin: 8px 0 0 0;
+      font-size: 1.6rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.2;
+    }
+
+    .modal-header-content p {
+      margin: 8px 0 0 0;
+      color: var(--color-sub);
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .modal-header-content p::before {
+      content: '📍';
+    }
+
+    .modal-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+      color: white;
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 7px 14px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .modal-close {
+      background: rgba(0, 0, 0, 0.05);
+      border: none;
+      border-radius: 10px;
+      font-size: 20px;
+      cursor: pointer;
+      color: var(--color-sub);
+      padding: 8px;
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+
+    .modal-close:hover {
+      background: rgba(0, 0, 0, 0.1);
+      color: var(--color-dark);
+      transform: rotate(90deg);
+    }
+
+    .modal-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px;
+    }
+
+    .modal-image {
+      width: 100%;
+      height: 320px;
+      object-fit: cover;
+      border-radius: 14px;
+      margin-bottom: 28px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+      display: block;
+    }
+
+    .modal-desc {
+      color: #4b5563;
+      font-size: 0.95rem;
+      line-height: 1.8;
+      margin-bottom: 28px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      padding: 18px;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.02) 100%);
+      border-radius: 12px;
+      border: 1.5px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .stat-label {
+      font-size: 0.65rem;
+      color: var(--accent-dark);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+
+    .stat-value {
+      font-weight: 800;
+      color: var(--accent-dark);
+      font-size: 1.05rem;
+    }
+
+    .achievement-box {
+      padding: 20px;
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+      border-radius: 12px;
+      border: 1.5px solid rgba(16, 185, 129, 0.25);
+      margin-bottom: 20px;
+    }
+
+    .achievement-label {
+      font-size: 0.65rem;
+      color: var(--accent-dark);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+
+    .achievement-text {
+      margin: 0;
+      color: #047857;
+      font-size: 0.95rem;
+      line-height: 1.7;
+      font-weight: 500;
+    }
+
+    .modal-footer {
+      padding: 24px 32px;
+      border-top: 1px solid #f0f0f0;
+      display: flex;
+      gap: 12px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+    }
+
+    .btn {
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: all 0.3s ease;
+      font-family: var(--font-main);
+      flex: 1;
+      min-width: 140px;
+      text-decoration: none;
+      text-align: center;
+      display: inline-block;
+      font-size: 0.95rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+      color: white;
+      box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--color-sub);
+      border: 1.5px solid #e5e7eb;
+    }
+
+    .btn-ghost:hover {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, transparent 100%);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 80px 40px;
+      color: var(--color-sub);
+    }
+
+    .empty-state p {
+      font-size: 1.1rem;
+      margin: 20px 0 28px 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .section-title {
+        font-size: 2rem;
+      }
+
+      .lead {
+        font-size: 0.95rem;
+      }
+
+      .stories-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .modal-header {
+        padding: 24px;
+      }
+
+      .modal-content {
+        padding: 24px;
+      }
+
+      .modal-footer {
+        padding: 20px 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div id="header-import"></div>
+
+  <!-- MAIN CONTENT -->
+  <main class="wrap">
+    <!-- Back Button -->
+    <div class="toolbar">
+      <button class="back-btn" onclick="window.history.back()">← Back</button>
+    </div>
+
+    <!-- Hero Section -->
+    <section style="margin-bottom: 48px;">
+      <h1 class="section-title">Success Stories</h1>
+      <p class="lead">Discover the inspiring journeys of Labo's most successful businesses. Each story showcases the opportunities and growth potential available in our thriving municipality.</p>
+    </section>
+
+    <!-- Filter Buttons -->
+    <div class="filter-section" id="filterSection">
+      <button class="filter-btn active" data-filter="all">All Categories</button>
+      <button class="filter-btn" data-filter="retail">Retail</button>
+      <button class="filter-btn" data-filter="resort">Hospitality</button>
+      <button class="filter-btn" data-filter="agri">Agriculture</button>
+    </div>
+
+    <!-- Retail Section -->
+    <div id="retail-section" class="category-section">
+      <h2 class="category-heading">Retail & Commerce</h2>
+      <div class="stories-grid" id="retailGrid"></div>
+    </div>
+
+    <!-- Hospitality Section -->
+    <div id="resort-section" class="category-section">
+      <h2 class="category-heading">Hospitality & Tourism</h2>
+      <div class="stories-grid" id="resortGrid"></div>
+    </div>
+
+    <!-- Agriculture Section -->
+    <div id="agri-section" class="category-section">
+      <h2 class="category-heading">Agriculture & Agri-Tourism</h2>
+      <div class="stories-grid" id="agriGrid"></div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="empty-state" style="display: none;">
+      <p style="font-size: 4rem; margin: 0;">📭</p>
+      <p>No stories found in this category.</p>
+      <button class="filter-btn active" onclick="filterByCategory('all')">Show All Categories</button>
+    </div>
+  </main>
+
+  <!-- Success Stories Modal -->
+  <div id="storyModal" class="story-modal" aria-hidden="true" role="dialog" aria-labelledby="storyModalTitle">
+    <div class="story-modal-panel">
+      <!-- Modal Header -->
+      <div class="modal-header">
+        <div class="modal-header-content">
+          <div id="storyModalBadge" class="modal-badge"></div>
+          <h2 id="storyModalTitle"></h2>
+          <p id="storyModalSub"></p>
+        </div>
+        <button class="modal-close" aria-label="Close story dialog" title="Close (Esc)">✕</button>
+      </div>
+
+      <!-- Modal Content -->
+      <div class="modal-content">
+        <img id="modalImage" src="" alt="" class="modal-image" loading="lazy" decoding="async" />
+        <p id="storyModalDesc" class="modal-desc"></p>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Business Type</div>
+            <div id="storyType" class="stat-value"></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Established</div>
+            <div id="storyYear" class="stat-value"></div>
+          </div>
+        </div>
+
+        <!-- Achievement Box -->
+        <div class="achievement-box">
+          <div class="achievement-label">✨ Key Achievement</div>
+          <p id="storyAchievement" class="achievement-text"></p>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-footer">
+        <a id="modalContact" href="#" class="btn btn-primary" style="text-decoration: none;">💬 Contact Business</a>
+        <button id="modalClose" class="btn btn-ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="footer-placeholder"></div>
+
+  <script>
+    let storyData = {};
+
+    const modal = document.getElementById('storyModal');
+    const modalCloseBtn = modal.querySelector('.modal-close');
+    const modalCloseBtnFooter = document.getElementById('modalClose');
+
+    // Built-in demo stories
+    const demoStories = [
+      {
+        id: 'demo_1',
+        title: 'Villa Asuncion',
+        subtitle: 'Resort — Purok 4, San Antonio',
+        description: 'Popular event venue and resort supporting tourism growth in the municipality. A successful agritourism resort that highlights local produce and creates seasonal employment.',
+        image: '/assets/img/success/vila.png',
+        type: 'Resort',
+        category: 'resort',
+        year: 2015,
+        achievement: '5-star rating, award-winning luxury resort',
+        email: null,
+        investorName: 'Demo Story'
+      },
+      {
+        id: 'demo_2',
+        title: 'LCC Supermarket',
+        subtitle: 'Retail — Maharlika Highway, Pinyahan',
+        description: 'LCC is one of Labo\'s established retail anchors, offering employment and steady foot traffic that supports many nearby businesses. Opened with strong community support and continues to expand.',
+        image: '/assets/img/success/lcc.png',
+        type: 'Supermarket',
+        category: 'retail',
+        year: 2010,
+        achievement: 'Major retail anchor, steady foot traffic, local employment',
+        email: null,
+        investorName: 'Demo Story'
+      },
+      {
+        id: 'demo_3',
+        title: 'J&F MALL',
+        subtitle: 'Mall — Dalis, Labo',
+        description: 'A modern retail center providing shopping, dining and entertainment. The mall supports local suppliers and attracts visitors from neighboring towns.',
+        image: '/assets/img/success/j&f.png',
+        type: 'Shopping Mall',
+        category: 'retail',
+        year: 2012,
+        achievement: '40+ stores, regional shopping destination',
+        email: null,
+        investorName: 'Demo Story'
+      },
+      {
+        id: 'demo_4',
+        title: 'Mr. DIY',
+        subtitle: 'Hardware & Retail — Maharlika Highway',
+        description: 'A major retail chain that chose Labo for its accessibility and growing market. Successfully expanded in the municipality with strong performance.',
+        image: '/assets/img/success/diy.png',
+        type: 'Hardware Retail',
+        category: 'retail',
+        year: 2014,
+        achievement: 'Major retail chain, accessible location, growing market',
+        email: null,
+        investorName: 'Demo Story'
+      },
+      {
+        id: 'demo_5',
+        title: 'Maria Fatima',
+        subtitle: 'Farm Resort — Purok 2, Bautista',
+        description: 'A successful agritourism resort that highlights local produce and creates seasonal employment. Blends agriculture and hospitality for a unique experience.',
+        image: '/assets/img/success/fatima.png',
+        type: 'Farm Resort',
+        category: 'agri',
+        year: 2016,
+        achievement: 'Agritourism success, seasonal employment, local produce',
+        email: null,
+        investorName: 'Demo Story'
+      },
+      {
+        id: 'demo_6',
+        title: 'HutSpot',
+        subtitle: 'Hotel & Restaurant — Tulay na Lipa',
+        description: 'Local hospitality business that grew rapidly thanks to steady tourist flows. Provides dining and accommodation services to visitors exploring the area.',
+        image: '/assets/img/success/hutspot.png',
+        type: 'Hotel & Restaurant',
+        category: 'resort',
+        year: 2017,
+        achievement: 'Rapid growth, tourist destination, dining & lodging',
+        email: null,
+        investorName: 'Demo Story'
+      }
+    ];
+
+    // Map business type to category
+    function getCategoryFromType(businessType) {
+      if (!businessType) return 'retail';
+      const typeStr = businessType.toLowerCase();
+      if (typeStr.includes('farm') || typeStr.includes('agri')) return 'agri';
+      if (typeStr.includes('resort') || typeStr.includes('hotel') || typeStr.includes('restaurant') || typeStr.includes('café') || typeStr.includes('cafe')) return 'resort';
+      return 'retail';
+    }
+
+    // Fetch stories from API
+    async function loadSuccessStories() {
+      try {
+        const res = await fetch('/api/success-stories');
+        if (!res.ok) throw new Error('Failed to fetch stories');
+        
+        const stories = await res.json();
+        
+        // Start with demo stories
+        storyData = {};
+        demoStories.forEach((story) => {
+          const id = `story_${story.id}`;
+          storyData[id] = story;
+        });
+        
+        // Add API stories
+        stories.forEach((story) => {
+          const id = `story_${story.id}`;
+          storyData[id] = {
+            id: story.id,
+            title: story.business_name,
+            subtitle: story.location,
+            description: story.description,
+            image: story.image_url,
+            type: story.business_type,
+            category: story.category || getCategoryFromType(story.business_type),
+            year: story.established_year || new Date().getFullYear(),
+            achievement: story.key_achievement,
+            email: story.contact_email || story.investor_email,
+            investorName: story.investor_name
+          };
+        });
+        
+        renderStories();
+        filterByCategory('all');
+      } catch (e) {
+        console.error('Error loading success stories:', e);
+        // Show demo stories if API fails
+        storyData = {};
+        demoStories.forEach((story) => {
+          const id = `story_${story.id}`;
+          storyData[id] = story;
+        });
+        renderStories();
+        filterByCategory('all');
+      }
+    }
+
+    function renderStories() {
+      ['retail', 'resort', 'agri'].forEach(category => {
+        const grid = document.getElementById(`${category}Grid`);
+        const stories = Object.entries(storyData).filter(([_, s]) => s.category === category);
+        grid.innerHTML = '';
+        stories.forEach(([id, story]) => createStoryCard(id, story, grid));
+      });
+    }
+
+    function createStoryCard(id, story, container) {
+      const card = document.createElement('article');
+      card.className = 'story-card';
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('data-id', id);
+      card.setAttribute('data-category', story.category);
+      card.setAttribute('role', 'button');
+
+      card.innerHTML = `
+        <div class="card-media" style="background-image: url('${story.image}')"></div>
+        <div class="card-caption">
+          <div>
+            <div class="card-title">${story.title}</div>
+            <div class="card-sub">${story.subtitle}</div>
+          </div>
+          <span class="badge">${story.type.split(' ')[0]}</span>
+        </div>
+      `;
+
+      card.addEventListener('click', () => openStoryModal(id));
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openStoryModal(id);
+        }
+      });
+
+      container.appendChild(card);
+    }
+
+    function filterByCategory(category) {
+      const sections = document.querySelectorAll('.category-section');
+      let hasVisibleCards = false;
+
+      sections.forEach(section => {
+        const cards = section.querySelectorAll('.story-card');
+        let visibleInSection = false;
+
+        cards.forEach(card => {
+          const cardCategory = card.getAttribute('data-category');
+          if (category === 'all' || cardCategory === category) {
+            card.classList.remove('hidden');
+            visibleInSection = true;
+            hasVisibleCards = true;
+          } else {
+            card.classList.add('hidden');
+          }
+        });
+
+        section.style.display = visibleInSection ? 'block' : 'none';
+      });
+
+      document.getElementById('emptyState').style.display = hasVisibleCards ? 'none' : 'block';
+
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-filter') === category);
+      });
+    }
+
+    function openStoryModal(storyId) {
+      const story = storyData[storyId];
+      if (!story) return;
+
+      document.getElementById('storyModalBadge').textContent = story.type;
+      document.getElementById('storyModalTitle').textContent = story.title;
+      document.getElementById('storyModalSub').textContent = story.subtitle;
+      document.getElementById('modalImage').src = story.image;
+      document.getElementById('modalImage').alt = story.title;
+      document.getElementById('storyModalDesc').textContent = story.description;
+      document.getElementById('storyType').textContent = story.type;
+      document.getElementById('storyYear').textContent = story.year;
+      document.getElementById('storyAchievement').textContent = story.achievement;
+      
+      // Set contact link to email or public profile
+      const contactLink = document.getElementById('modalContact');
+      if (story.email) {
+        contactLink.href = `mailto:${story.email}`;
+        contactLink.textContent = '💬 Contact Business';
+      } else if (story.id) {
+        // Link to investor's public profile if email not available
+        contactLink.href = `/components/public-profile.html?id=${story.id}`;
+        contactLink.textContent = '👤 View Investor Profile';
+      }
+
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeStoryModal() {
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    }
+
+    modalCloseBtn.addEventListener('click', closeStoryModal);
+    modalCloseBtnFooter.addEventListener('click', closeStoryModal);
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => filterByCategory(btn.getAttribute('data-filter')));
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal.getAttribute('aria-hidden') === 'false') {
+        closeStoryModal();
+      }
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeStoryModal();
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadSuccessStories();
+    });
+
+    (async () => {
+      try {
+        const resp = await fetch("../components/footer.html");
+        if (!resp.ok) throw new Error(`Failed to load footer`);
+        document.getElementById("footer-placeholder").innerHTML = await resp.text();
+      } catch (err) {
+        console.error("Footer load failed:", err);
+        document.getElementById("footer-placeholder").innerHTML =
+          '<footer style="padding:24px;text-align:center;color:var(--muted);border-top:1px solid #e5e7eb">© Municipality of Labo</footer>';
+      }
+    })();
+  </script>
+
+  <script src="/js/global.js"></script>
+</body>
+</html>

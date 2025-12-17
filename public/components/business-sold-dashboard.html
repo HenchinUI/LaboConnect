@@ -1,0 +1,100 @@
+<!-- Business Sold Listings Dashboard -->
+<div id="businessSoldDashboard" style="display: none;">
+  <div style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+    <h1 style="margin: 0 0 30px 0; font-size: 28px; color: #1f2937;">My Sales Dashboard</h1>
+    
+    <!-- Earnings Stats -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px;">
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <p style="margin: 0; font-size: 12px; opacity: 0.9;">Total Earnings</p>
+        <h3 style="margin: 8px 0 0 0; font-size: 32px;">$<span id="totalEarnings">0</span></h3>
+      </div>
+      <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <p style="margin: 0; font-size: 12px; opacity: 0.9;">Listings Sold</p>
+        <h3 style="margin: 8px 0 0 0; font-size: 32px;"><span id="totalSold">0</span></h3>
+      </div>
+    </div>
+    
+    <!-- Sold Listings Table -->
+    <div style="background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px;">
+      <h2 style="margin: 0 0 16px 0; font-size: 20px; color: #1f2937;">Sold Listings</h2>
+      
+      <div id="soldListingsContainer" style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #f9fafb;">
+              <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; color: #6b7280;">Listing Title</th>
+              <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; color: #6b7280;">Buyer</th>
+              <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; color: #6b7280;">Sale Price</th>
+              <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; color: #6b7280;">Date Sold</th>
+              <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e5e7eb; font-weight: 600; color: #6b7280;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="soldListingsBody">
+            <tr>
+              <td colspan="5" style="padding: 32px; text-align: center; color: #9ca3af;">Loading sold listings...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div id="noSoldListings" style="text-align: center; padding: 32px; color: #9ca3af; display: none;">
+        <p style="font-size: 16px; margin: 0;">No sold listings yet. Start posting listings to make sales!</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Load business sold listings dashboard
+async function loadBusinessSoldDashboard() {
+  try {
+    const response = await fetch('/api/business/dashboard/sold-listings', {
+      credentials: 'same-origin'
+    });
+    
+    if (!response.ok) {
+      if (response.status === 403) {
+        document.getElementById('businessSoldDashboard').innerHTML = '<p style="color: #ef4444; padding: 20px;">Only business users can access this dashboard.</p>';
+      }
+      return;
+    }
+    
+    const data = await response.json();
+    
+    // Update stats
+    document.getElementById('totalEarnings').textContent = parseFloat(data.earnings.totalEarned).toFixed(2);
+    document.getElementById('totalSold').textContent = data.earnings.totalSold;
+    
+    // Update table
+    const tbody = document.getElementById('soldListingsBody');
+    const noListings = document.getElementById('noSoldListings');
+    
+    if (data.soldListings.length === 0) {
+      tbody.innerHTML = '';
+      noListings.style.display = 'block';
+      return;
+    }
+    
+    noListings.style.display = 'none';
+    tbody.innerHTML = data.soldListings.map(sale => `
+      <tr style="border-bottom: 1px solid #e5e7eb;">
+        <td style="padding: 12px; color: #1f2937; font-weight: 500;">${sale.title}</td>
+        <td style="padding: 12px; color: #6b7280;">
+          <div style="font-weight: 500;">${sale.buyer_name}</div>
+          <div style="font-size: 12px; color: #9ca3af;">${sale.buyer_email}</div>
+        </td>
+        <td style="padding: 12px; color: #059669; font-weight: 600; font-size: 16px;">$${parseFloat(sale.sale_price).toFixed(2)}</td>
+        <td style="padding: 12px; color: #6b7280;">${new Date(sale.sale_date).toLocaleDateString()}</td>
+        <td style="padding: 12px; text-align: center;">
+          <a href="/components/conversations.html?listing=${sale.listing_id}" style="color: #667eea; text-decoration: none; font-weight: 600; font-size: 14px;">View Chat</a>
+        </td>
+      </tr>
+    `).join('');
+    
+  } catch (err) {
+    console.error('Error loading business dashboard:', err);
+    document.getElementById('soldListingsBody').innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #ef4444;">Error loading dashboard</td></tr>';
+  }
+}
+</script>

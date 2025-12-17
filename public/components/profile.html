@@ -188,6 +188,40 @@
       margin-top: 4px;
     }
 
+    .profile-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .verified-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      background: #10b981;
+      color: white;
+      border-radius: 50%;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .verification-status-pending {
+      background: #f59e0b;
+      color: white;
+    }
+
+    .verification-status-verified {
+      background: #10b981;
+      color: white;
+    }
+
+    .verification-status-unverified {
+      background: #ef4444;
+      color: white;
+    }
+
     @media (max-width: 760px) {
       .profile-container {
         margin: 10px;
@@ -225,6 +259,9 @@
     <div class="profile-header">
       <div class="profile-title">
         <h1>My Profile</h1>
+        <div id="profileVerifiedBadge" style="display: none;" title="Account verified">
+          <span class="verified-badge">✓</span>
+        </div>
       </div>
       <div class="profile-actions">
         <button id="shareProfileBtn" class="btn btn-ghost" title="Share Profile">Share Profile</button>
@@ -306,6 +343,19 @@
       </div>
     </div>
 
+    <!-- Verification Section -->
+    <div class="profile-section">
+      <h2>Account Verification</h2>
+      <div id="verificationStatusContainer" style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+          <div id="verificationBadge" style="width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;"></div>
+          <span id="verificationStatusText" style="font-weight: 500;"></span>
+        </div>
+        <p id="verificationDescription" style="margin: 0; color: var(--text-muted); font-size: 14px;"></p>
+      </div>
+      <button id="requestVerificationBtn" class="btn btn-primary" style="display: none;">Request Verification</button>
+    </div>
+
     <!-- Bio Section -->
     <div class="profile-section">
       <h2>About You</h2>
@@ -341,8 +391,90 @@
       </div>
     </div>
 
-    <!-- My Listings Section -->
-    <div class="profile-section">
+    <!-- Business Dashboard - Sales History -->
+    <div id="businessDashboardSection" class="profile-section" style="display: none;">
+      <h2>Sales Dashboard</h2>
+      <div class="profile-stat">
+        <div class="stat-item">
+          <div class="stat-value" id="totalSoldCount">0</div>
+          <div class="stat-label">Listings Sold</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="totalEarnings">₱0</div>
+          <div class="stat-label">Total Earnings</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="lastSaleDate">—</div>
+          <div class="stat-label">Last Sale</div>
+        </div>
+      </div>
+      
+      <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+        <h3 style="margin: 0 0 15px 0; font-size: 16px;">Sold Listings</h3>
+        <div id="businessDashboardTable" style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 2px solid var(--border);">
+                <th style="text-align: left; padding: 12px; font-weight: 600; color: var(--text-muted); font-size: 13px;">Listing Title</th>
+                <th style="text-align: left; padding: 12px; font-weight: 600; color: var(--text-muted); font-size: 13px;">Buyer</th>
+                <th style="text-align: right; padding: 12px; font-weight: 600; color: var(--text-muted); font-size: 13px;">Sale Price</th>
+                <th style="text-align: left; padding: 12px; font-weight: 600; color: var(--text-muted); font-size: 13px;">Date</th>
+                <th style="text-align: center; padding: 12px; font-weight: 600; color: var(--text-muted); font-size: 13px;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="businessSalesTableBody">
+              <tr style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+                <td colspan="5">No sales yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Investor Dashboard - Purchase History -->
+    <div id="investorDashboardSection" class="profile-section" style="display: none;">
+      <h2>Purchase Dashboard</h2>
+      <div class="profile-stat">
+        <div class="stat-item">
+          <div class="stat-value" id="totalBoughtCount">0</div>
+          <div class="stat-label">Listings Bought</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="totalSpent">₱0</div>
+          <div class="stat-label">Total Spent</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="lastPurchaseDate">—</div>
+          <div class="stat-label">Last Purchase</div>
+        </div>
+      </div>
+      
+      <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+        <h3 style="margin: 0 0 15px 0; font-size: 16px;">Purchased Listings</h3>
+        <div id="investorDashboardTable" style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 2px solid var(--border);">
+                <th style="text-align: left; padding: 12px; font-weight: 600; color: var(--text-muted); font-size: 13px;">Listing Title</th>
+                <th style="text-align: left; padding: 12px; font-weight: 600; color: var(--text-muted); font-size: 13px;">Seller</th>
+                <th style="text-align: right; padding: 12px; font-weight: 600; color: var(--text-muted); font-size: 13px;">Purchase Price</th>
+                <th style="text-align: left; padding: 12px; font-weight: 600; color: var(--text-muted); font-size: 13px;">Date</th>
+                <th style="text-align: center; padding: 12px; font-weight: 600; color: var(--text-muted); font-size: 13px;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="investorPurchasesTableBody">
+              <tr style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+                <td colspan="5">No purchases yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- My Listings Section (Business Users Only) -->
+    <div id="myListingsSection" class="profile-section">
       <h2>My Listings</h2>
       
       <!-- Listing Status Tabs -->
@@ -368,8 +500,8 @@
       </div>
     </div>
 
-    <!-- Notifications Section -->
-    <div class="profile-section" style="margin-top: 40px;">
+    <!-- Notifications Section (Business Users Only) -->
+    <div id="notificationsSection" class="profile-section" style="margin-top: 40px;">
       <h2>Listing Status Notifications</h2>
       <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Notifications about your submitted listings being approved or rejected</p>
       
@@ -388,6 +520,69 @@
       <button id="cancelEditBtn" class="btn btn-ghost">Cancel</button>
     </div>
   </main>
+
+  <!-- Verification Modal -->
+  <div id="verificationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+    <div style="background: #ffffff; max-width: 500px; margin: 40px auto; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="margin: 0; font-size: 22px;" id="verificationModalTitle">Verify Your Account</h3>
+        <button id="closeVerificationModal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);">×</button>
+      </div>
+
+      <form id="verificationForm" style="display: flex; flex-direction: column; gap: 15px;">
+        <!-- Step 1: Document Upload (ID Photo) -->
+        <div id="verificationStep1" style="display: none;">
+          <p style="color: var(--text-muted); margin-bottom: 15px;">Upload a valid government-issued ID document photo for verification.</p>
+          <div style="border: 2px dashed var(--border); border-radius: 8px; padding: 20px; text-align: center;">
+            <img id="verificationPreviewImage" style="max-width: 100%; max-height: 200px; margin-bottom: 15px; border-radius: 6px; display: none;" />
+            <input type="file" id="verificationDocInput" accept="image/*" style="display: none;" />
+            <button type="button" id="uploadDocBtn" class="btn btn-primary" style="margin-bottom: 10px;">Choose File</button>
+            <p id="verificationFileName" style="margin: 10px 0 0 0; color: var(--text-muted); font-size: 13px;">No file chosen</p>
+            <p style="margin: 5px 0 0 0; color: var(--text-muted); font-size: 13px;">JPG, PNG, or GIF (Max 5MB)</p>
+          </div>
+          <button type="button" id="proceedToOTPBtn" class="btn btn-primary" style="width: 100%; margin-top: 15px;">Proceed to OTP</button>
+        </div>
+
+        <!-- Step 2: Phone Number & OTP -->
+        <div id="verificationStep2" style="display: none;">
+          <p style="color: var(--text-muted); margin-bottom: 15px;">Enter your phone number to receive an OTP (One-Time Password).</p>
+          <div>
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Phone Number</label>
+            <input 
+              type="tel" 
+              id="verificationPhone" 
+              placeholder="e.g., +63 912 345 6789" 
+              style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" 
+              required 
+            />
+          </div>
+          <button type="button" id="sendOTPBtn" class="btn btn-primary" style="width: 100%; margin-top: 15px;">Send OTP</button>
+          <button type="button" id="backToDocBtn" class="btn btn-ghost" style="width: 100%; margin-top: 10px;">Back</button>
+        </div>
+
+        <!-- Step 3: OTP Verification -->
+        <div id="verificationStep3" style="display: none;">
+          <p style="color: var(--text-muted); margin-bottom: 15px;">Enter the OTP sent to your phone number.</p>
+          <div>
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">One-Time Password (OTP)</label>
+            <input 
+              type="text" 
+              id="verificationOTP" 
+              placeholder="Enter 6-digit OTP" 
+              maxlength="6"
+              style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; font-size: 18px; letter-spacing: 2px;" 
+              required 
+            />
+          </div>
+          <button type="submit" id="verifyOTPBtn" class="btn btn-primary" style="width: 100%; margin-top: 15px;">Verify OTP & Submit</button>
+          <button type="button" id="backToPhoneBtn" class="btn btn-ghost" style="width: 100%; margin-top: 10px;">Back</button>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="verificationMessage" style="padding: 10px; border-radius: 6px; display: none; text-align: center;"></div>
+      </form>
+    </div>
+  </div>
 
   <!-- Edit Listing Modal -->
   <div id="editListingModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
@@ -442,6 +637,119 @@
         <div style="display: flex; gap: 10px;">
           <button type="submit" class="btn btn-primary" style="flex: 1;">Save Changes</button>
           <button type="button" id="cancelEditListingBtn" class="btn btn-ghost" style="flex: 1;">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Success Story Upload Modal -->
+  <div id="successStoryModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+    <div style="background: #ffffff; max-width: 600px; margin: 40px auto; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="margin: 0; font-size: 22px;">Upload Your Success Story</h3>
+        <button id="closeSuccessModal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);">×</button>
+      </div>
+
+      <!-- Listing Image Preview -->
+      <div style="margin-bottom: 20px; border-radius: 8px; overflow: hidden;">
+        <img id="listingImagePreview" style="width: 100%; height: 200px; object-fit: cover; border-radius: 8px; display: none;" alt="Listing preview" />
+      </div>
+
+      <form id="successStoryForm" style="display: flex; flex-direction: column; gap: 15px;">
+        <!-- Listing Selection -->
+        <div>
+          <label style="display: block; margin-bottom: 5px; font-weight: 500;">Select Listing</label>
+          <select id="successListingSelect" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" required>
+            <option value="">Choose a listing you've purchased</option>
+          </select>
+        </div>
+
+        <!-- Image Upload -->
+        <div style="border: 2px dashed var(--border); border-radius: 8px; padding: 20px; text-align: center;">
+          <img id="successStoryImage" style="max-width: 100%; max-height: 200px; margin-bottom: 15px; border-radius: 6px; display: none;" />
+          <input type="file" id="successImageInput" accept="image/*" style="display: none;" />
+          <button type="button" id="uploadImageBtn" class="btn btn-primary" style="margin-bottom: 10px;">Upload Image</button>
+          <p class="small muted" style="margin: 0;">JPG, PNG, or GIF (Max 5MB)</p>
+          <div id="successImageMessage" style="margin-top: 10px; color: var(--accent);"></div>
+        </div>
+
+        <!-- Business Name -->
+        <div>
+          <label style="display: block; margin-bottom: 5px; font-weight: 500;">Business Name</label>
+          <input type="text" id="successBusinessName" placeholder="e.g., LCC Supermarket" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" required />
+        </div>
+
+        <!-- Location -->
+        <div>
+          <label style="display: block; margin-bottom: 5px; font-weight: 500;">Location</label>
+          <input type="text" id="successLocation" placeholder="e.g., Maharlika Highway, Labo" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" required />
+        </div>
+
+        <!-- Business Type -->
+        <div>
+          <label style="display: block; margin-bottom: 5px; font-weight: 500;">Business Type</label>
+          <select id="successBusinessType" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" required>
+            <option value="">Select business type</option>
+            <option value="Retail Supermarket">Retail Supermarket</option>
+            <option value="Restaurant">Restaurant</option>
+            <option value="Café">Café</option>
+            <option value="Farm">Farm</option>
+            <option value="Manufacturing">Manufacturing</option>
+            <option value="Boutique">Boutique</option>
+            <option value="Service Center">Service Center</option>
+            <option value="Warehouse">Warehouse</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <!-- Custom Business Type (shown when "Other" is selected) -->
+        <div id="customBusinessTypeDiv" style="display: none;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 500;">Specify Business Type</label>
+          <input type="text" id="successCustomBusinessType" placeholder="e.g., Tech Startup, Fitness Studio, etc." style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" />
+        </div>
+
+        <!-- Category Selection (shown when custom business type is entered) -->
+        <div id="categorySelectionDiv" style="display: none;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 500;">Business Category</label>
+          <select id="successCategory" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" required>
+            <option value="">Select a category</option>
+            <option value="retail">Retail & Commerce</option>
+            <option value="resort">Hospitality & Tourism</option>
+            <option value="agri">Agriculture & Agri-Tourism</option>
+          </select>
+        </div>
+
+        <!-- Short Description -->
+        <div>
+          <label style="display: block; margin-bottom: 5px; font-weight: 500;">Short Description</label>
+          <textarea id="successDescription" placeholder="Describe your business and what makes it successful..." style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; min-height: 100px;" required></textarea>
+        </div>
+
+        <!-- Established Year -->
+        <div>
+          <label style="display: block; margin-bottom: 5px; font-weight: 500;">Year Established</label>
+          <input type="number" id="successEstablishedYear" placeholder="e.g., 2015" min="1900" max="" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" />
+        </div>
+
+        <!-- Key Achievement -->
+        <div>
+          <label style="display: block; margin-bottom: 5px; font-weight: 500;">Key Achievement</label>
+          <textarea id="successAchievement" placeholder="e.g., Expanded to 3 branches with 150+ employees..." style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; min-height: 80px;" required></textarea>
+        </div>
+
+        <!-- Contact Email -->
+        <div>
+          <label style="display: block; margin-bottom: 5px; font-weight: 500;">Contact Email</label>
+          <input type="email" id="successContactEmail" placeholder="your@email.com" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" />
+        </div>
+
+        <!-- Status Message -->
+        <div id="successFormMessage" style="padding: 10px; border-radius: 6px; display: none; text-align: center;"></div>
+
+        <!-- Submit Buttons -->
+        <div style="display: flex; gap: 10px;">
+          <button type="submit" class="btn btn-primary" style="flex: 1;">Share Success Story</button>
+          <button type="button" id="cancelSuccessBtn" class="btn btn-ghost" style="flex: 1;">Cancel</button>
         </div>
       </form>
     </div>

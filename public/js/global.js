@@ -126,35 +126,52 @@ async function handleRegister(e) {
     const name = document.getElementById('reg-name').value.trim();
     const email = document.getElementById('reg-email').value.trim();
     const password = document.getElementById('reg-password').value;
-    const role = document.getElementById('reg-role') ? document.getElementById('reg-role').value : 'user';
+    const user_type = document.getElementById('reg-role') ? document.getElementById('reg-role').value : 'business';
     const errorEl = document.getElementById('register-error');
     if (errorEl) errorEl.textContent = '';
 
     try {
-        const payload = { username: name, email, password, role };
-        if (role === 'admin') {
-            const adminToken = document.getElementById('reg-admin-token') ? document.getElementById('reg-admin-token').value.trim() : '';
-            payload.admin_token = adminToken;
-        }
+        const payload = { username: name, email, password, user_type };
+        console.log('Registering with:', payload);
+        
         const res = await fetch('/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
+        
         const data = await res.json();
+        console.log('Registration response:', data);
+        
         if (!res.ok) {
             if (errorEl) errorEl.textContent = data.error || 'Registration failed';
             return;
         }
-        alert(`Registration successful! Welcome, ${data.user.username}.`);
+        
+        // Store user data
         localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(data.user));
-        setUserRole(data.user.role, data.user);
-        closeAuthModal();
+        
+        // Check if email verification is required
+        if (data.requiresVerification) {
+            console.log('Email verification required');
+            closeAuthModal();
+            
+            // Show verification modal if it exists
+            if (typeof showEmailVerificationModal === 'function') {
+                showEmailVerificationModal(email);
+            } else {
+                alert('Please check your email for the verification code.');
+            }
+        } else {
+            // Legacy flow - no verification required
+            alert(`Registration successful! Welcome, ${data.user.username}.`);
+            setUserRole(data.user.role, data.user);
+            closeAuthModal();
+        }
     } catch (err) {
-        console.error(err);
+        console.error('Registration error:', err);
         if (errorEl) errorEl.textContent = 'An error occurred during registration.';
     }
-
 }
 
 // --- Login Handler ---
@@ -197,8 +214,15 @@ async function handleLogin(e) {
         alert(`Welcome back, ${data.user.username}!`);
 
         if (data.user.role === 'admin') {
-            // Navigate to admin dashboard if admin (use server route, not static file)
-            window.location.href = '/admin-dashboard';
+            // System admin redirects to index.html, others to admin dashboard
+            if (data.user.admin_role === 'system_admin') {
+                window.location.href = '/components/index.html';
+            } else {
+                window.location.href = '/admin-dashboard';
+            }
+        } else if (data.user.role === 'investor') {
+            // Investors go to listings page
+            window.location.href = '/components/listings.html';
         }
 
     } catch (err) {
@@ -268,8 +292,24 @@ function setUserRole(role, user) {
   if (adminNav) {
       if (role === 'admin') {
           adminNav.style.display = '';
-          adminNav.href = '/admin-dashboard';
           adminNav.textContent = 'Admin Panel';
+          
+          // Route to appropriate dashboard based on admin_role
+          const userObj = user || {};
+          const adminRole = userObj.admin_role;
+          
+          if (adminRole === 'head_admin') {
+              adminNav.href = '/head-admin';
+          } else if (adminRole === 'listing_admin') {
+              adminNav.href = '/listing-admin';
+          } else if (adminRole === 'verification_admin') {
+              adminNav.href = '/verification-admin';
+          } else if (adminRole === 'system_admin') {
+              adminNav.href = '/system-admin';
+              adminNav.textContent = 'Content Editor';
+          } else {
+              adminNav.href = '/admin-dashboard'; // fallback
+          }
       } else if (role === 'business') {
           adminNav.style.display = '';
           adminNav.href = 'business/index.html';
@@ -281,28 +321,52 @@ function setUserRole(role, user) {
       }
   }
 
-    // Show or hide the Submit Listing button (only for authenticated users)
-    try {
-        const submitBtn = document.querySelector('#header-import #submitListingBtn');
-        if (submitBtn) {
-            if (isGuest) submitBtn.style.display = 'none';
-            else submitBtn.style.display = '';
-        }
-    } catch (e) { console.warn('Could not toggle submit listing button', e); }
+  // Show DATA tab only for admins
+  try {
+      const dataTab = document.querySelector('#header-import .nav-data');
+      if (dataTab) {
+          if (role === 'admin') {
+              dataTab.style.display = '';
+          } else {
+              dataTab.style.display = 'none';
+          }
+      }
+  } catch (e) { console.warn('Could not toggle data tab', e); }
+
+  // Show 'Sell or Rent' button only for business users
+  try {
+      const submitBtn = document.querySelector('#header-import #submitListingBtn');
+      if (submitBtn) {
+          console.log('Setting submit button visibility - role:', role, 'user_type:', user?.user_type, 'isGuest:', isGuest);
+          // Check if business by role OR by user_type (for backwards compatibility)
+          const isBusiness = (role === 'business') || (user?.user_type === 'business');
+          if (isBusiness && !isGuest) {
+              console.log('Showing submit button for business user');
+              submitBtn.style.display = '';
+          } else {
+              console.log('Hiding submit button');
+              submitBtn.style.display = 'none';
+          }
+      }
+  } catch (e) { console.warn('Could not toggle submit listing button', e); }
 
   document.querySelectorAll('.role-admin').forEach(el => el.style.display = role === 'admin' ? '' : 'none');
 
-    // Always verify submit button visibility with server session to avoid stale client state
-    try { checkSubmitVisibility(); } catch (e) { /* ignore */ }
+  // Always verify submit button visibility with server session to avoid stale client state
+  checkSubmitVisibility().catch(e => console.warn('checkSubmitVisibility error', e));
 }
 
 // Check server session and toggle submit button visibility accordingly
 async function checkSubmitVisibility() {
     try {
         const submitBtn = document.querySelector('#header-import #submitListingBtn');
-        if (!submitBtn) return;
+        if (!submitBtn) {
+            console.warn('submitListingBtn not found in DOM');
+            return;
+        }
         const res = await fetch('/api/session', { credentials: 'same-origin' });
         if (!res.ok) {
+            console.warn('Session check failed:', res.status);
             submitBtn.style.display = 'none';
             // also hide submit section on page if present
             const submitSection = document.querySelector('#submitListing');
@@ -310,19 +374,24 @@ async function checkSubmitVisibility() {
             return;
         }
         const data = await res.json();
-        if (data && data.authenticated && data.user) {
-            // allow only logged-in users to see the submit button
+        console.log('Session data in checkSubmitVisibility:', data);
+        // Check if business by role OR by user_type (for backwards compatibility)
+        const isBusiness = (data.user?.role === 'business') || (data.user?.user_type === 'business');
+        if (data && data.authenticated && data.user && isBusiness) {
+            // allow only business users to see the submit button and section
+            console.log('Business user detected - showing submit button');
             submitBtn.style.display = '';
             // show submit section if present on this page
             const submitSection = document.querySelector('#submitListing');
-            if (submitSection) submitSection.style.display = '';
+            if (submitSection) submitSection.style.display = 'block';
         } else {
+            console.log('Non-business user or not authenticated - hiding submit button');
             submitBtn.style.display = 'none';
             const submitSection = document.querySelector('#submitListing');
             if (submitSection) submitSection.style.display = 'none';
         }
     } catch (e) {
-        console.warn('checkSubmitVisibility failed', e);
+        console.error('checkSubmitVisibility failed:', e);
     }
 }
 
@@ -410,7 +479,16 @@ fetch("/components/header.html")
                 try {
                     const stored = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
                     if (stored && stored.role === 'admin') {
-                        window.location.href = '/admin-dashboard';
+                        // System admin goes to index.html, others to admin dashboard
+                        if (stored.admin_role === 'system_admin') {
+                            window.location.href = '/components/index.html';
+                        } else {
+                            window.location.href = '/admin-dashboard';
+                        }
+                        return;
+                    } else if (stored && stored.role === 'investor') {
+                        // Investors go to listings
+                        window.location.href = '/components/listings.html';
                         return;
                     }
                 } catch (e) { /* ignore */ }

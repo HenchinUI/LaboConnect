@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verification Admin Dashboard - LaboConnect</title>
+  <link rel="stylesheet" href="../css/global.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .dashboard-header {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .dashboard-header h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .dashboard-header p {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #eee;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .tab-button {
+      padding: 10px 20px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      color: #666;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -10px;
+      transition: all 0.3s ease;
+    }
+
+    .tab-button.active {
+      color: #2196F3;
+      border-bottom-color: #2196F3;
+    }
+
+    .tab-button:hover {
+      color: #333;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .verification-list {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .verification-card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.3s ease;
+    }
+
+    .verification-card:hover {
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .verification-info {
+      flex: 1;
+    }
+
+    .verification-user {
+      font-size: 16px;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    .verification-email {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 5px;
+    }
+
+    .verification-phone {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .verification-status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-otp-verified {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status-document-verified {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .verification-actions {
+      display: flex;
+      gap: 10px;
+      min-width: 200px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+
+    .btn-approve {
+      background: #4CAF50;
+      color: white;
+    }
+
+    .btn-approve:hover {
+      background: #45a049;
+    }
+
+    .btn-reject {
+      background: #f44336;
+      color: white;
+    }
+
+    .btn-reject:hover {
+      background: #da190b;
+    }
+
+    .btn-view {
+      background: #2196F3;
+      color: white;
+    }
+
+    .btn-view:hover {
+      background: #0b7dda;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #999;
+      background: white;
+      border-radius: 8px;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-label {
+      color: #666;
+      font-size: 13px;
+      margin-bottom: 5px;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #2196F3;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      overflow-y: auto;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal {
+      background: white;
+      padding: 25px;
+      border-radius: 8px;
+      max-width: 600px;
+      width: 90%;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      position: relative;
+      margin: 20px auto;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      background: none;
+      border: none;
+      font-size: 28px;
+      cursor: pointer;
+      color: #999;
+    }
+
+    .modal h2 {
+      margin-bottom: 15px;
+      color: #333;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .document-preview {
+      margin: 15px 0;
+      padding: 15px;
+      background: #f5f5f5;
+      border-radius: 4px;
+    }
+
+    .document-preview img {
+      max-width: 100%;
+      max-height: 300px;
+      border-radius: 4px;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .modal-actions button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 5;
+      color: white;
+    }
+
+    .modal-actions .btn-primary {
+      background: #4CAF50;
+    }
+
+    .modal-actions .btn-primary:hover {
+      background: #45a049;
+    }
+
+    .modal-actions .btn-reject {
+      background: #f44336;
+    }
+
+    .modal-actions .btn-reject:hover {
+      background: #da190b;
+    }
+
+    .modal-actions .btn-secondary {
+      background: #f1f1f1;
+      color: #333;
+    }
+
+    .modal-actions .btn-secondary:hover {
+      background: #e0e0e0;
+    }
+
+    .user-info {
+      background: #f9f9f9;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+    }
+
+    .user-info p {
+      margin: 5px 0;
+      font-size: 14px;
+    }
+
+    .user-info strong {
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="dashboard-header">
+      <h1>Verification Admin Dashboard</h1>
+      <p>Review and approve user identity verifications</p>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Pending Review</div>
+        <div class="stat-value" id="pendingCount">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Approved</div>
+        <div class="stat-value" id="approvedCount">0</div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-button active" onclick="switchTab('pending')">Pending Verification</button>
+      <button class="tab-button" onclick="switchTab('history')">Verification History</button>
+    </div>
+
+    <div id="pending" class="tab-content active">
+      <div id="pendingVerifications" class="verification-list"></div>
+    </div>
+
+    <div id="history" class="tab-content">
+      <div id="historyVerifications" class="verification-list"></div>
+    </div>
+  </div>
+
+  <!-- Verification Details Modal -->
+  <div class="modal-overlay" id="verificationModal">
+    <div class="modal">
+      <button class="modal-close" onclick="closeVerificationModal()">&times;</button>
+      <h2>Verification Details</h2>
+      
+      <div class="user-info" id="userInfo"></div>
+      
+      <div class="form-group">
+        <label>ID Document</label>
+        <div class="document-preview" id="documentPreview"></div>
+      </div>
+
+      <div id="actionButtons"></div>
+    </div>
+  </div>
+
+  <!-- Rejection Modal -->
+  <div class="modal-overlay" id="rejectionModal">
+    <div class="modal">
+      <button class="modal-close" onclick="closeRejectionModal()">&times;</button>
+      <h2>Reject Verification</h2>
+      
+      <div class="user-info" id="rejectionUserInfo"></div>
+      
+      <div class="form-group">
+        <label for="rejectionReason">Reason for Rejection *</label>
+        <textarea id="rejectionReason" placeholder="Explain why this verification is being rejected..." required></textarea>
+      </div>
+      
+      <div class="modal-actions">
+        <button onclick="submitRejection()" class="btn-reject">Reject</button>
+        <button onclick="closeRejectionModal()" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentVerificationId = null;
+    let pendingVerifications = [];
+
+    async function loadPendingVerifications() {
+      try {
+        const response = await fetch('/api/admin/verifications/pending');
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error);
+        
+        pendingVerifications = data;
+        document.getElementById('pendingCount').textContent = data.length;
+        renderPendingVerifications();
+      } catch (err) {
+        console.error('Error loading verifications:', err);
+        document.getElementById('pendingVerifications').innerHTML = 
+          '<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>Error loading verifications</p></div>';
+      }
+    }
+
+    function renderPendingVerifications() {
+      const container = document.getElementById('pendingVerifications');
+      
+      if (pendingVerifications.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✓</div><p>No pending verifications</p></div>';
+        return;
+      }
+
+      container.innerHTML = pendingVerifications.map(ver => {
+        const statusLabel = ver.status === 'otp_verified' ? 'OTP Verified' : 'Document Verified';
+        const statusClass = `status-${ver.status}`;
+        
+        return `
+          <div class="verification-card">
+            <div class="verification-info">
+              <div class="verification-user">${ver.username}</div>
+              <div class="verification-email">${ver.email}</div>
+              <div class="verification-phone">${ver.phone_number}</div>
+              <span class="verification-status-badge ${statusClass}">${statusLabel}</span>
+            </div>
+            <div class="verification-actions">
+              <button class="btn btn-view" onclick="openVerificationModal(${ver.id}, '${ver.username}', '${ver.email}', '${ver.phone_number}', '${ver.id_document_url}')">Review</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openVerificationModal(verificationId, username, email, phone, documentUrl) {
+      currentVerificationId = verificationId;
+      
+      document.getElementById('userInfo').innerHTML = `
+        <p><strong>Username:</strong> ${username}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Phone:</strong> ${phone}</p>
+      `;
+
+      const previewHtml = documentUrl ? 
+        (documentUrl.endsWith('.pdf') ? 
+          `<p><a href="${documentUrl}" target="_blank">📄 View PDF</a></p>` :
+          `<img src="${documentUrl}" alt="ID Document">`
+        ) : 
+        '<p>No document uploaded</p>';
+      
+      document.getElementById('documentPreview').innerHTML = previewHtml;
+
+      document.getElementById('actionButtons').innerHTML = `
+        <div class="modal-actions">
+          <button onclick="submitApproval()" class="btn-primary">Approve</button>
+          <button onclick="openRejectionModal(${verificationId}, '${username}')" class="btn-reject">Reject</button>
+          <button onclick="closeVerificationModal()" class="btn-secondary">Close</button>
+        </div>
+      `;
+
+      document.getElementById('verificationModal').classList.add('open');
+    }
+
+    function closeVerificationModal() {
+      currentVerificationId = null;
+      document.getElementById('verificationModal').classList.remove('open');
+    }
+
+    async function submitApproval() {
+      if (!currentVerificationId) return;
+      
+      try {
+        const response = await fetch('/api/admin/verifications/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ verificationId: currentVerificationId })
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+
+        alert('Verification approved successfully!');
+        closeVerificationModal();
+        loadPendingVerifications();
+      } catch (err) {
+        console.error('Error approving verification:', err);
+        alert('Error approving verification: ' + err.message);
+      }
+    }
+
+    function openRejectionModal(verificationId, username) {
+      currentVerificationId = verificationId;
+      document.getElementById('rejectionUserInfo').innerHTML = `<p><strong>Username:</strong> ${username}</p>`;
+      document.getElementById('rejectionModal').classList.add('open');
+      closeVerificationModal();
+    }
+
+    function closeRejectionModal() {
+      currentVerificationId = null;
+      document.getElementById('rejectionModal').classList.remove('open');
+      document.getElementById('rejectionReason').value = '';
+    }
+
+    async function submitRejection() {
+      if (!currentVerificationId) return;
+      
+      const reason = document.getElementById('rejectionReason').value.trim();
+      if (!reason) {
+        alert('Please provide a reason for rejection');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/admin/verifications/reject', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ verificationId: currentVerificationId, reason })
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+
+        alert('Verification rejected successfully!');
+        closeRejectionModal();
+        loadPendingVerifications();
+      } catch (err) {
+        console.error('Error rejecting verification:', err);
+        alert('Error rejecting verification: ' + err.message);
+      }
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+      
+      document.getElementById(tab).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    // Load data on page load
+    window.addEventListener('load', () => {
+      loadPendingVerifications();
+    });
+
+    // Close modals on outside click
+    ['verificationModal', 'rejectionModal'].forEach(id => {
+      document.getElementById(id)?.addEventListener('click', (e) => {
+        if (e.target.id === id) {
+          if (id === 'verificationModal') closeVerificationModal();
+          else if (id === 'rejectionModal') closeRejectionModal();
+        }
+      });
+    });
+  </script>
+</body>
+</html>

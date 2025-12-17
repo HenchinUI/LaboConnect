@@ -18,6 +18,14 @@ function formatPropertyType(type) {
     .join(' ');
 }
 
+// Image preview function
+function previewImage(imageUrl) {
+  const modal = document.getElementById('imagePreviewModal');
+  const preview = document.getElementById('imagePreview');
+  preview.src = imageUrl;
+  modal.classList.add('open');
+}
+
 // ---------------- DOMContentLoaded ----------------
 document.addEventListener('DOMContentLoaded', () => {
   // Inject admin header only if not already loaded (global.js may have loaded it)
@@ -42,9 +50,35 @@ document.addEventListener('DOMContentLoaded', () => {
     attachHeaderListeners();
   }
 
+  // Update dashboard title based on admin role
+  updateDashboardForRole();
+
   // Load listings and stats (start with pending)
   switchView('pending');
   loadAdminStats();
+
+  // Handle reason select change for verification modal
+  const reasonSelect = document.getElementById('verificationReason');
+  if (reasonSelect) {
+    reasonSelect.addEventListener('change', function() {
+      const customReasonDiv = document.getElementById('customReasonDiv');
+      if (this.value === 'custom') {
+        customReasonDiv.style.display = 'flex';
+      } else {
+        customReasonDiv.style.display = 'none';
+      }
+    });
+  }
+  
+  // Close modal when clicking overlay
+  const modal = document.getElementById('verificationReasonModal');
+  if (modal) {
+    modal.addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeVerificationModal();
+      }
+    });
+  }
 
   // Setup image preview modal close handlers
   const imagePreviewModal = document.getElementById('imagePreviewModal');
@@ -93,6 +127,419 @@ function attachHeaderListeners() {
   }
 }
 
+// Update dashboard based on admin role
+async function updateDashboardForRole() {
+  try {
+    const response = await fetch('/api/admin/user-info');
+    const data = await response.json();
+    const adminRole = data.user.admin_role;
+    
+    // Hide all sections
+    document.getElementById('listing-admin-section').classList.remove('active');
+    document.getElementById('verification-admin-section').classList.remove('active');
+    document.getElementById('head-admin-section').classList.remove('active');
+    
+    // Update title and role badge
+    const titleEl = document.getElementById('dashboardTitle');
+    const badgeEl = document.getElementById('roleBadge');
+    
+    if (adminRole === 'head_admin') {
+      titleEl.textContent = 'Head Admin Dashboard';
+      badgeEl.textContent = 'Head Admin (Super Admin)';
+      document.getElementById('head-admin-section').classList.add('active');
+      loadHeadAdminData();
+    } else if (adminRole === 'listing_admin') {
+      titleEl.textContent = 'Listing Admin Dashboard';
+      badgeEl.textContent = 'Listing Admin';
+      document.getElementById('listing-admin-section').classList.add('active');
+      loadListingAdminData();
+    } else if (adminRole === 'verification_admin') {
+      titleEl.textContent = 'Verification Admin Dashboard';
+      badgeEl.textContent = 'Verification Admin';
+      document.getElementById('verification-admin-section').classList.add('active');
+      loadVerificationAdminData();
+    }
+    
+  } catch (err) {
+    console.warn('Could not update dashboard for role:', err);
+  }
+}
+
+// Load data for Listing Admin
+function loadListingAdminData() {
+  switchView('pending');
+  loadAdminStats();
+  loadPendingStories();
+}
+
+// Load data for Verification Admin
+async function loadVerificationAdminData() {
+  try {
+    const response = await fetch('/api/admin/verifications/pending');
+    const data = await response.json();
+    renderVerificationQueue(data);
+  } catch (err) {
+    console.warn('Error loading verifications:', err);
+  }
+}
+
+// Load data for Head Admin
+function loadHeadAdminData() {
+  switchView('pending');
+  loadAdminStats();
+  loadAdminsList();
+  loadHeadAdminStories();
+}
+
+function renderVerificationQueue(requests) {
+  const container = document.getElementById('verificationsList');
+  if (!requests || requests.length === 0) {
+    container.innerHTML = '<p class="muted">No pending verification requests</p>';
+    return;
+  }
+  
+  container.innerHTML = requests.map(req => `
+    <div class="admin-item">
+      <div class="admin-item-title">${req.user_name || 'Unknown User'}</div>
+      <div class="admin-item-meta">Email: ${req.user_email || 'N/A'}</div>
+      <div class="admin-item-meta">Phone: ${req.phone_number || 'N/A'}</div>
+      <div class="admin-item-meta">Status: <strong>${req.status.replace('_', ' ').toUpperCase()}</strong></div>
+      ${req.id_document_url ? `<div class="admin-item-meta"><a href="${req.id_document_url}" target="_blank" class="link">View Document</a></div>` : ''}\n      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button class="btn btn-secondary" onclick="viewVerificationDetails(${req.id})">View Details</button>
+        <button class="btn btn-success" onclick="showVerificationModal(${req.id}, 'approve')">Verify</button>
+        <button class="btn btn-danger" onclick="showVerificationModal(${req.id}, 'reject')">Reject</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function viewVerificationDetails(requestId) {
+  // Fetch the verification details from the server
+  fetch(`/api/admin/verification/${requestId}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.error) {
+        alert('Error: ' + data.error);
+        return;
+      }
+      
+      // Show modal with all verification details
+      const modal = document.getElementById('adminModal');
+      const title = document.getElementById('modalTitle');
+      const body = document.getElementById('modalBody');
+      const actions = document.getElementById('modalActions');
+      
+      title.textContent = 'Verification Details';
+      
+      // Build the details HTML
+      let detailsHTML = `
+        <div style="background: #f9fafb; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+          <h3 style="margin: 0 0 12px 0; color: #1f2937;">User Information</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">Username</label>
+              <p style="margin: 4px 0 0 0; font-size: 14px;">${data.username || 'N/A'}</p>
+            </div>
+            <div>
+              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">Email</label>
+              <p style="margin: 4px 0 0 0; font-size: 14px;">${data.email || 'N/A'}</p>
+            </div>
+            <div>
+              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">User Type</label>
+              <p style="margin: 4px 0 0 0; font-size: 14px;">${data.user_type || 'N/A'}</p>
+            </div>
+            <div>
+              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">Role</label>
+              <p style="margin: 4px 0 0 0; font-size: 14px;">${data.role || 'N/A'}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div style="background: #f9fafb; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+          <h3 style="margin: 0 0 12px 0; color: #1f2937;">Verification Information</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">Phone Number</label>
+              <p style="margin: 4px 0 0 0; font-size: 14px;"><strong>${data.phone_number || 'N/A'}</strong></p>
+            </div>
+            <div>
+              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">Status</label>
+              <p style="margin: 4px 0 0 0; font-size: 14px;"><span style="background: #dbeafe; color: #1e40af; padding: 4px 8px; border-radius: 4px; font-weight: 600;">${(data.status || 'N/A').replace('_', ' ').toUpperCase()}</span></p>
+            </div>
+            <div>
+              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">OTP Code Used</label>
+              <p style="margin: 4px 0 0 0; font-size: 14px; font-family: monospace; letter-spacing: 2px;">${data.otp_code || 'Not generated'}</p>
+            </div>
+            <div>
+              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">OTP Attempts</label>
+              <p style="margin: 4px 0 0 0; font-size: 14px;">${data.otp_attempts || 0}</p>
+            </div>
+            <div>
+              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">OTP Sent At</label>
+              <p style="margin: 4px 0 0 0; font-size: 14px;">${data.otp_sent_at ? new Date(data.otp_sent_at).toLocaleString() : 'Not sent'}</p>
+            </div>
+            <div>
+              <label style="font-weight: 600; color: #6b7280; display: block; font-size: 12px;">OTP Verified At</label>
+              <p style="margin: 4px 0 0 0; font-size: 14px;">${data.otp_verified_at ? new Date(data.otp_verified_at).toLocaleString() : 'Not verified'}</p>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      if (data.id_document_url) {
+        detailsHTML += `
+          <div style="background: #f9fafb; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+            <h3 style="margin: 0 0 12px 0; color: #1f2937;">Valid ID Document</h3>
+            <img src="${data.id_document_url}" alt="Valid ID" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid #e5e7eb; cursor: pointer;" onclick="previewImage('${data.id_document_url}')">
+            <p style="margin: 8px 0 0 0; font-size: 12px; color: #6b7280;"><a href="${data.id_document_url}" target="_blank" style="color: #667eea; text-decoration: none;">View full size</a></p>
+          </div>
+        `;
+      }
+      
+      if (data.rejection_reason) {
+        detailsHTML += `
+          <div style="background: #fef2f2; padding: 16px; border-radius: 8px; border-left: 4px solid #ef4444; margin-bottom: 16px;">
+            <h3 style="margin: 0 0 8px 0; color: #991b1b;">Rejection Reason</h3>
+            <p style="margin: 0; font-size: 14px; color: #7f1d1d;">${data.rejection_reason}</p>
+          </div>
+        `;
+      }
+      
+      body.innerHTML = detailsHTML;
+      
+      // Set modal actions
+      actions.innerHTML = `
+        <button class="btn btn-ghost" onclick="closeAppModal()">Close</button>
+        <button class="btn btn-success" onclick="showVerificationModal(${requestId}, 'approve')">Verify</button>
+        <button class="btn btn-danger" onclick="showVerificationModal(${requestId}, 'reject')">Reject</button>
+      `;
+      
+      // Open modal
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+    })
+    .catch(err => {
+      console.error('Error fetching verification details:', err);
+      alert('Error loading verification details');
+    });
+}
+
+let currentVerificationAction = { id: null, action: null };
+
+function showVerificationModal(requestId, action) {
+  currentVerificationAction = { id: requestId, action };
+  
+  // For approve action, directly approve without asking for reason
+  if (action === 'approve') {
+    submitVerificationDecision('approve', null);
+    return;
+  }
+  
+  // For reject action, show modal to get reason
+  const modal = document.getElementById('verificationReasonModal');
+  const title = modal.querySelector('h2');
+  const reasonSelect = document.getElementById('verificationReason');
+  const customReasonDiv = document.getElementById('customReasonDiv');
+  const customReasonInput = document.getElementById('customReason');
+  
+  // Set title
+  title.textContent = 'Reject Verification';
+  
+  // Rejection reasons
+  reasonSelect.innerHTML = `
+    <option value="">Select a reason...</option>
+    <option value="invalid_document">Invalid Document</option>
+    <option value="unclear_photo">Unclear Photo</option>
+    <option value="expired_id">Expired ID</option>
+    <option value="suspicious_activity">Suspicious Activity</option>
+    <option value="custom">Custom Reason</option>
+  `;
+  
+  customReasonDiv.style.display = 'none';
+  customReasonInput.value = '';
+  reasonSelect.value = '';
+  
+  modal.style.display = 'flex';
+}
+
+function closeVerificationModal() {
+  document.getElementById('verificationReasonModal').style.display = 'none';
+  currentVerificationAction = { id: null, action: null };
+}
+
+async function submitVerificationDecision(action, reason) {
+  const { id } = currentVerificationAction;
+  
+  if (!id) {
+    showToast('No verification selected', 'error');
+    return;
+  }
+  
+  // For reject, get reason from modal
+  if (action === 'reject') {
+    const reasonSelect = document.getElementById('verificationReason');
+    const customReason = document.getElementById('customReason').value;
+    
+    reason = reasonSelect.value;
+    if (reason === 'custom') {
+      reason = customReason;
+      if (!reason.trim()) {
+        showToast('Please enter a custom reason', 'error');
+        return;
+      }
+    } else if (!reason) {
+      showToast('Please select a reason', 'error');
+      return;
+    }
+  }
+  
+  const endpoint = action === 'approve' 
+    ? `/api/admin/verification/${id}/approve`
+    : `/api/admin/verification/${id}/reject`;
+  
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason || '' })
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to process verification');
+    }
+    
+    showToast(`Verification ${action}ed successfully`, 'success');
+    closeVerificationModal();
+    loadVerificationAdminData();
+  } catch (err) {
+    console.error('Error:', err);
+    showToast(`Error: ${err.message}`, 'error');
+  }
+}
+
+function switchHeadAdminTab(tab) {
+  // Hide all tabs
+  document.querySelectorAll('#head-admin-section > div[id$="-tab"]').forEach(el => {
+    el.classList.remove('active');
+  });
+  
+  // Update buttons
+  document.querySelectorAll('.tab-btn').forEach(el => {
+    el.classList.remove('active');
+  });
+  
+  // Show selected tab
+  const tabEl = document.getElementById(tab + '-tab');
+  if (tabEl) {
+    tabEl.classList.add('active');
+    event.target.classList.add('active');
+    
+    // Load data for success stories tab
+    if (tab === 'success-stories') {
+      loadHeadAdminStories();
+    }
+  }
+}
+
+async function loadAdminsList() {
+  try {
+    const response = await fetch('/api/admin/all-admins');
+    const admins = await response.json();
+    
+    const container = document.getElementById('adminsList');
+    if (!admins || admins.length === 0) {
+      container.innerHTML = '<p class="muted">No admin accounts found</p>';
+      return;
+    }
+    
+    container.innerHTML = admins.map(admin => `
+      <div class="admin-item">
+        <div class="admin-item-title">${admin.username}</div>
+        <div class="admin-item-meta">Email: ${admin.email}</div>
+        <div class="admin-item-meta">Role: <strong>${admin.admin_role.replace('_', ' ').toUpperCase()}</strong></div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.warn('Error loading admins:', err);
+  }
+}
+
+function openCreateAdminModal() {
+  // First, fetch user info to determine what roles they can create
+  fetch('/api/admin/user-info')
+    .then(r => r.json())
+    .then(data => {
+      const adminRole = data.user.admin_role;
+      const roleSelect = document.getElementById('adminRole');
+      
+      // Clear existing options
+      roleSelect.innerHTML = '<option value="">Select role</option>';
+      
+      // Add options based on admin role
+      if (adminRole === 'head_admin') {
+        roleSelect.innerHTML += `
+          <option value="listing_admin">Listing Admin</option>
+          <option value="verification_admin">Verification Admin</option>
+          <option value="system_admin">System Admin</option>
+          <option value="head_admin">Head Admin</option>
+        `;
+        document.getElementById('createAdminHint').textContent = 'As Head Admin, you can create any admin role.';
+      } else if (adminRole === 'listing_admin') {
+        roleSelect.innerHTML += `<option value="listing_admin">Listing Admin</option>`;
+        document.getElementById('createAdminHint').textContent = 'As Listing Admin, you can only create other Listing Admins.';
+      } else if (adminRole === 'verification_admin') {
+        roleSelect.innerHTML += `<option value="verification_admin">Verification Admin</option>`;
+        document.getElementById('createAdminHint').textContent = 'As Verification Admin, you can only create other Verification Admins.';
+      }
+      
+      document.getElementById('createAdminModal').classList.add('open');
+    })
+    .catch(err => {
+      console.error('Error loading user info:', err);
+      alert('Error loading admin roles');
+    });
+}
+
+function closeCreateAdminModal() {
+  document.getElementById('createAdminModal').classList.remove('open');
+  document.getElementById('adminUsername').value = '';
+  document.getElementById('adminEmail').value = '';
+  document.getElementById('adminPassword').value = '';
+  document.getElementById('adminRole').value = '';
+}
+
+async function submitCreateAdmin(event) {
+  event.preventDefault();
+  
+  const username = document.getElementById('adminUsername').value.trim();
+  const email = document.getElementById('adminEmail').value.trim();
+  const password = document.getElementById('adminPassword').value;
+  const adminRole = document.getElementById('adminRole').value;
+  
+  if (!username || !email || !password || !adminRole) {
+    alert('Please fill all required fields');
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/admin/create-admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, email, password, adminRole })
+    });
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error);
+    
+    alert('Admin account created successfully!');
+    closeCreateAdminModal();
+    loadAdminsList();
+  } catch (err) {
+    console.error('Error creating admin:', err);
+    alert('Error: ' + err.message);
+  }
+}
+
 function logout() {
   if (typeof logoutUser === 'function') {
     logoutUser();
@@ -106,38 +553,116 @@ function logout() {
 // Load listings for a specific view. Tries multiple endpoint fallbacks for compatibility.
 async function loadListings(status = 'pending') {
   currentView = status;
-  const tbody = document.getElementById("appsTable");
+  
+  // Find the correct tbody based on which section is active
+  let tbody = null;
+  const headAdminSection = document.getElementById('head-admin-section');
+  const listingAdminSection = document.getElementById('listing-admin-section');
+  
+  if (headAdminSection?.classList.contains('active')) {
+    console.log('[loadListings] Head admin section is active, finding tbody within it');
+    tbody = headAdminSection.querySelector('tbody#appsTable');
+  } else if (listingAdminSection?.classList.contains('active')) {
+    console.log('[loadListings] Listing admin section is active, finding tbody within it');
+    tbody = listingAdminSection.querySelector('tbody#appsTable');
+  } else {
+    console.log('[loadListings] No active section found, using fallback');
+    tbody = document.getElementById("appsTable");
+  }
+  
+  if (!tbody) {
+    console.warn('[loadListings] appsTable element not found in DOM');
+    return;
+  }
+  
+  console.log(`[loadListings] START - status="${status}", tbody found:`, tbody.parentElement?.parentElement?.className);
+  
   tbody.innerHTML = "";
-  document.getElementById('appsTitle').textContent = status === 'pending' ? 'Recent Applications' : (status === 'approved' ? 'Approved Listings' : 'Rejected Listings');
+  const titleEl = document.getElementById('appsTitle');
+  if (titleEl) {
+    titleEl.textContent = status === 'pending' ? 'Pending Listings' : (status === 'approved' ? 'Approved Listings' : 'Rejected Listings');
+  }
   // clear selection state when loading a new view
   selectionActive = false;
   const tableWrap = document.querySelector('.admin-table-wrap');
   if (tableWrap) tableWrap.classList.remove('selection-active');
 
-  // attempt a few endpoint patterns
-  const candidates = [
-    `/admin/listings?status=${status}`,
-    `/admin/listings/${status}`,
-    status === 'pending' ? `/admin/listings` : null
-  ].filter(Boolean);
+  // Try new role-based endpoints first
+  const user = JSON.parse(localStorage.getItem('laboCurrentUser')) || {};
+  const isListingAdmin = user.admin_role === 'listing_admin';
+  const isHeadAdmin = user.admin_role === 'head_admin';
 
   let listings = [];
-  for (const url of candidates) {
+  let endpoint = null;
+
+  console.log(`[loadListings] Loading status="${status}", isListingAdmin=${isListingAdmin}, isHeadAdmin=${isHeadAdmin}`);
+
+  // Use role-based endpoints for listing and head admins
+  if (isListingAdmin && status === 'pending') {
+    endpoint = '/api/admin/listings/pending-approval';
+    console.log('[loadListings] Using listing admin endpoint:', endpoint);
+  } else if (isHeadAdmin && status === 'pending') {
+    endpoint = '/api/admin/listings/pending-head-admin';
+    console.log('[loadListings] Using head admin pending endpoint:', endpoint);
+  } else if (isHeadAdmin && status === 'approved') {
+    // For head admin, "approved" view shows all listings (or published ones)
+    endpoint = '/api/admin/listings/approvals';
+    console.log('[loadListings] Using head admin all approvals endpoint:', endpoint);
+  } else {
+    // Fallback to old endpoints for other views or roles
+    const candidates = [
+      `/admin/listings?status=${status}`,
+      `/admin/listings/${status}`,
+      status === 'pending' ? `/admin/listings` : null
+    ].filter(Boolean);
+
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        listings = await res.json();
+        console.log('[loadListings] Fallback endpoint success:', url);
+        break;
+      } catch (e) {
+        // try next
+      }
+    }
+  }
+
+  // Fetch from role-based endpoint if applicable
+  if (endpoint) {
+    console.log(`[loadListings] Fetching from: ${endpoint}`);
     try {
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      listings = await res.json();
-      break;
+      const res = await fetch(endpoint, { credentials: 'same-origin' });
+      console.log(`[loadListings] Response status: ${res.status}`);
+      if (res.ok) {
+        listings = await res.json();
+        console.log(`[loadListings] Got ${listings.length} listings from API`);
+        if (listings.length > 0) {
+          console.log('[loadListings] First listing keys:', Object.keys(listings[0]));
+          console.log('[loadListings] First listing:', listings[0]);
+        }
+        // Normalize the response structure for listing_approvals format
+        if (Array.isArray(listings) && listings.length > 0 && listings[0].listing_id) {
+          // Already in correct format from pending-approval endpoint
+        }
+      } else {
+        console.warn(`[loadListings] API error ${res.status}`);
+        const text = await res.text();
+        console.warn('[loadListings] Response:', text.substring(0, 200));
+      }
     } catch (e) {
-      // try next
+      console.error('[loadListings] Fetch error:', e);
     }
   }
 
   // If we didn't get data, show message
   if (!Array.isArray(listings) || listings.length === 0) {
+    console.log(`[loadListings] No listings (array valid: ${Array.isArray(listings)}, length: ${listings?.length})`);
     const tr = document.createElement('tr');
     tr.innerHTML = `<td colspan="8" class="muted">No listings found.</td>`;
     tbody.appendChild(tr);
+    console.log('[loadListings] Added empty state message. Checking tbody:', tbody.innerHTML);
     currentListings = [];
     if (status === 'pending') pendingListings = [];
     if (status === 'approved') approvedListings = [];
@@ -152,24 +677,41 @@ async function loadListings(status = 'pending') {
 
   currentListings = listings;
 
-  // render
-  listings.forEach(listing => {
+  console.log(`[loadListings] About to render ${listings.length} listings`);
+  
+  try {
+    // render
+    listings.forEach((listing, idx) => {
+      console.log(`[loadListings] Rendering listing ${idx}:`, listing.listing_id || listing.id, listing.title);
+    
     const tr = document.createElement("tr");
+    // Use listing_id for role-based listings, id for old format
+    const listingId = listing.listing_id || listing.id;
+    const title = listing.title || 'Untitled';
+    
     // common columns
-    let actions = `<button class="btn-sm btn btn-ghost" onclick="openAppDetails(${listing.id})">View</button>`;
+    let actions = `<button class="btn-sm btn btn-ghost" onclick="openAppDetails(${listingId})">View</button>`;
 
-    if (status === 'pending') {
-      actions += ` <button class="btn-sm btn btn-primary" onclick="takeAction(${listing.id}, 'approve')">Approve</button>`;
-      actions += ` <button class="btn-sm btn btn-ghost" onclick="takeAction(${listing.id}, 'reject')">Reject</button>`;
+    if (isHeadAdmin && status === 'pending') {
+      // Head admin pending view: Publish button
+      actions += ` <button class="btn-sm btn btn-primary" onclick="takeAction(${listingId}, 'publish')">Publish</button>`;
+      actions += ` <button class="btn-sm btn btn-ghost" onclick="takeAction(${listingId}, 'reject')">Reject</button>`;
+    } else if (isListingAdmin && status === 'pending') {
+      // Listing admin pending view: Approve button
+      actions += ` <button class="btn-sm btn btn-primary" onclick="takeAction(${listingId}, 'approve')">Approve</button>`;
+      actions += ` <button class="btn-sm btn btn-ghost" onclick="takeAction(${listingId}, 'reject')">Reject</button>`;
+    } else if (status === 'pending') {
+      actions += ` <button class="btn-sm btn btn-primary" onclick="takeAction(${listingId}, 'approve')">Approve</button>`;
+      actions += ` <button class="btn-sm btn btn-ghost" onclick="takeAction(${listingId}, 'reject')">Reject</button>`;
     } else if (status === 'approved') {
-      actions += ` <button class="btn-sm btn btn-ghost" onclick="takeAction(${listing.id}, 'reject')">Reject</button>`;
+      actions += ` <button class="btn-sm btn btn-ghost" onclick="takeAction(${listingId}, 'reject')">Reject</button>`;
     } else if (status === 'rejected') {
-      actions += ` <button class="btn-sm btn btn-primary" onclick="takeAction(${listing.id}, 'approve')">Re-approve</button>`;
-      actions += ` <button class="btn-sm btn btn-danger" onclick="takeAction(${listing.id}, 'delete')">Delete</button>`;
+      actions += ` <button class="btn-sm btn btn-primary" onclick="takeAction(${listingId}, 'approve')">Re-approve</button>`;
+      actions += ` <button class="btn-sm btn btn-danger" onclick="takeAction(${listingId}, 'delete')">Delete</button>`;
     }
 
     // selection checkbox cell (hidden unless selectionActive)
-    const selectCell = `<td class="select-cell" style="vertical-align:middle"><input class=\"select-checkbox\" type=\"checkbox\" data-id=\"${listing.id}\"></td>`;
+    const selectCell = `<td class="select-cell" style="vertical-align:middle"><input class=\"select-checkbox\" type=\"checkbox\" data-id=\"${listingId}\"></td>`;
 
     // thumbnail(s) - display available image-like fields left-to-right
     const imageFields = ['image_url','oct_tct_url','tax_declaration_url','doas_url','government_id_url'];
@@ -185,19 +727,54 @@ async function loadListings(status = 'pending') {
     }
     const thumbHtml = thumbs.length ? `<div class=\"admin-thumbs\">${thumbs.join('')}</div>` : '';
     const ownerEmail = listing.owner_email || listing.owner_username || '';
+    const ownerName = `${escapeHtml(listing.owner_first_name || '')} ${escapeHtml(listing.owner_last_name || '')}`.trim() || '-';
+    const adminApprovedByName = escapeHtml(listing.admin_approved_by_username || '-');
 
-    tr.innerHTML = `
+    // Render different columns based on admin role and view
+    let tableHTML = `
       ${selectCell}
       <td style="vertical-align:middle">${thumbHtml}</td>
-      <td style="vertical-align:middle">${escapeHtml(listing.title)}</td>
-      <td style="vertical-align:middle">${formatPropertyType(listing.type)}</td>
-      <td style="vertical-align:middle"><span class="muted">${escapeHtml(listing.status)}</span></td>
-      <td style="vertical-align:middle">${new Date(listing.created_at).toLocaleDateString()}</td>
-      <td style="vertical-align:middle">${ownerEmail ? `<a href=\"mailto:${escapeHtml(ownerEmail)}\">${escapeHtml(ownerEmail)}</a>` : '-'}</td>
-      <td style="white-space:nowrap;vertical-align:middle">${actions}</td>
+      <td style="vertical-align:middle">${escapeHtml(title)}</td>
     `;
+
+    // For head admin viewing pending approvals
+    if (isHeadAdmin && status === 'pending') {
+      tableHTML += `
+        <td style="vertical-align:middle">${ownerName}</td>
+        <td style="vertical-align:middle">${adminApprovedByName}</td>
+        <td style="vertical-align:middle"><span class="muted">${escapeHtml(listing.listing_status || 'pending')}</span></td>
+      `;
+    }
+    // For head admin viewing approved/published listings
+    else if (isHeadAdmin && status === 'approved') {
+      tableHTML += `
+        <td style="vertical-align:middle">${ownerName}</td>
+        <td style="vertical-align:middle">${escapeHtml(listing.listing_status || 'published')}</td>
+      `;
+    }
+    // For listing admin or other views
+    else {
+      tableHTML += `
+        <td style="vertical-align:middle">${formatPropertyType(listing.type)}</td>
+        <td style="vertical-align:middle"><span class="muted">${escapeHtml(listing.status || listing.listing_status || 'pending')}</span></td>
+        <td style="vertical-align:middle">${new Date(listing.created_at).toLocaleDateString()}</td>
+        <td style="vertical-align:middle">${ownerEmail ? `<a href=\"mailto:${escapeHtml(ownerEmail)}\">${escapeHtml(ownerEmail)}</a>` : '-'}</td>
+      `;
+    }
+
+    tableHTML += `<td style="white-space:nowrap;vertical-align:middle">${actions}</td>`;
+    
+    tr.innerHTML = tableHTML;
     tbody.appendChild(tr);
   });
+  console.log(`[loadListings] Finished rendering all listings`);
+  } catch (renderErr) {
+    console.error('[loadListings] RENDER ERROR:', renderErr);
+    console.error('[loadListings] Listings data:', listings);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="8" style="color:red">Error rendering listings: ${renderErr.message}</td>`;
+    tbody.appendChild(tr);
+  }
 }
 
 // Toggle selection mode (shows/hides checkboxes)
@@ -404,11 +981,26 @@ async function takeAction(id, action) {
       return;
     }
 
-    let url, opts = { method: 'POST' };
+    let url, opts = { method: 'POST', headers: { 'Content-Type': 'application/json' } };
+    const user = JSON.parse(localStorage.getItem('laboCurrentUser')) || {};
+    const isListingAdmin = user.admin_role === 'listing_admin';
+    const isHeadAdmin = user.admin_role === 'head_admin';
 
     if (action === 'approve') {
-      url = `/admin/approve-listing/${id}`;
-      opts = { method: 'POST' };
+      // Use role-based endpoint if applicable
+      if (isListingAdmin) {
+        url = `/api/admin/listings/${id}/approve`;
+        opts.body = JSON.stringify({ notes: '' });
+      } else if (isHeadAdmin) {
+        url = `/api/admin/listings/${id}/publish`;
+        opts.body = JSON.stringify({ notes: '' });
+      } else {
+        url = `/admin/approve-listing/${id}`;
+      }
+    } else if (action === 'publish') {
+      // Head admin publish action
+      url = `/api/admin/listings/${id}/publish`;
+      opts.body = JSON.stringify({ notes: '' });
     } else if (action === 'delete') {
       url = `/admin/listings/${id}`;
       opts = { method: 'DELETE' };
@@ -416,6 +1008,8 @@ async function takeAction(id, action) {
       showToast('Unknown action', true);
       return;
     }
+
+    console.log(`[takeAction] Performing action "${action}" on listing ${id}`, { url, action });
 
     const res = await fetch(url, opts);
     let data = {};
@@ -757,9 +1351,15 @@ async function loadAdminStats() {
   try {
     const res = await fetch("/admin/stats");
     const data = await res.json();
-    document.getElementById('stat-active').textContent = data.total;
-    document.getElementById('stat-pending').textContent = data.pending;
-    document.getElementById('stat-approved').textContent = data.approved;
+    
+    // Update stats based on what's available in the data
+    const statActive = document.getElementById('stat-active');
+    const statPending = document.getElementById('stat-pending');
+    const statApproved = document.getElementById('stat-approved');
+    
+    if (statActive) statActive.textContent = data.total || 0;
+    if (statPending) statPending.textContent = data.pending || 0;
+    if (statApproved) statApproved.textContent = data.approved || 0;
   } catch (err) {
     console.error("Failed to load stats:", err);
   }
@@ -818,5 +1418,320 @@ async function createAdminToken() {
     console.error('Create token failed', e);
     showToast('Create token failed', true);
     const btn = document.getElementById('createAdminTokenBtn'); if (btn) btn.disabled = false;
+  }
+}
+
+// ==================== SUCCESS STORIES ====================
+
+let pendingStories = [];
+let headPendingStories = [];
+
+// Load pending stories for listing admin
+async function loadPendingStories() {
+  try {
+    const response = await fetch('/api/admin/success-stories/pending');
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to load stories');
+    }
+    const data = await response.json();
+    
+    // Filter only 'pending' stories (not listing_admin_approved)
+    pendingStories = Array.isArray(data) ? data.filter(s => s.status === 'pending') : [];
+    document.getElementById('stat-stories-pending').textContent = pendingStories.length;
+    renderStoriesTable();
+  } catch (err) {
+    console.error('Error loading stories:', err);
+    document.getElementById('storiesTable').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#f44336">Error: ' + err.message + '</td></tr>';
+  }
+}
+
+// Load pending stories for head admin
+async function loadHeadAdminStories() {
+  try {
+    const response = await fetch('/api/admin/success-stories/pending');
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to load stories');
+    }
+    const data = await response.json();
+    
+    // Filter only 'listing_admin_approved' stories (awaiting head admin approval)
+    headPendingStories = Array.isArray(data) ? data.filter(s => s.status === 'listing_admin_approved') : [];
+    document.getElementById('stat-stories-head-pending').textContent = headPendingStories.length;
+    renderHeadStoriesTable();
+  } catch (err) {
+    console.error('Error loading head admin stories:', err);
+    document.getElementById('headStoriesTable').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#f44336">Error: ' + err.message + '</td></tr>';
+  }
+}
+
+function renderStoriesTable() {
+  const tbody = document.getElementById('storiesTable');
+  
+  if (!pendingStories || pendingStories.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">No pending success stories</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = pendingStories.map(story => `
+    <tr>
+      ${storiesSelectionActive ? `<td><input type="checkbox" onchange="toggleStorySelection(${story.id}, this.checked)" ${selectedStories.has(story.id) ? 'checked' : ''}></td>` : ''}
+      <td><img src="${story.image_url}" alt="${story.business_name}" style="width:60px;height:60px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="previewImage('${story.image_url}')"></td>
+      <td><strong>${story.business_name}</strong></td>
+      <td>${story.investor_name}</td>
+      <td>${story.location}</td>
+      <td>${story.business_type}</td>
+      <td><span class="badge" style="background:#ffc107;color:#000">Pending</span></td>
+      <td style="text-align:right">
+        <button class="btn btn-sm btn-primary" onclick="openStoryModal(${story.id}, 'listing-admin')">Review</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function toggleStorySelection(storyId, checked) {
+  if (checked) {
+    selectedStories.add(storyId);
+  } else {
+    selectedStories.delete(storyId);
+  }
+}
+
+function renderHeadStoriesTable() {
+  const tbody = document.getElementById('headStoriesTable');
+  
+  if (!headPendingStories || headPendingStories.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">No stories awaiting final approval</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = headPendingStories.map(story => `
+    <tr>
+      <td><img src="${story.image_url}" alt="${story.business_name}" style="width:60px;height:60px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="previewImage('${story.image_url}')"></td>
+      <td><strong>${story.business_name}</strong></td>
+      <td>${story.investor_name}</td>
+      <td>${story.listing_admin_notes || 'N/A'}</td>
+      <td><span class="badge" style="background:#4CAF50;color:#fff">Listing Admin Approved</span></td>
+      <td style="text-align:right">
+        <button class="btn btn-sm btn-primary" onclick="openStoryModal(${story.id}, 'head-admin')">Review</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function openStoryModal(storyId, role) {
+  try {
+    const stories = role === 'head-admin' ? headPendingStories : pendingStories;
+    const story = stories.find(s => s.id === storyId);
+    
+    if (!story) {
+      showToast('Story not found', true);
+      return;
+    }
+
+    const html = `
+      <div style="color:#666;font-size:14px">
+        <p><strong>Business:</strong> ${story.business_name}</p>
+        <p><strong>Location:</strong> ${story.location}</p>
+        <p><strong>Type:</strong> ${story.business_type}</p>
+        <p><strong>Investor:</strong> ${story.investor_name}</p>
+        <p><strong>Email:</strong> ${story.contact_email || 'N/A'}</p>
+        <img src="${story.image_url}" alt="${story.business_name}" style="max-width:100%;max-height:300px;border-radius:4px;margin:10px 0">
+        <p><strong>Description:</strong></p>
+        <p>${story.description}</p>
+        <p><strong>Achievement:</strong></p>
+        <p>${story.key_achievement}</p>
+        ${story.listing_admin_notes ? `<p><strong>Listing Admin Notes:</strong><br>${story.listing_admin_notes}</p>` : ''}
+      </div>
+    `;
+
+    document.getElementById('storyModalTitle').textContent = 'Success Story Review';
+    document.getElementById('storyModalBody').innerHTML = html;
+
+    const actionsDiv = document.getElementById('storyModalActions');
+    if (role === 'listing-admin') {
+      actionsDiv.innerHTML = `
+        <button class="btn btn-primary" onclick="approveStory(${storyId})">Approve & Send to Head Admin</button>
+        <button class="btn btn-ghost" style="background:#f44336;color:white" onclick="openRejectStoryModal(${storyId})">Reject</button>
+      `;
+    } else {
+      actionsDiv.innerHTML = `
+        <button class="btn btn-primary" onclick="publishStory(${storyId})">Publish Story</button>
+        <button class="btn btn-ghost" style="background:#f44336;color:white" onclick="openRejectStoryModal(${storyId})">Reject</button>
+      `;
+    }
+
+    document.getElementById('storyModal').classList.add('open');
+  } catch (err) {
+    console.error('Error opening story modal:', err);
+    showToast('Error loading story', true);
+  }
+}
+
+function closeStoryModal() {
+  document.getElementById('storyModal').classList.remove('open');
+}
+
+async function approveStory(storyId) {
+  try {
+    const notes = prompt('Add notes (optional):');
+    const response = await fetch(`/api/admin/success-stories/${storyId}/listing-admin-approve`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ notes: notes || '' })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error);
+
+    showToast('Story approved! Awaiting head admin final approval');
+    closeStoryModal();
+    loadPendingStories();
+  } catch (err) {
+    console.error('Error approving story:', err);
+    showToast(err.message || 'Error approving story', true);
+  }
+}
+
+async function publishStory(storyId) {
+  try {
+    const notes = prompt('Add notes (optional):');
+    const response = await fetch(`/api/admin/success-stories/${storyId}/head-admin-approve`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ notes: notes || '' })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error);
+
+    showToast('Story published! 🎉');
+    closeStoryModal();
+    loadHeadAdminStories();
+  } catch (err) {
+    console.error('Error publishing story:', err);
+    showToast(err.message || 'Error publishing story', true);
+  }
+}
+
+function openRejectStoryModal(storyId) {
+  const reason = prompt('Reason for rejection:');
+  if (reason) {
+    rejectStory(storyId, reason);
+  }
+}
+
+async function rejectStory(storyId, reason) {
+  try {
+    const response = await fetch(`/api/admin/success-stories/${storyId}/reject`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ notes: reason })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error);
+
+    showToast('Story rejected');
+    closeStoryModal();
+    const user = await getUserRole();
+    if (user.admin_role === 'listing_admin') {
+      loadPendingStories();
+    } else {
+      loadHeadAdminStories();
+    }
+  } catch (err) {
+    console.error('Error rejecting story:', err);
+    showToast(err.message || 'Error rejecting story', true);
+  }
+}
+
+function switchStoriesView(view) {
+  // For now just show pending
+  renderStoriesTable();
+}
+
+// Stories bulk action tracking
+let selectedStories = new Set();
+let storiesSelectionActive = false;
+
+function toggleStoriesSelectMode() {
+  storiesSelectionActive = !storiesSelectionActive;
+  selectedStories.clear();
+  
+  const btn = document.getElementById('toggleStoriesSelectBtn');
+  btn.textContent = storiesSelectionActive ? 'Disable Select' : 'Toggle Select';
+  
+  const table = document.getElementById('storiesTable');
+  table.parentElement.classList.toggle('selection-active');
+  renderStoriesTable();
+}
+
+function clearStoriesSelection() {
+  selectedStories.clear();
+  renderStoriesTable();
+}
+
+async function bulkApproveStories() {
+  if (selectedStories.size === 0) {
+    showToast('Please select at least one story', true);
+    return;
+  }
+  
+  const confirmed = confirm(`Approve ${selectedStories.size} story/stories?`);
+  if (!confirmed) return;
+  
+  try {
+    let approved = 0;
+    for (const storyId of selectedStories) {
+      const response = await fetch(`/api/admin/success-stories/${storyId}/listing-admin-approve`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ notes: '' })
+      });
+      
+      if (response.ok) approved++;
+    }
+    
+    showToast(`Approved ${approved} story/stories`);
+    selectedStories.clear();
+    loadPendingStories();
+  } catch (err) {
+    showToast('Error approving stories', true);
+  }
+}
+
+async function bulkRejectStories() {
+  if (selectedStories.size === 0) {
+    showToast('Please select at least one story', true);
+    return;
+  }
+  
+  const reason = prompt(`Reason for rejecting ${selectedStories.size} story/stories:`);
+  if (!reason) return;
+  
+  try {
+    let rejected = 0;
+    for (const storyId of selectedStories) {
+      const response = await fetch(`/api/admin/success-stories/${storyId}/reject`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ notes: reason })
+      });
+      
+      if (response.ok) rejected++;
+    }
+    
+    showToast(`Rejected ${rejected} story/stories`);
+    selectedStories.clear();
+    loadPendingStories();
+  } catch (err) {
+    showToast('Error rejecting stories', true);
   }
 }

@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Listing Admin Dashboard - LaboConnect</title>
+  <link rel="stylesheet" href="../css/global.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .dashboard-header {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .dashboard-header h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .dashboard-header p {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #eee;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .tab-button {
+      padding: 10px 20px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      color: #666;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -10px;
+      transition: all 0.3s ease;
+    }
+
+    .tab-button.active {
+      color: #4CAF50;
+      border-bottom-color: #4CAF50;
+    }
+
+    .tab-button:hover {
+      color: #333;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .listings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 20px;
+    }
+
+    .listing-card {
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .listing-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .listing-image {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      background: #f0f0f0;
+    }
+
+    .listing-info {
+      padding: 15px;
+    }
+
+    .listing-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .listing-owner {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 10px;
+    }
+
+    .listing-status-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      margin-bottom: 10px;
+    }
+
+    .status-submitted {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status-approved {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+
+    .btn-approve {
+      background: #4CAF50;
+      color: white;
+    }
+
+    .btn-approve:hover {
+      background: #45a049;
+    }
+
+    .btn-reject {
+      background: #f44336;
+      color: white;
+    }
+
+    .btn-reject:hover {
+      background: #da190b;
+    }
+
+    .btn-view {
+      background: #2196F3;
+      color: white;
+    }
+
+    .btn-view:hover {
+      background: #0b7dda;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #999;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal {
+      background: white;
+      padding: 25px;
+      border-radius: 8px;
+      max-width: 500px;
+      width: 90%;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      background: none;
+      border: none;
+      font-size: 28px;
+      cursor: pointer;
+      color: #999;
+    }
+
+    .modal h2 {
+      margin-bottom: 15px;
+      color: #333;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .modal-actions button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .modal-actions .btn-primary {
+      background: #4CAF50;
+      color: white;
+    }
+
+    .modal-actions .btn-secondary {
+      background: #f1f1f1;
+      color: #333;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-label {
+      color: #666;
+      font-size: 13px;
+      margin-bottom: 5px;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #4CAF50;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+    }
+
+    .loading::after {
+      content: '';
+      animation: dots 1.5s steps(4, end) infinite;
+    }
+
+    @keyframes dots {
+      0%, 20% { content: '.'; }
+      40% { content: '..'; }
+      60% { content: '...'; }
+      80%, 100% { content: ''; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="dashboard-header">
+      <h1>Listing Admin Dashboard</h1>
+      <p>Review and approve property listings submitted by users</p>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Pending Review</div>
+        <div class="stat-value" id="pendingCount">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Your Approvals</div>
+        <div class="stat-value" id="approvalCount">0</div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-button active" onclick="switchTab('pending')">Pending Review</button>
+      <button class="tab-button" onclick="switchTab('history')">Approval History</button>
+    </div>
+
+    <div id="pending" class="tab-content active">
+      <div id="pendingListings" class="listings-grid"></div>
+    </div>
+
+    <div id="history" class="tab-content">
+      <div id="historyListings" class="listings-grid"></div>
+    </div>
+
+    <!-- Success Stories Section -->
+    <div style="margin-top: 50px; padding-top: 30px; border-top: 3px solid #eee;">
+      <div class="dashboard-header">
+        <h1>Success Stories Approval</h1>
+        <p>Review and approve investor success stories</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Pending Stories</div>
+          <div class="stat-value" id="pendingStoriesCount">0</div>
+        </div>
+      </div>
+
+      <div id="pendingStories" class="listings-grid"></div>
+    </div>
+  </div>
+
+  <!-- Approval Modal -->
+  <div class="modal-overlay" id="approvalModal">
+    <div class="modal">
+      <button class="modal-close" onclick="closeApprovalModal()">&times;</button>
+      <h2>Approve Listing</h2>
+      <div id="approvalListingInfo"></div>
+      <div class="form-group">
+        <label for="approvalNotes">Notes (Optional)</label>
+        <textarea id="approvalNotes" placeholder="Add any notes for the listing owner..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button onclick="submitApproval()" class="btn-primary">Approve</button>
+        <button onclick="closeApprovalModal()" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rejection Modal -->
+  <div class="modal-overlay" id="rejectionModal">
+    <div class="modal">
+      <button class="modal-close" onclick="closeRejectionModal()">&times;</button>
+      <h2>Reject Listing</h2>
+      <div id="rejectionListingInfo"></div>
+      <div class="form-group">
+        <label for="rejectionReason">Reason for Rejection *</label>
+        <textarea id="rejectionReason" placeholder="Explain why this listing is being rejected..." required></textarea>
+      </div>
+      <div class="modal-actions">
+        <button onclick="submitRejection()" class="btn-primary" style="background: #f44336;">Reject</button>
+        <button onclick="closeRejectionModal()" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Listing Modal -->
+  <div class="modal-overlay" id="viewListingModal">
+    <div class="modal" style="max-width: 600px;">
+      <button class="modal-close" onclick="closeViewListingModal()">&times;</button>
+      <h2>Listing Details</h2>
+      <div id="listingDetailsContent" style="max-height: 60vh; overflow-y: auto;"></div>
+    </div>
+  </div>
+
+  <!-- Success Story Approval Modal -->
+  <div class="modal-overlay" id="storyApprovalModal">
+    <div class="modal" style="max-width: 600px;">
+      <button class="modal-close" onclick="closeStoryApprovalModal()">&times;</button>
+      <h2>Approve Success Story</h2>
+      <div id="storyApprovalInfo" style="max-height: 50vh; overflow-y: auto; margin-bottom: 15px;"></div>
+      <div class="form-group">
+        <label for="storyApprovalNotes">Notes (Optional)</label>
+        <textarea id="storyApprovalNotes" placeholder="Add any notes for the investor..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button onclick="submitStoryApproval()" class="btn-primary">Approve</button>
+        <button onclick="closeStoryApprovalModal()" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Success Story Rejection Modal -->
+  <div class="modal-overlay" id="storyRejectionModal">
+    <div class="modal" style="max-width: 600px;">
+      <button class="modal-close" onclick="closeStoryRejectionModal()">&times;</button>
+      <h2>Reject Success Story</h2>
+      <div id="storyRejectionInfo" style="max-height: 50vh; overflow-y: auto; margin-bottom: 15px;"></div>
+      <div class="form-group">
+        <label for="storyRejectionReason">Reason for Rejection *</label>
+        <textarea id="storyRejectionReason" placeholder="Explain why this story is being rejected..." required></textarea>
+      </div>
+      <div class="modal-actions">
+        <button onclick="submitStoryRejection()" class="btn-primary" style="background: #f44336;">Reject</button>
+        <button onclick="closeStoryRejectionModal()" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentListingId = null;
+    let currentStoryId = null;
+    let pendingListings = [];
+    let myApprovals = [];
+    let pendingStories = [];
+
+    async function loadPendingListings() {
+      try {
+        const response = await fetch('/api/admin/listings/pending-approval');
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error);
+        
+        pendingListings = data;
+        document.getElementById('pendingCount').textContent = data.length;
+        renderPendingListings();
+      } catch (err) {
+        console.error('Error loading listings:', err);
+        document.getElementById('pendingListings').innerHTML = 
+          '<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>Error loading listings</p></div>';
+      }
+    }
+
+    async function loadPendingStories() {
+      try {
+        const response = await fetch('/api/admin/success-stories/pending');
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error);
+        
+        // Filter to only show stories with status 'pending' (not listing_admin_approved)
+        pendingStories = data.filter(s => s.status === 'pending');
+        document.getElementById('pendingStoriesCount').textContent = pendingStories.length;
+        renderPendingStories();
+      } catch (err) {
+        console.error('Error loading stories:', err);
+        document.getElementById('pendingStories').innerHTML = 
+          '<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>Error loading stories</p></div>';
+      }
+    }
+
+    function renderPendingListings() {
+      const container = document.getElementById('pendingListings');
+      
+      if (pendingListings.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✓</div><p>No listings pending review</p></div>';
+        return;
+      }
+
+      container.innerHTML = pendingListings.map(listing => `
+        <div class="listing-card">
+          <img src="${listing.image_url || 'https://via.placeholder.com/350x200'}" alt="${listing.title}" class="listing-image">
+          <div class="listing-info">
+            <div class="listing-title" title="${listing.title}">${listing.title}</div>
+            <div class="listing-owner">Owner: ${listing.owner_first_name} ${listing.owner_last_name}</div>
+            <span class="listing-status-badge status-submitted">Pending Review</span>
+            <div class="action-buttons">
+              <button class="btn btn-view" onclick="viewListingDetails(${listing.listing_id})">View</button>
+              <button class="btn btn-approve" onclick="openApprovalModal(${listing.listing_id}, '${listing.title}')">Approve</button>
+              <button class="btn btn-reject" onclick="openRejectionModal(${listing.listing_id}, '${listing.title}')">Reject</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderPendingStories() {
+      const container = document.getElementById('pendingStories');
+      
+      if (pendingStories.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✓</div><p>No success stories pending review</p></div>';
+        return;
+      }
+
+      container.innerHTML = pendingStories.map(story => `
+        <div class="listing-card">
+          <img src="${story.image_url || 'https://via.placeholder.com/350x200'}" alt="${story.business_name}" class="listing-image">
+          <div class="listing-info">
+            <div class="listing-title" title="${story.business_name}">${story.business_name}</div>
+            <div class="listing-owner">Investor: ${story.investor_name}</div>
+            <div style="font-size: 12px; color: #999; margin: 5px 0;">📍 ${story.location}</div>
+            <span class="listing-status-badge status-submitted">Pending Review</span>
+            <div class="action-buttons">
+              <button class="btn btn-approve" onclick="openStoryApprovalModal(${story.id}, '${story.business_name}')">Approve</button>
+              <button class="btn btn-reject" onclick="openStoryRejectionModal(${story.id}, '${story.business_name}')">Reject</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function openApprovalModal(listingId, title) {
+      currentListingId = listingId;
+      document.getElementById('approvalListingInfo').innerHTML = `<p><strong>${title}</strong></p>`;
+      document.getElementById('approvalModal').classList.add('open');
+    }
+
+    function closeApprovalModal() {
+      currentListingId = null;
+      document.getElementById('approvalModal').classList.remove('open');
+      document.getElementById('approvalNotes').value = '';
+    }
+
+    async function submitApproval() {
+      if (!currentListingId) return;
+      
+      try {
+        const notes = document.getElementById('approvalNotes').value;
+        const response = await fetch(`/api/admin/listings/${currentListingId}/approve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes })
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+
+        alert('Listing approved successfully!');
+        closeApprovalModal();
+        loadPendingListings();
+        loadApprovalHistory();
+      } catch (err) {
+        console.error('Error approving listing:', err);
+        alert('Error approving listing: ' + err.message);
+      }
+    }
+
+    function openRejectionModal(listingId, title) {
+      currentListingId = listingId;
+      document.getElementById('rejectionListingInfo').innerHTML = `<p><strong>${title}</strong></p>`;
+      document.getElementById('rejectionModal').classList.add('open');
+    }
+
+    function closeRejectionModal() {
+      currentListingId = null;
+      document.getElementById('rejectionModal').classList.remove('open');
+      document.getElementById('rejectionReason').value = '';
+    }
+
+    async function submitRejection() {
+      if (!currentListingId) return;
+      
+      const reason = document.getElementById('rejectionReason').value.trim();
+      if (!reason) {
+        alert('Please provide a reason for rejection');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/admin/listings/${currentListingId}/reject`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason })
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+
+        alert('Listing rejected successfully!');
+        closeRejectionModal();
+        loadPendingListings();
+      } catch (err) {
+        console.error('Error rejecting listing:', err);
+        alert('Error rejecting listing: ' + err.message);
+      }
+    }
+
+    // Success Stories Functions
+    function openStoryApprovalModal(storyId, businessName) {
+      currentStoryId = storyId;
+      const story = pendingStories.find(s => s.id === storyId);
+      document.getElementById('storyApprovalInfo').innerHTML = `
+        <div style="color: #666; font-size: 14px;">
+          <p><strong>Business:</strong> ${story.business_name}</p>
+          <p><strong>Location:</strong> ${story.location}</p>
+          <p><strong>Type:</strong> ${story.business_type}</p>
+          <p><strong>Investor:</strong> ${story.investor_name}</p>
+          <img src="${story.image_url}" alt="${story.business_name}" style="max-width: 100%; max-height: 250px; border-radius: 4px; margin-top: 10px;">
+          <p><strong>Description:</strong></p>
+          <p>${story.description}</p>
+          <p><strong>Achievement:</strong> ${story.key_achievement}</p>
+        </div>
+      `;
+      document.getElementById('storyApprovalModal').classList.add('open');
+    }
+
+    function closeStoryApprovalModal() {
+      currentStoryId = null;
+      document.getElementById('storyApprovalModal').classList.remove('open');
+      document.getElementById('storyApprovalNotes').value = '';
+    }
+
+    async function submitStoryApproval() {
+      if (!currentStoryId) return;
+      
+      try {
+        const notes = document.getElementById('storyApprovalNotes').value;
+        const response = await fetch(`/api/admin/success-stories/${currentStoryId}/listing-admin-approve`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes })
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+
+        alert('Success story approved! Awaiting head admin final approval.');
+        closeStoryApprovalModal();
+        loadPendingStories();
+      } catch (err) {
+        console.error('Error approving story:', err);
+        alert('Error approving story: ' + err.message);
+      }
+    }
+
+    function openStoryRejectionModal(storyId, businessName) {
+      currentStoryId = storyId;
+      const story = pendingStories.find(s => s.id === storyId);
+      document.getElementById('storyRejectionInfo').innerHTML = `
+        <div style="color: #666; font-size: 14px;">
+          <p><strong>Business:</strong> ${story.business_name}</p>
+          <p><strong>Investor:</strong> ${story.investor_name}</p>
+        </div>
+      `;
+      document.getElementById('storyRejectionModal').classList.add('open');
+    }
+
+    function closeStoryRejectionModal() {
+      currentStoryId = null;
+      document.getElementById('storyRejectionModal').classList.remove('open');
+      document.getElementById('storyRejectionReason').value = '';
+    }
+
+    async function submitStoryRejection() {
+      if (!currentStoryId) return;
+      
+      const reason = document.getElementById('storyRejectionReason').value.trim();
+      if (!reason) {
+        alert('Please provide a reason for rejection');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/admin/success-stories/${currentStoryId}/reject`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes: reason })
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+
+        alert('Success story rejected successfully!');
+        closeStoryRejectionModal();
+        loadPendingStories();
+      } catch (err) {
+        console.error('Error rejecting story:', err);
+        alert('Error rejecting story: ' + err.message);
+      }
+    }
+
+    async function viewListingDetails(listingId) {
+      try {
+        const response = await fetch(`/api/listings/${listingId}`);
+        const listing = await response.json();
+
+        const html = `
+          <div style="color: #666; font-size: 14px;">
+            <p><strong>Title:</strong> ${listing.title}</p>
+            <p><strong>Owner:</strong> ${listing.owner_first_name} ${listing.owner_last_name}</p>
+            <p><strong>Type:</strong> ${listing.type}</p>
+            <p><strong>Price:</strong> ₱${listing.price?.toLocaleString() || 'N/A'}</p>
+            <p><strong>Size:</strong> ${listing.size_sqm} sqm</p>
+            <p><strong>Description:</strong></p>
+            <p>${listing.description}</p>
+            ${listing.image_url ? `<img src="${listing.image_url}" style="max-width: 100%; max-height: 300px; border-radius: 4px;">` : ''}
+          </div>
+        `;
+        
+        document.getElementById('listingDetailsContent').innerHTML = html;
+        document.getElementById('viewListingModal').classList.add('open');
+      } catch (err) {
+        console.error('Error loading listing:', err);
+        alert('Error loading listing details');
+      }
+    }
+
+    function closeViewListingModal() {
+      document.getElementById('viewListingModal').classList.remove('open');
+    }
+
+    async function loadApprovalHistory() {
+      // This would load listings approved by the current admin
+      // For now, we'll show pending listings
+      document.getElementById('historyListings').innerHTML = '<p style="text-align: center; color: #999;">Feature coming soon</p>';
+    }
+
+    function switchTab(tab) {
+      // Hide all tabs
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+      
+      // Show selected tab
+      document.getElementById(tab).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    // Load data on page load
+    window.addEventListener('load', () => {
+      loadPendingListings();
+      loadApprovalHistory();
+      loadPendingStories();
+    });
+
+    // Close modals on outside click
+    ['approvalModal', 'rejectionModal', 'viewListingModal', 'storyApprovalModal', 'storyRejectionModal'].forEach(id => {
+      document.getElementById(id)?.addEventListener('click', (e) => {
+        if (e.target.id === id) {
+          if (id === 'approvalModal') closeApprovalModal();
+          else if (id === 'rejectionModal') closeRejectionModal();
+          else if (id === 'viewListingModal') closeViewListingModal();
+          else if (id === 'storyApprovalModal') closeStoryApprovalModal();
+          else if (id === 'storyRejectionModal') closeStoryRejectionModal();
+        }
+      });
+    });
+  </script>
+</body>
+</html>

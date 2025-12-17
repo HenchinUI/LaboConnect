@@ -1,67 +1,84 @@
-<!-- Tailwind CDN -->
-<script src="https://cdn.tailwindcss.com"></script>
-
-<!-- Lucide Icons -->
-<script src="https://unpkg.com/lucide@latest"></script>
-
+<!-- Footer -->
 <footer class="site-footer" style="background:#2d5016;color:white;padding:40px 20px;">
   <div class="wrap footer-inner" style="max-width:1200px;margin:0 auto;">
-    <div class="footer-grid" style="display:grid;grid-template-columns:1.5fr 1fr 1.5fr;gap:40px;margin-bottom:30px;">
-      <div class="footer-about">
-        <h3 style="color:white;font-size:18px;font-weight:700;margin-bottom:12px;">LABOCONNECT</h3>
-        <p class="muted" style="color:rgba(255,255,255,0.8);font-size:14px;line-height:1.6;margin-bottom:12px;">
-          The Municipality of Labo, Camarines Norte — your gateway to business success in a growing, business-friendly community. Let's build the future together.
-        </p>
-      </div> 
 
+    <!-- Top Grid -->
+    <div class="footer-grid" style="display:grid;grid-template-columns:1.5fr 1fr 1.5fr;gap:40px;margin-bottom:30px;">
+
+      <!-- About -->
+      <div class="footer-about">
+        <h3 style="font-size:18px;font-weight:700;margin-bottom:12px;">LABOCONNECT</h3>
+        <p style="color:rgba(255,255,255,0.85);font-size:14px;line-height:1.6;">
+          LaboConnect is an investment-focused information platform showcasing opportunities,
+          culture, and growth potential in the Municipality of Labo, Camarines Norte.
+          Built to connect investors with the local government and community.
+        </p>
+      </div>
+
+      <!-- Links -->
       <div class="footer-links">
-        <h4 style="color:white;font-size:16px;font-weight:600;margin-bottom:16px;">Investment Info</h4>
+        <h4 style="font-size:16px;font-weight:600;margin-bottom:16px;">Explore</h4>
         <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">
-          <li><a href="#why" style="color:rgba(255,255,255,0.8);text-decoration:none;font-size:14px;transition:all 0.3s ease;" onmouseover="this.style.color='white';this.style.textDecoration='underline'" onmouseout="this.style.color='rgba(255,255,255,0.8)';this.style.textDecoration='none'">Why Labo</a></li>
-          <li><a href="/components/listings.html" style="color:rgba(255,255,255,0.8);text-decoration:none;font-size:14px;transition:all 0.3s ease;" onmouseover="this.style.color='white';this.style.textDecoration='underline'" onmouseout="this.style.color='rgba(255,255,255,0.8)';this.style.textDecoration='none'">Opportunities</a></li>
-          <li><a href="#process" style="color:rgba(255,255,255,0.8);text-decoration:none;font-size:14px;transition:all 0.3s ease;" onmouseover="this.style.color='white';this.style.textDecoration='underline'" onmouseout="this.style.color='rgba(255,255,255,0.8)';this.style.textDecoration='none'">Business Process</a></li>
-          <li><a href="#stories" style="color:rgba(255,255,255,0.8);text-decoration:none;font-size:14px;transition:all 0.3s ease;" onmouseover="this.style.color='white';this.style.textDecoration='underline'" onmouseout="this.style.color='rgba(255,255,255,0.8)';this.style.textDecoration='none'">Success Stories</a></li>
-          <li><a href="#contact" style="color:rgba(255,255,255,0.8);text-decoration:none;font-size:14px;transition:all 0.3s ease;" onmouseover="this.style.color='white';this.style.textDecoration='underline'" onmouseout="this.style.color='rgba(255,255,255,0.8)';this.style.textDecoration='none'">Start Your Inquiry</a></li>
-          <li><a href="#faq" style="color:rgba(255,255,255,0.8);text-decoration:none;font-size:14px;transition:all 0.3s ease;" onmouseover="this.style.color='white';this.style.textDecoration='underline'" onmouseout="this.style.color='rgba(255,255,255,0.8)';this.style.textDecoration='none'">FAQ</a></li>
+          <li><a href="#why" class="footer-link">Why Labo</a></li>
+          <li><a href="#opportunities" class="footer-link">Investment Opportunities</a></li>
+          <li><a href="#process" class="footer-link">Business Process</a></li>
+          <li><a href="#stories" class="footer-link">Success Stories</a></li>
+          <li><a href="#faq" class="footer-link">FAQs</a></li>
+          <li><a href="#contact" class="footer-link">Start an Inquiry</a></li>
         </ul>
       </div>
 
+      <!-- Contact -->
       <div class="footer-contact">
-        <h4 style="color:white;font-size:16px;font-weight:600;margin-bottom:16px;">BPLO Contact Info</h4>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          <div style="color:rgba(255,255,255,0.8);font-size:14px;display:flex;align-items:center;gap:8px;transition:all 0.3s ease;cursor:pointer;" onmouseover="this.style.color='white';this.style.textDecoration='underline'" onmouseout="this.style.color='rgba(255,255,255,0.8)';this.style.textDecoration='none'">
-            <span>📧</span> bplo@labo.gov.ph
-          </div>
-          <div style="color:rgba(255,255,255,0.8);font-size:14px;display:flex;align-items:center;gap:8px;transition:all 0.3s ease;cursor:pointer;" onmouseover="this.style.color='white';this.style.textDecoration='underline'" onmouseout="this.style.color='rgba(255,255,255,0.8)';this.style.textDecoration='none'">
-            <span>📞</span> +63 (54) XXX-XXXX
-          </div>
-          <div style="color:rgba(255,255,255,0.8);font-size:14px;display:flex;align-items:center;gap:8px;transition:all 0.3s ease;cursor:pointer;" onmouseover="this.style.color='white';this.style.textDecoration='underline'" onmouseout="this.style.color='rgba(255,255,255,0.8)';this.style.textDecoration='none'">
-            <span>📍</span> Municipal Building, Labo, Camarines Norte
-          </div>
-          <div style="color:rgba(255,255,255,0.7);font-size:13px;margin-top:8px;">
-            Office Hours: Mon–Fri, 8AM–5PM
-          </div>
+        <h4 style="font-size:16px;font-weight:600;margin-bottom:16px;">Local Government Contact</h4>
+
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div class="footer-contact-item">📍 Municipal Building, Labo, Camarines Norte</div>
+          <div class="footer-contact-item">📞 (054) 585‑2044 | +63 619 8321 (Mon–Fri, 8AM–5PM)</div>
+          <div class="footer-contact-item">📧 Official email available upon request</div>
         </div>
+
+        <p style="color:rgba(255,255,255,0.65);font-size:12px;margin-top:12px;">
+          For investment-related concerns, inquiries are coordinated with the appropriate LGU offices.
+        </p>
+      </div>
+
+    </div>
+
+    <!-- Bottom -->
+    <div style="border-top:1px solid rgba(255,255,255,0.2);padding-top:20px;
+                display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;">
+
+      <div style="font-size:13px;color:rgba(255,255,255,0.7);">
+        © 2025 LaboConnect. Developed in support of the Municipality of Labo, Camarines Norte.
+      </div>
+
+      <div style="display:flex;gap:16px;font-size:13px;">
+        <a href="#" class="footer-link">Privacy Policy</a>
+        <span style="opacity:0.5;">•</span>
+        <a href="#" class="footer-link">Terms of Use</a>
+        <span style="opacity:0.5;">•</span>
+        <a href="#" class="footer-link">Investment Guide</a>
       </div>
     </div>
 
-    <div class="footer-bottom" style="border-top:1px solid rgba(255,255,255,0.2);padding-top:20px;display:flex;justify-content:space-between;align-items:center;">
-      <div style="color:rgba(255,255,255,0.7);font-size:13px;">
-        © 2025 Municipality of Labo, Camarines Norte. All rights reserved.
-      </div>
-      <div style="display:flex;gap:20px;color:rgba(255,255,255,0.8);font-size:13px;">
-        <a href="#" style="color:rgba(255,255,255,0.8);text-decoration:none;transition:all 0.3s ease;" onmouseover="this.style.color='white';this.style.textDecoration='underline'" onmouseout="this.style.color='rgba(255,255,255,0.8)';this.style.textDecoration='none'">Privacy Policy</a>
-        <span>·</span>
-        <a href="#" style="color:rgba(255,255,255,0.8);text-decoration:none;transition:all 0.3s ease;" onmouseover="this.style.color='white';this.style.textDecoration='underline'" onmouseout="this.style.color='rgba(255,255,255,0.8)';this.style.textDecoration='none'">Terms of Service</a>
-        <span>·</span>
-        <a href="#" style="color:rgba(255,255,255,0.8);text-decoration:none;transition:all 0.3s ease;" onmouseover="this.style.color='white';this.style.textDecoration='underline'" onmouseout="this.style.color='rgba(255,255,255,0.8)';this.style.textDecoration='none'">Investment Guide</a>
-      </div>
-    </div>
   </div>
 </footer>
 
-<!-- Activate optional icons if needed -->
-<script src="https://unpkg.com/lucide@latest"></script>
-<script>
-  if (window.lucide) lucide.createIcons()
-</script>
+<!-- Footer hover styles -->
+<style>
+  .footer-link {
+    color: rgba(255, 255, 255, 0.85);
+    text-decoration: none;
+    transition: all 0.25s ease;
+  }
+  .footer-link:hover {
+    color: #ffffff;
+    text-decoration: underline;
+  }
+  .footer-contact-item {
+    font-size:14px;
+    color:rgba(255,255,255,0.85);
+    transition:all 0.25s ease;
+  }
+</style>

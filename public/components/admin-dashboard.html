@@ -3,14 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>BPLO Admin — Dashboard</title>
+  <title>Admin Dashboard — LaboConnect</title>
   <link rel="stylesheet" href="/css/global.css">
   <style>
     .labo-row-2 { display: none !important; }
     .admin-wrap{max-width:var(--container);margin:22px auto;padding:20px}
+    .admin-header{margin-bottom:30px}
+    .admin-title-section{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+    .admin-title-section h1{margin:0;font-size:28px}
+    .role-badge{display:inline-block;padding:6px 14px;background:#667eea;color:white;border-radius:20px;font-size:12px;font-weight:600}
     .admin-hero{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
     .stat{background:linear-gradient(180deg,#fff,#f7fff7);padding:18px;border-radius:12px;box-shadow:0 6px 20px rgba(2,6,23,0.04);min-width:180px}
     .stat h3{margin:0;font-size:20px}
+    .tabs{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+    .tab-btn{padding:10px 16px;background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;font-weight:500;color:var(--muted);transition:all 0.3s}
+    .tab-btn.active{color:#667eea;border-bottom-color:#667eea}
     .grid-2{display:grid;grid-template-columns:1fr 420px;gap:18px;margin-top:18px}
     @media (max-width: 760px) {
       .grid-2 { display: flex; flex-direction: column; }
@@ -28,6 +35,8 @@
     .modal-doc-thumb{width:72px;height:72px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid rgba(0,0,0,0.06)}
     .admin-thumbs{display:flex;gap:8px;align-items:center}
     .admin-thumb{width:56px;height:56px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid rgba(0,0,0,0.06)}
+    .role-section{display:none}
+    .role-section.active{display:block}
     /* modal */
     .admin-modal{display:none;position:fixed;inset:0;z-index:1400;align-items:center;justify-content:center;padding:20px;background:rgba(8,12,10,0.4)}
     .admin-modal.open{display:flex}
@@ -36,6 +45,9 @@
     #imagePreviewModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); justify-content:center; align-items:center; z-index:3000; cursor:pointer; }
     #imagePreviewModal.open { display:flex; }
     #imagePreview { max-width:90%; max-height:90%; border-radius:8px; pointer-events: none; }
+    .admin-item{padding:12px;border:1px solid rgba(0,0,0,0.06);border-radius:8px;margin-bottom:10px}
+    .admin-item-title{font-weight:600;margin-bottom:4px}
+    .admin-item-meta{font-size:12px;color:var(--muted)}
   </style>
 </head>
 <body>
@@ -44,65 +56,237 @@
 <div id="header-import"></div>
 
 <main class="admin-wrap">
-  <h1 style="margin:0 0 12px 0">BPLO Admin Dashboard</h1>
-
-  <div class="admin-hero">
-    <div class="stat">
-      <div class="muted">Active Applications</div>
-      <h3 id="stat-active">0</h3>
-    </div>
-    <div class="stat">
-      <div class="muted">Pending Review</div>
-      <h3 id="stat-pending">0</h3>
-    </div>
-    <div class="stat">
-      <div class="muted">Approved</div>
-      <h3 id="stat-approved">0</h3>
-    </div>
-    <div class="stat">
-      <div class="muted">Registered Businesses</div>
-      <h3 id="stat-businesses">0</h3>
+  <div class="admin-header">
+    <div class="admin-title-section">
+      <h1 id="dashboardTitle" style="margin:0">Admin Dashboard</h1>
+      <span class="role-badge" id="roleBadge">Loading...</span>
     </div>
   </div>
 
-  <div class="grid-2">
-    <section class="card" aria-labelledby="appsTitle">
-      <h2 id="appsTitle" style="margin:0 0 12px 0">Recent Applications</h2>
-      <div style="margin-bottom:12px;display:flex;gap:8px">
-        <button class="btn btn-ghost" onclick="switchView('pending')">Pending</button>
-        <button class="btn btn-ghost" onclick="switchView('approved')">Approved Listings</button>
-        <button class="btn btn-ghost" onclick="switchView('rejected')">Rejected Listings</button>
+  <!-- LISTING ADMIN SECTION -->
+  <div id="listing-admin-section" class="role-section">
+    <div class="admin-hero">
+      <div class="stat">
+        <div class="muted">Pending Listings</div>
+        <h3 id="stat-pending">0</h3>
       </div>
-
-      <div class="admin-table-wrap">
-        <table aria-describedby="appsTitle">
-          <thead>
-            <tr><th style="width:80px">Photo</th><th>Applicant</th><th>Type</th><th>Status</th><th>Submitted</th><th>Owner Email</th><th></th></tr>
-          </thead>
-          <tbody id="appsTable">
-            <!-- sample rows, replaced by JS with real data when available -->
-          </tbody>
-        </table>
+      <div class="stat">
+        <div class="muted">Approved (Awaiting Head Admin)</div>
+        <h3 id="stat-awaiting-head">0</h3>
       </div>
+      <div class="stat">
+        <div class="muted">Published</div>
+        <h3 id="stat-published">0</h3>
+      </div>
+      <div class="stat">
+        <div class="muted">Rejected</div>
+        <h3 id="stat-rejected">0</h3>
+      </div>
+    </div>
 
-      <div style="margin-top:12px;text-align:right">
+    <div class="grid-2">
+      <section class="card" aria-labelledby="listingsTitle">
+        <h2 id="listingsTitle" style="margin:0 0 12px 0">Listing Submissions</h2>
+        <div style="margin-bottom:12px;display:flex;gap:8px">
+          <button class="btn btn-ghost" onclick="switchView('pending')">Pending Review</button>
+          <button class="btn btn-ghost" onclick="switchView('approved')">Awaiting Final</button>
+          <button class="btn btn-ghost" onclick="switchView('rejected')">Rejected</button>
+        </div>
+
+        <div class="admin-table-wrap">
+          <table aria-describedby="listingsTitle">
+            <thead>
+              <tr><th style="width:80px">Photo</th><th>Title</th><th>Owner</th><th>Status</th><th>Submitted</th><th></th></tr>
+            </thead>
+            <tbody id="appsTable">
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="card">
+        <h3 style="margin:0 0 12px 0">Actions</h3>
+        <div id="quickActions" style="display:flex;flex-direction:column;gap:10px">
+          <button class="btn btn-ghost" id="toggleSelectBtn" onclick="toggleSelectMode()">Toggle Select</button>
+          <button class="btn btn-primary" id="approveSelectedBtn" onclick="bulkAction('approve')">Approve Selected</button>
+          <button class="btn btn-ghost" id="rejectSelectedBtn" onclick="bulkAction('reject')">Reject Selected</button>
+          <button class="btn btn-ghost" id="clearSelectionBtn" onclick="clearSelection()">Clear Selection</button>
+        </div>
         
-      </div>
-    </section>
+        <hr style="margin:15px 0;border:none;border-top:1px solid rgba(0,0,0,0.06)">
+        
+        <h3 style="margin:0 0 12px 0">Admin Management</h3>
+        <button class="btn btn-primary" onclick="openCreateAdminModal()" style="width:100%">+ Create Admin Account</button>
+        <p class="muted" style="font-size:12px;margin-top:8px" id="createAdminHint">You can create other admins with the same role.</p>
+      </aside>
+    </div>
 
-    <aside class="card">
-      <h3 style="margin:0 0 12px 0">Quick Actions</h3>
-      <div id="quickActions" style="display:flex;flex-direction:column;gap:10px">
-        <button class="btn btn-ghost" id="toggleSelectBtn" onclick="toggleSelectMode()">Toggle Select</button>
-        <button class="btn btn-ghost" id="selectAllBtn" onclick="selectAllVisible()">Select All Visible</button>
-        <button class="btn btn-primary" id="approveSelectedBtn" onclick="bulkAction('approve')">Approve Selected</button>
-        <button class="btn btn-ghost" id="rejectSelectedBtn" onclick="bulkAction('reject')">Reject Selected</button>
-        <button class="btn btn-danger" id="deleteSelectedBtn" onclick="bulkAction('delete')">Delete Selected</button>
-        <button class="btn btn-ghost" id="clearSelectionBtn" onclick="clearSelection()">Clear Selection</button>
-        <button class="btn btn-ghost" id="createAdminTokenBtn" onclick="createAdminToken()">Generate Admin Token</button>
-        <div id="adminTokenResult" style="margin-top:6px; word-break:break-all; font-size:13px; color:var(--muted)"></div>
+    <!-- SUCCESS STORIES SECTION -->
+    <div style="margin-top:30px;padding-top:30px;border-top:1px solid rgba(0,0,0,0.1)">
+      <h2 style="margin:0 0 20px 0">Success Stories Approval</h2>
+      <div class="admin-hero">
+        <div class="stat">
+          <div class="muted">Pending Review</div>
+          <h3 id="stat-stories-pending">0</h3>
+        </div>
       </div>
-    </aside>
+
+      <div class="grid-2">
+        <div class="card">
+          <div style="margin-bottom:12px;display:flex;gap:8px">
+            <button class="btn btn-ghost" onclick="switchStoriesView('pending')">Pending Review</button>
+          </div>
+          <div class="admin-table-wrap">
+            <table>
+              <thead>
+                <tr><th style="width:80px">Image</th><th>Business</th><th>Investor</th><th>Location</th><th>Type</th><th>Status</th><th></th></tr>
+              </thead>
+              <tbody id="storiesTable">
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside class="card">
+          <h3 style="margin:0 0 12px 0">Actions</h3>
+          <div id="storiesQuickActions" style="display:flex;flex-direction:column;gap:10px">
+            <button class="btn btn-ghost" id="toggleStoriesSelectBtn" onclick="toggleStoriesSelectMode()">Toggle Select</button>
+            <button class="btn btn-primary" id="approveStoriesSelectedBtn" onclick="bulkApproveStories()">Approve Selected</button>
+            <button class="btn btn-ghost" id="rejectStoriesSelectedBtn" onclick="bulkRejectStories()">Reject Selected</button>
+            <button class="btn btn-ghost" id="clearStoriesSelectionBtn" onclick="clearStoriesSelection()">Clear Selection</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <!-- VERIFICATION ADMIN SECTION -->
+  <div id="verification-admin-section" class="role-section">
+    <div class="admin-hero">
+      <div class="stat">
+        <div class="muted">Pending Verifications</div>
+        <h3 id="stat-verify-pending">0</h3>
+      </div>
+      <div class="stat">
+        <div class="muted">Verified Users</div>
+        <h3 id="stat-verified">0</h3>
+      </div>
+      <div class="stat">
+        <div class="muted">Rejected</div>
+        <h3 id="stat-verify-rejected">0</h3>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 12px 0">User Verification Queue</h2>
+      <div id="verificationsList" style="margin-top:12px">
+        <p class="muted">Loading verification requests...</p>
+      </div>
+    </div>
+    
+    <div class="card" style="margin-top:18px">
+      <h2 style="margin:0 0 12px 0">Admin Management</h2>
+      <button class="btn btn-primary" onclick="openCreateAdminModal()" style="width:100%;margin-bottom:10px">+ Create Admin Account</button>
+      <p class="muted" style="font-size:12px" id="createAdminHint">You can create other admins with the same role.</p>
+    </div>
+  </div>
+
+  <!-- HEAD ADMIN SECTION -->
+  <div id="head-admin-section" class="role-section">
+    <div class="tabs" style="border-bottom:1px solid rgba(0,0,0,0.06);padding-bottom:10px">
+      <button class="tab-btn active" onclick="switchHeadAdminTab('listings')">Listings</button>
+      <button class="tab-btn" onclick="switchHeadAdminTab('success-stories')">Success Stories</button>
+      <button class="tab-btn" onclick="switchHeadAdminTab('admin-management')">Manage Admins</button>
+      <button class="tab-btn" onclick="switchHeadAdminTab('reports')">Reports & Logs</button>
+      <button class="tab-btn" onclick="switchHeadAdminTab('settings')">System Settings</button>
+    </div>
+
+    <!-- Listings Tab -->
+    <div id="listings-tab" class="role-section active">
+      <div class="admin-hero">
+        <div class="stat">
+          <div class="muted">Pending Final Approval</div>
+          <h3 id="stat-head-pending">0</h3>
+        </div>
+        <div class="stat">
+          <div class="muted">Published</div>
+          <h3 id="stat-head-published">0</h3>
+        </div>
+        <div class="stat">
+          <div class="muted">Rejected</div>
+          <h3 id="stat-head-rejected">0</h3>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin:0 0 12px 0">Listings Awaiting Final Approval</h2>
+        <div style="margin-bottom:12px;display:flex;gap:8px">
+          <button class="btn btn-ghost" onclick="switchView('pending')">Pending</button>
+          <button class="btn btn-ghost" onclick="switchView('approved')">Published</button>
+          <button class="btn btn-ghost" onclick="switchView('rejected')">Rejected</button>
+        </div>
+        <div class="admin-table-wrap">
+          <table>
+            <thead>
+              <tr><th style="width:80px">Photo</th><th>Title</th><th>Owner</th><th>Admin Approved By</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody id="appsTable">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Success Stories Tab -->
+    <div id="success-stories-tab" class="role-section">
+      <div class="admin-hero">
+        <div class="stat">
+          <div class="muted">Awaiting Final Approval</div>
+          <h3 id="stat-stories-head-pending">0</h3>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin:0 0 12px 0">Success Stories Awaiting Final Approval</h2>
+        <div class="admin-table-wrap">
+          <table>
+            <thead>
+              <tr><th style="width:80px">Image</th><th>Business</th><th>Investor</th><th>Listing Admin Approved</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody id="headStoriesTable">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin Management Tab -->
+    <div id="admin-management-tab" class="role-section">
+      <div class="card">
+        <h2 style="margin:0 0 12px 0">Admin Accounts</h2>
+        <button class="btn btn-primary" onclick="openCreateAdminModal()" style="margin-bottom:15px">+ Create Admin Account</button>
+        <p class="muted" style="font-size:12px;margin-bottom:15px" id="createAdminHint">You can create other admins with the same role as yours.</p>
+        <div id="adminsList"></div>
+      </div>
+    </div>
+
+    <!-- Reports Tab -->
+    <div id="reports-tab" class="role-section">
+      <div class="card">
+        <h2 style="margin:0 0 12px 0">System Reports & Audit Logs</h2>
+        <div id="reportsList">
+          <p class="muted">Reports coming soon...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div id="settings-tab" class="role-section">
+      <div class="card">
+        <h2 style="margin:0 0 12px 0">System Settings</h2>
+        <p class="muted">Settings coming soon...</p>
+      </div>
+    </div>
   </div>
 </main>
 
@@ -110,17 +294,87 @@
 <div id="adminModal" class="admin-modal" role="dialog" aria-hidden="true">
   <div class="admin-modal-panel" role="document">
     <button style="float:right" class="btn btn-ghost" onclick="closeAppModal()">Close</button>
-    <h2 id="modalTitle">Application details</h2>
+    <h2 id="modalTitle">Listing Details</h2>
     <div id="modalBody" style="margin-top:10px"></div>
     <div id="modalActions" style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
-      <!-- buttons populated dynamically by admin.js depending on view/status -->
     </div>
+  </div>
+</div>
+
+<!-- Success Story Modal -->
+<div id="storyModal" class="admin-modal" role="dialog" aria-hidden="true">
+  <div class="admin-modal-panel" role="document">
+    <button style="float:right" class="btn btn-ghost" onclick="closeStoryModal()">Close</button>
+    <h2 id="storyModalTitle">Success Story Details</h2>
+    <div id="storyModalBody" style="margin-top:10px"></div>
+    <div id="storyModalActions" style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+    </div>
+  </div>
+</div>
+
+<!-- Create Admin Modal -->
+<div id="createAdminModal" class="admin-modal" role="dialog" aria-hidden="true">
+  <div class="admin-modal-panel" role="document">
+    <button style="float:right" class="btn btn-ghost" onclick="closeCreateAdminModal()">Close</button>
+    <h2>Create Admin Account</h2>
+    <form onsubmit="submitCreateAdmin(event)" style="margin-top:15px">
+      <div style="margin-bottom:12px">
+        <label style="display:block;margin-bottom:6px;font-weight:600">Username *</label>
+        <input type="text" id="adminUsername" required style="width:100%;padding:8px;border:1px solid rgba(0,0,0,0.1);border-radius:6px">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;margin-bottom:6px;font-weight:600">Email *</label>
+        <input type="email" id="adminEmail" required style="width:100%;padding:8px;border:1px solid rgba(0,0,0,0.1);border-radius:6px">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;margin-bottom:6px;font-weight:600">Password *</label>
+        <input type="password" id="adminPassword" required style="width:100%;padding:8px;border:1px solid rgba(0,0,0,0.1);border-radius:6px">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;margin-bottom:6px;font-weight:600">Admin Role *</label>
+        <select id="adminRole" required style="width:100%;padding:8px;border:1px solid rgba(0,0,0,0.1);border-radius:6px">
+          <option value="">Select role</option>
+          <option value="listing_admin">Listing Admin</option>
+          <option value="verification_admin">Verification Admin</option>
+          <option value="system_admin">System Admin</option>
+          <option value="head_admin">Head Admin</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" class="btn btn-ghost" onclick="closeCreateAdminModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create Admin</button>
+      </div>
+    </form>
   </div>
 </div>
 
 <!-- Image preview modal -->
 <div id="imagePreviewModal" role="dialog" aria-hidden="true">
   <img id="imagePreview" src="" alt="Image preview">
+</div>
+
+<!-- Verification Reason Modal -->
+<div id="verificationReasonModal" class="modal" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; width: 100%; height: 100%; flex-direction: column; align-items: center; justify-content: center; z-index: 10000;">
+  <div class="modal-content" style="background: white; padding: 30px; border-radius: 8px; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <h2 style="margin-bottom: 20px;">Reject Verification</h2>
+    
+    <div style="margin-bottom: 15px;">
+      <label for="verificationReason" style="display: block; margin-bottom: 8px; font-weight: 500;">Rejection Reason:</label>
+      <select id="verificationReason" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        <option value="">Select a reason...</option>
+      </select>
+    </div>
+    
+    <div id="customReasonDiv" style="display: none; margin-bottom: 15px;">
+      <label for="customReason" style="display: block; margin-bottom: 8px; font-weight: 500;">Custom Reason:</label>
+      <textarea id="customReason" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; min-height: 80px; font-family: inherit; resize: vertical;"></textarea>
+    </div>
+    
+    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+      <button class="btn btn-secondary" onclick="closeVerificationModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitVerificationDecision('reject', null)">Confirm Rejection</button>
+    </div>
+  </div>
 </div>
 
 <script src="../js/global.js"></script>

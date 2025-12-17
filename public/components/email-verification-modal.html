@@ -1,0 +1,194 @@
+<!-- Email Verification Modal -->
+<div id="emailVerificationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center;">
+  <div style="background: white; border-radius: 12px; padding: 40px; max-width: 400px; width: 90%; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);">
+    <div style="text-align: center; margin-bottom: 30px;">
+      <h2 style="margin: 0 0 10px 0; color: #333;">Verify Your Email</h2>
+      <p style="margin: 0; color: #666; font-size: 14px;">Enter the verification code sent to your email</p>
+    </div>
+
+    <form id="emailVerificationForm" style="display: flex; flex-direction: column; gap: 15px;">
+      <div>
+        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333; font-size: 14px;">Verification Code</label>
+        <input 
+          type="text" 
+          id="verificationCodeInput" 
+          placeholder="Enter 6-digit code" 
+          maxlength="6"
+          pattern="[0-9]{6}"
+          style="
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            letter-spacing: 8px;
+          "
+          required
+        />
+      </div>
+
+      <div id="verificationError" style="display: none; background: #fee; border: 1px solid #fcc; color: #c33; padding: 12px; border-radius: 6px; font-size: 14px;"></div>
+
+      <button 
+        type="submit" 
+        id="verifyBtn" 
+        style="
+          padding: 12px;
+          background: #667eea;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-weight: 600;
+          cursor: pointer;
+          font-size: 16px;
+        "
+      >Verify Email</button>
+
+      <button 
+        type="button" 
+        id="resendCodeBtn"
+        onclick="resendVerificationCode()"
+        style="
+          padding: 12px;
+          background: transparent;
+          color: #667eea;
+          border: 1px solid #667eea;
+          border-radius: 6px;
+          font-weight: 600;
+          cursor: pointer;
+          font-size: 14px;
+        "
+      >Didn't receive code? Resend</button>
+
+      <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #999;">
+        <p style="margin: 0;">⏰ Code expires in <span id="timerDisplay">30:00</span></p>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// Email verification timer
+let verificationTimer = null;
+let timeRemaining = 30 * 60; // 30 minutes in seconds
+let currentUserEmail = null;
+
+function startVerificationTimer() {
+  timeRemaining = 30 * 60;
+  
+  if (verificationTimer) clearInterval(verificationTimer);
+  
+  verificationTimer = setInterval(() => {
+    timeRemaining--;
+    
+    const minutes = Math.floor(timeRemaining / 60);
+    const seconds = timeRemaining % 60;
+    document.getElementById('timerDisplay').textContent = 
+      `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    
+    if (timeRemaining <= 0) {
+      clearInterval(verificationTimer);
+      document.getElementById('verifyBtn').disabled = true;
+      document.getElementById('verificationCodeInput').disabled = true;
+      document.getElementById('verificationError').style.display = 'block';
+      document.getElementById('verificationError').textContent = 'Verification code has expired. Please request a new one.';
+    }
+  }, 1000);
+}
+
+// Show verification modal
+function showEmailVerificationModal(email) {
+  currentUserEmail = email;
+  document.getElementById('emailVerificationModal').style.display = 'flex';
+  document.getElementById('verificationCodeInput').focus();
+  startVerificationTimer();
+}
+
+// Hide verification modal
+function hideEmailVerificationModal() {
+  document.getElementById('emailVerificationModal').style.display = 'none';
+  if (verificationTimer) clearInterval(verificationTimer);
+}
+
+// Handle form submission
+document.getElementById('emailVerificationForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const verificationCode = document.getElementById('verificationCodeInput').value.trim();
+  const errorEl = document.getElementById('verificationError');
+  const verifyBtn = document.getElementById('verifyBtn');
+  
+  if (verificationCode.length !== 6 || !/^\d+$/.test(verificationCode)) {
+    errorEl.style.display = 'block';
+    errorEl.textContent = 'Please enter a valid 6-digit code';
+    return;
+  }
+  
+  try {
+    verifyBtn.disabled = true;
+    verifyBtn.textContent = '⏳ Verifying...';
+    errorEl.style.display = 'none';
+    
+    const response = await fetch('/api/verify-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: currentUserEmail, verificationCode })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Verification failed');
+    }
+    
+    // Success!
+    alert('✅ Email verified successfully!');
+    hideEmailVerificationModal();
+    
+    // Redirect or update UI
+    if (typeof window.checkUserLoginStatus === 'function') {
+      window.checkUserLoginStatus();
+    }
+    
+  } catch (err) {
+    errorEl.style.display = 'block';
+    errorEl.textContent = err.message || 'Verification failed. Please try again.';
+    verifyBtn.disabled = false;
+    verifyBtn.textContent = 'Verify Email';
+  }
+});
+
+// Resend verification code
+async function resendVerificationCode() {
+  if (!currentUserEmail) {
+    alert('Email not set');
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: currentUserEmail })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to resend code');
+    }
+    
+    alert('✅ New verification code sent to your email!');
+    document.getElementById('verificationCodeInput').value = '';
+    document.getElementById('verificationError').style.display = 'none';
+    document.getElementById('verifyBtn').disabled = false;
+    document.getElementById('verificationCodeInput').disabled = false;
+    startVerificationTimer();
+    
+  } catch (err) {
+    alert('❌ ' + (err.message || 'Failed to resend code'));
+  }
+}
+</script>

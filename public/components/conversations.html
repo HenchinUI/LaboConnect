@@ -31,7 +31,12 @@
         ]);
         const ownerData = await ownerRes.json();
         const senderData = await senderRes.json();
-        const items = (ownerData.inquiries || []).concat(senderData.inquiries || []);
+        
+        // Mark inquiries that came from owner query (user is the listing owner)
+        const ownerInquiries = (ownerData.inquiries || []).map(i => ({...i, isOwner: true}));
+        const senderInquiries = (senderData.inquiries || []).map(i => ({...i, isOwner: false}));
+        
+        const items = ownerInquiries.concat(senderInquiries);
         const map = new Map();
         items.forEach(i => { if (i && i.id) map.set(i.id, i); });
         const threads = Array.from(map.values()).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
@@ -67,6 +72,16 @@
 
           right.appendChild(openBtn);
           right.appendChild(viewBtn);
+          
+          // Add "Mark as Sold" button for listing owner (business user)
+          if (t.isOwner && user.user_type === 'business') {
+            const markSoldBtn = document.createElement('button');
+            markSoldBtn.className = 'btn btn-success';
+            markSoldBtn.textContent = 'Mark as Sold';
+            markSoldBtn.style.backgroundColor = '#10b981';
+            markSoldBtn.onclick = () => { markListingAsSold(t.listing_id, t.sender_user_id, t.id, t); };
+            right.appendChild(markSoldBtn);
+          }
 
           card.appendChild(left);
           card.appendChild(right);
@@ -81,6 +96,47 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => setTimeout(loadConversations, 200));
+
+    // Mark listing as sold
+    async function markListingAsSold(listingId, buyerId, inquiryId, inquiryData) {
+      // First get the listing price
+      try {
+        const listingRes = await fetch(`/api/listings/${listingId}`);
+        const listing = await listingRes.json();
+        
+        const salePrice = listing.price || 0;
+        
+        // Show confirmation dialog with price
+        const confirmed = confirm(`Mark this listing as sold to ${inquiryData.first_name} ${inquiryData.last_name}?\n\nListing: ${listing.title}\nSale Price: $${salePrice}\n\nThis will mark this listing as sold and close all other inquiries.`);
+        
+        if (!confirmed) return;
+        
+        // Call API to mark as sold
+        const response = await fetch(`/api/listings/${listingId}/mark-sold`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            buyerId,
+            inquiryId,
+            salePrice
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          alert('Error: ' + (result.error || 'Failed to mark listing as sold'));
+          return;
+        }
+        
+        alert('✅ Listing marked as sold! The buyer has been notified.');
+        loadConversations(); // Refresh the list
+        
+      } catch (err) {
+        console.error('Error marking listing as sold:', err);
+        alert('Error marking listing as sold');
+      }
+    }
   </script>
 </body>
 </html>

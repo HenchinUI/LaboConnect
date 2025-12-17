@@ -78,10 +78,10 @@
                   <div style="font-weight:800;margin-bottom:12px">Owner Details</div>
                   <div style="color:var(--text);font-weight:600">${item.owner_first_name || ''} ${item.owner_last_name || ''}</div>
                   <hr style="margin:12px 0;border:none;border-top:1px solid rgba(15,23,42,0.1)">
-                  <div class="small muted" style="margin-bottom:8px"><strong>Status:</strong> ${item.status || (item.approved ? 'Approved' : 'Pending')}</div>
+                  <div class="small muted" style="margin-bottom:8px"><strong>Status:</strong> ${item.listing_status === 'sold' ? '<span style="color: #ef4444; font-weight: 600;">SOLD</span>' : (item.status || (item.approved ? 'Approved' : 'Pending'))}</div>
                   <div class="small muted" style="margin-bottom:12px"><strong>Listed:</strong> ${item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'}</div>
                   <div style="display:flex;flex-direction:column;gap:8px">
-                    <button class="btn btn-primary" onclick="openInquiry(${item.id}, '${(item.title||'Listing').replace(/'/g, "\\'")}')">Contact Owner</button>
+                    ${item.listing_status === 'sold' ? '<button class="btn btn-primary" disabled style="opacity: 0.5; cursor: not-allowed;">Sold - Not Available</button>' : `<button class="btn btn-primary" onclick="openInquiry(${item.id}, '${(item.title||'Listing').replace(/'/g, "\\'")}')">Contact Owner</button>`}
                     ${item.owner_id ? `<button class="btn btn-ghost" onclick="window.location.href='/components/public-profile.html?id=${item.owner_id}'">View Profile</button>` : ''}
                     <button class="btn btn-ghost" onclick="window.location.href='/components/map.html?listing=${item.id}'">View on Map</button>
                     ${item.image_url ? `<a class="btn btn-ghost" href="${item.image_url}" target="_blank" style="text-align:center">View Full Image</a>` : ''}
@@ -92,38 +92,57 @@
           </div>
         `;
 
-            // Build documents list: if file is an image, show image preview; otherwise show download link
+            // Build documents list: show checkmark for public users, images for admins
             const docs = [
               { url: item.oct_tct_url, label: 'OCT / TCT' },
-              { url: item.tax_declaration_url, label: 'Tax Declaration' },
-              { url: item.doas_url, label: 'Deed of Absolute Sale' },
-              { url: item.government_id_url, label: 'Government ID (seller)' }
+              { url: item.tax_declaration_url, label: 'Tax Declaration' }
             ];
             const listEl = document.getElementById('documentsList');
             listEl.innerHTML = '';
-            const isImage = (u) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(u);
-            docs.forEach(d => {
-              if (!d.url) return;
-              const filename = d.url.split('/').pop();
-              const li = document.createElement('li');
-              if (isImage(filename)) {
-                const img = document.createElement('img');
-                img.src = d.url;
-                img.style.maxWidth = '360px';
-                img.style.borderRadius = '8px';
-                img.style.display = 'block';
-                img.style.marginTop = '8px';
-                li.appendChild(document.createTextNode(d.label + ': '));
-                li.appendChild(img);
-              } else {
-                const a = document.createElement('a');
-                a.href = d.url.replace('/uploads/','/download/');
-                a.target = '_blank';
-                a.download = filename;
-                a.textContent = d.label + ' — Download';
-                li.appendChild(a);
+            
+            // Check if user is admin to decide whether to show images
+            const isAdmin = async () => {
+              try {
+                const res = await fetch('/api/session', { credentials: 'same-origin' });
+                const data = await res.json();
+                return data.authenticated && data.user && data.user.role === 'admin';
+              } catch {
+                return false;
               }
-              listEl.appendChild(li);
+            };
+            
+            isAdmin().then(admin => {
+              const isImage = (u) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(u);
+              docs.forEach(d => {
+                if (!d.url) return;
+                const filename = d.url.split('/').pop();
+                const li = document.createElement('li');
+                
+                if (admin) {
+                  // Admin: show image preview
+                  if (isImage(filename)) {
+                    const img = document.createElement('img');
+                    img.src = d.url;
+                    img.style.maxWidth = '360px';
+                    img.style.borderRadius = '8px';
+                    img.style.display = 'block';
+                    img.style.marginTop = '8px';
+                    li.appendChild(document.createTextNode(d.label + ': '));
+                    li.appendChild(img);
+                  } else {
+                    const a = document.createElement('a');
+                    a.href = d.url.replace('/uploads/','/download/');
+                    a.target = '_blank';
+                    a.download = filename;
+                    a.textContent = d.label + ' — Download';
+                    li.appendChild(a);
+                  }
+                } else {
+                  // Public user: show checkmark
+                  li.innerHTML = `<span style="font-size: 20px; margin-right: 8px;">✓</span>${d.label}`;
+                }
+                listEl.appendChild(li);
+              });
             });
 
       } catch (err) {

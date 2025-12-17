@@ -14,6 +14,41 @@ function formatPropertyType(type) {
 
 // Open inquiry modal for a specific listing
 function openInquiry(listingId, title) {
+  // Check if user is logged in and is an investor (not business)
+  try {
+    const user = JSON.parse(localStorage.getItem('laboCurrentUser'));
+    if (!user || !user.id) {
+      alert('Please log in to send an inquiry');
+      return;
+    }
+    if (user.user_type === 'business') {
+      alert('Business users cannot send inquiries. Only investors can inquire about listings.');
+      return;
+    }
+  } catch (e) {
+    alert('Please log in to send an inquiry');
+    return;
+  }
+
+  // Check if listing is sold (fetch listing details to check status)
+  fetch(`/api/listing/${encodeURIComponent(listingId)}`)
+    .then(res => res.json())
+    .then(listing => {
+      if (listing.listing_status === 'sold') {
+        alert('This listing has already been sold and is no longer available for inquiries.');
+        return;
+      }
+      openInquiryModal(listingId, title);
+    })
+    .catch(err => {
+      console.error('Error checking listing status:', err);
+      openInquiryModal(listingId, title);
+    });
+}
+
+// Helper function to open the inquiry modal (extracted from original openInquiry)
+function openInquiryModal(listingId, title) {
+
   // create modal container
   const existing = document.getElementById('inquiryModal');
   if (existing) existing.remove();
@@ -452,11 +487,13 @@ async function fetchApprovedListings(limit) {
       const card = document.createElement('article');
       card.className = 'card listing-card';
       card.setAttribute('data-listing-id', item.id);
+      card.style.position = 'relative';
 
       const img = item.image_url ? `style="background-image:url('${item.image_url}')"` : '';
 
       card.innerHTML = `
         <div class="property-photo" aria-hidden="true" ${img}></div>
+        ${item.listing_status === 'sold' ? '<div style="position: absolute; top: 12px; right: 12px; background: #ef4444; color: white; padding: 6px 14px; border-radius: 8px; font-weight: 700; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">SOLD</div>' : ''}
         <div class="tags"><span class="tag">${formatPropertyType(item.type)}</span></div>
         <div class="title">${item.title || 'Untitled'}</div>
         <div class="muted description">${item.description || ''}</div>
@@ -470,7 +507,7 @@ async function fetchApprovedListings(limit) {
           </a>
         </div>
         <div class="listing-actions">
-          <button class="btn btn-primary" onclick="openInquiry(${item.id}, '${(item.title||'Listing').replace(/'/g, "\\'")}')">Send Inquiry</button>
+          ${item.listing_status === 'sold' ? '<button class="btn btn-primary" disabled style="opacity: 0.5; cursor: not-allowed;">Sold - Not Available</button>' : `<button class="btn btn-primary" onclick="openInquiry(${item.id}, '${(item.title||'Listing').replace(/'/g, "\\'")}')">Send Inquiry</button>`}
           <button class="btn btn-ghost" onclick="viewDetailsById(${item.id})">View Details</button>
         </div>
       `;
