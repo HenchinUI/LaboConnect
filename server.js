@@ -3251,13 +3251,15 @@ app.post('/api/admin/listings/:listingId/approve', requireRole('listing_admin'),
     
     // Verify listing exists
     const { rows } = await db.query(
-      'SELECT id FROM listings WHERE id = $1',
+      'SELECT id, owner_id, title FROM listings WHERE id = $1',
       [listingId]
     );
     
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Listing not found' });
     }
+    
+    const listing = rows[0];
     
     // Check if approval workflow exists
     const { rows: workflowCheck } = await db.query(
@@ -3284,6 +3286,11 @@ app.post('/api/admin/listings/:listingId/approve', requireRole('listing_admin'),
       return res.status(500).json({ error: 'Failed to approve listing' });
     }
     
+    // Create notification for listing owner
+    if (listing.owner_id) {
+      await createListingStatusNotification(listing.owner_id, listingId, listing.title, 'listing_admin_approved');
+    }
+    
     console.log(`[LISTING APPROVAL] Successfully approved listing ${listingId}`, workflow);
     res.json({ message: 'Listing approved by admin', workflow });
   } catch (err) {
@@ -3301,15 +3308,17 @@ app.post('/api/admin/listings/:listingId/publish', requireRole('head_admin'), as
     
     console.log(`[LISTING PUBLISH] Publishing listing ${listingId} by admin ${adminId}`);
     
-    // Verify listing exists and is in correct state
+    // Verify listing exists and get owner info
     const { rows: listingRows } = await db.query(
-      'SELECT id FROM listings WHERE id = $1',
+      'SELECT id, owner_id, title FROM listings WHERE id = $1',
       [listingId]
     );
     
     if (listingRows.length === 0) {
       return res.status(404).json({ error: 'Listing not found' });
     }
+    
+    const listing = listingRows[0];
     
     const { rows: approvalRows } = await db.query(
       'SELECT listing_status FROM listing_approvals WHERE listing_id = $1',
@@ -3331,6 +3340,11 @@ app.post('/api/admin/listings/:listingId/publish', requireRole('head_admin'), as
     
     if (!workflow) {
       return res.status(500).json({ error: 'Failed to publish listing' });
+    }
+    
+    // Create notification for listing owner
+    if (listing.owner_id) {
+      await createListingStatusNotification(listing.owner_id, listingId, listing.title, 'published');
     }
     
     console.log(`[LISTING PUBLISH] Successfully published listing ${listingId}`);
