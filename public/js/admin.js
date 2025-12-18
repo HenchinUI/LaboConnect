@@ -51,11 +51,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Update dashboard title based on admin role
+  // NOTE: This will call switchView internally after role is determined
   updateDashboardForRole();
-
-  // Load listings and stats (start with pending)
-  switchView('pending');
-  loadAdminStats();
 
   // Handle reason select change for verification modal
   const reasonSelect = document.getElementById('verificationReason');

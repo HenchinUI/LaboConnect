@@ -155,6 +155,18 @@ async function loadNotifications() {
   }
 }
 
+// Convert notification status codes to user-friendly messages
+function getStatusMessage(status) {
+  const statusMap = {
+    'listing_admin_approved': 'Pre-approved by Listing Admin',
+    'published': 'Published & Live',
+    'approved': 'Approved',
+    'rejected': 'Rejected',
+    'pending': 'Pending Review'
+  };
+  return statusMap[status] || status.charAt(0).toUpperCase() + status.slice(1);
+}
+
 // Display notifications
 function displayNotifications(notifications) {
   const container = document.getElementById('notificationsContainer');
@@ -173,6 +185,7 @@ function displayNotifications(notifications) {
     const statusColor = isRejected ? '#991b1b' : '#166534';
     const bgColor = isRejected ? '#fef2f2' : '#f0fdf4';
     const borderColor = isRejected ? '#dc2626' : '#22c55e';
+    const statusMessage = getStatusMessage(notif.status);
 
     return `
       <div style="
@@ -188,7 +201,7 @@ function displayNotifications(notifications) {
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
             <span style="font-size: 18px;">${icon}</span>
             <span style="font-weight: 600; color: ${statusColor};">
-              Listing ${notif.status.charAt(0).toUpperCase() + notif.status.slice(1)}
+              ${statusMessage}
             </span>
           </div>
           <p style="margin: 0 0 8px 0; color: var(--text); font-size: 14px;">
