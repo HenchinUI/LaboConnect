@@ -369,9 +369,14 @@
           const editBtn = document.getElementById('editDataBtn');
           const editPopBtn = document.getElementById('editPopChartBtn');
           const editBizBtn = document.getElementById('editBizChartBtn');
+          const grossIncomeCard = document.getElementById('stat-gross-income');
           if (editBtn && isAdminUser) editBtn.style.display = '';
           if (editPopBtn && isAdminUser) editPopBtn.style.display = '';
           if (editBizBtn && isAdminUser) editBizBtn.style.display = '';
+          // Hide Gross Income stat from non-admin users
+          if (grossIncomeCard && !isAdminUser) {
+            grossIncomeCard.style.display = 'none';
+          }
         }
       } catch (err) {
         console.error('Error checking admin status:', err);

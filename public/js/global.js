@@ -321,11 +321,11 @@ function setUserRole(role, user) {
       }
   }
 
-  // Show DATA tab only for admins
+  // Show DATA tab for admins, business, and investors
   try {
       const dataTab = document.querySelector('#header-import .nav-data');
       if (dataTab) {
-          if (role === 'admin') {
+          if (role === 'admin' || role === 'business' || role === 'investor') {
               dataTab.style.display = '';
           } else {
               dataTab.style.display = 'none';

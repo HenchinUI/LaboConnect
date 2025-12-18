@@ -163,6 +163,14 @@
         // Mark which inquiries the user owns (listing owner_id matches user.id)
         items.forEach(i => { 
           i.isOwner = (i.owner_id === user.id);
+          // Determine which name to show: if user is owner, show sender name; if sender, show owner username
+          if (i.isOwner) {
+            // User is the business/listing owner, show the investor's name who sent inquiry
+            i.display_name = i.full_name || i.sender_username || 'Unknown';
+          } else {
+            // User is the investor who sent inquiry, show the business owner's username
+            i.display_name = i.owner_username || 'Unknown';
+          }
         });
         
         items = items.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
@@ -177,7 +185,7 @@
 
           const left = document.createElement('div');
           const unreadDot = i.is_read ? '' : '<span style="display:inline-block;width:8px;height:8px;background:#ff6b6b;border-radius:50%;margin-right:6px;vertical-align:middle"></span>';
-          left.innerHTML = `<div style="font-weight:800">${unreadDot}${i.first_name} ${i.last_name} <span class="small muted">(${i.created_at ? new Date(i.created_at).toLocaleString() : ''})</span></div>
+          left.innerHTML = `<div style="font-weight:800">${unreadDot}${i.display_name} <span class="small muted">(${i.created_at ? new Date(i.created_at).toLocaleString() : ''})</span></div>
             <div class="small muted">Contact: ${i.contact_number || i.contact || ''} — ${i.email}</div>
             <div style="margin-top:6px">${i.message || i.note || ''}</div>`;
 
@@ -195,11 +203,11 @@
           chatBtn.className = 'btn btn-primary';
           chatBtn.textContent = 'Open Chat';
           chatBtn.onclick = () => {
-            if (window.openChat) return openChat(i.id, i.first_name + ' ' + i.last_name);
+            if (window.openChat) return openChat(i.id, i.display_name);
             // dynamic load of home.js then call openChat
             const s = document.createElement('script');
             s.src = '/js/home.js';
-            s.onload = () => { if (window.openChat) openChat(i.id, i.first_name + ' ' + i.last_name); else alert('Chat not available'); };
+            s.onload = () => { if (window.openChat) openChat(i.id, i.display_name); else alert('Chat not available'); };
             s.onerror = () => alert('Failed to load chat support');
             document.head.appendChild(s);
           };
