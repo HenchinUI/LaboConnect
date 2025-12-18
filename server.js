@@ -1285,22 +1285,29 @@ app.get('/api/inquiries', async (req, res) => {
     const isAdmin = sessionUser.role === 'admin';
     const { listing_id } = req.query;
 
-    let base = 'SELECT * FROM inquiries';
+    let base = `SELECT 
+      i.*,
+      u.username as sender_username,
+      owner.username as owner_username
+    FROM inquiries i
+    LEFT JOIN users u ON i.sender_user_id = u.id
+    LEFT JOIN users owner ON i.owner_id = owner.id`;
+    
     const params = [];
     const clauses = [];
     let idx = 0;
 
-    if (listing_id) { idx++; params.push(listing_id); clauses.push(`listing_id = $${idx}`); }
+    if (listing_id) { idx++; params.push(listing_id); clauses.push(`i.listing_id = $${idx}`); }
 
     if (!isAdmin) {
       // restrict to owner OR sender
       idx++; params.push(sessionUser.id); const ownerIdx = idx;
       idx++; params.push(sessionUser.id); const senderIdx = idx;
-      clauses.push(`(owner_id = $${ownerIdx} OR sender_user_id = $${senderIdx})`);
+      clauses.push(`(i.owner_id = $${ownerIdx} OR i.sender_user_id = $${senderIdx})`);
     }
 
     if (clauses.length) base += ' WHERE ' + clauses.join(' AND ');
-    base += ' ORDER BY created_at DESC';
+    base += ' ORDER BY i.created_at DESC';
 
     const { rows } = await db.query(base, params);
     res.json({ inquiries: rows });
