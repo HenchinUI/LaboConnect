@@ -120,7 +120,7 @@ app.get('/admin-dashboard', (req, res) => {
 });
 
 // Listing Admin Dashboard
-app.get('/listing-admin', (req, res) => {
+app.get('/system-admin', (req, res) => {
   const sessionUser = req.session && req.session.user;
   if (!sessionUser || !sessionUser.admin_role) {
     return res.status(403).send('Forbidden');
@@ -879,6 +879,75 @@ app.delete('/api/my-listings/:listingId', async (req, res) => {
     res.json({ message: 'Listing deleted successfully' });
   } catch (e) {
     console.error('Error deleting listing:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT: Head Admin can edit any approved business listing
+app.put('/api/admin/listings/:listingId', requireRole('head_admin'), async (req, res) => {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { listingId } = req.params;
+  const { title, description, price, size_sqm, type } = req.body;
+
+  try {
+    // Verify listing exists
+    const { rows: listing } = await db.query(
+      'SELECT id, listing_status FROM listings WHERE id = $1',
+      [listingId]
+    );
+
+    if (!listing.length) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    // Verify listing is approved (head admin can edit approved listings)
+    if (listing[0].listing_status !== 'approved') {
+      return res.status(403).json({ error: 'Head admin can only edit approved listings' });
+    }
+
+    // Update listing
+    const updateFields = [];
+    const updateValues = [];
+    let paramCount = 1;
+
+    if (title !== undefined) {
+      updateFields.push(`title = $${paramCount++}`);
+      updateValues.push(title);
+    }
+    if (description !== undefined) {
+      updateFields.push(`description = $${paramCount++}`);
+      updateValues.push(description);
+    }
+    if (price !== undefined) {
+      updateFields.push(`price = $${paramCount++}`);
+      updateValues.push(price);
+    }
+    if (size_sqm !== undefined) {
+      updateFields.push(`size_sqm = $${paramCount++}`);
+      updateValues.push(size_sqm);
+    }
+    if (type !== undefined) {
+      updateFields.push(`type = $${paramCount++}`);
+      updateValues.push(type);
+    }
+
+    updateFields.push(`updated_at = $${paramCount++}`);
+    updateValues.push(new Date());
+    updateValues.push(listingId);
+
+    const sql = `UPDATE listings SET ${updateFields.join(', ')} WHERE id = $${paramCount} RETURNING *`;
+    const { rows } = await db.query(sql, updateValues);
+
+    // Log this action
+    await logAction(sessionUser.id, 'head_admin_edited_business_listing', 'listings', listingId, null, null, req);
+
+    res.json({ message: 'Listing updated by head admin', listing: rows[0] });
+  } catch (e) {
+    console.error('Error updating listing:', e);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -2214,8 +2283,8 @@ app.get("/admin/stats", async (req, res) => {
   try {
     // Query from listing_approvals table which is the actual workflow table
     const { rows: pending } = await db.query("SELECT COUNT(*) FROM listing_approvals WHERE listing_status = 'submitted'");
-    const { rows: approved } = await db.query("SELECT COUNT(*) FROM listing_approvals WHERE listing_status IN ('admin_approved', 'listing_admin_approved')");
-    const { rows: awaitingHead } = await db.query("SELECT COUNT(*) FROM listing_approvals WHERE listing_status IN ('admin_approved', 'listing_admin_approved')");
+    const { rows: approved } = await db.query("SELECT COUNT(*) FROM listing_approvals WHERE listing_status IN ('admin_approved', 'system_admin_approved')");
+    const { rows: awaitingHead } = await db.query("SELECT COUNT(*) FROM listing_approvals WHERE listing_status IN ('admin_approved', 'system_admin_approved')");
     const { rows: published } = await db.query("SELECT COUNT(*) FROM listing_approvals WHERE listing_status = 'published'");
     const { rows: rejected } = await db.query("SELECT COUNT(*) FROM listing_approvals WHERE listing_status = 'rejected'");
     const { rows: total } = await db.query("SELECT COUNT(*) FROM listing_approvals");
@@ -2977,6 +3046,62 @@ app.get('/api/admin/verifications/pending', requireRole('verification_admin'), a
   }
 });
 
+// GET: Verified users
+app.get('/api/admin/verifications/verified', requireRole('verification_admin'), async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        vr.id,
+        vr.user_id,
+        vr.status,
+        vr.phone_number,
+        vr.verified_at,
+        vr.rejection_reason,
+        u.username as user_name,
+        u.email as user_email
+      FROM public.verification_requests vr
+      LEFT JOIN public.users u ON vr.user_id = u.id
+      WHERE vr.status IN ('approved', 'verified')
+      ORDER BY vr.verified_at DESC
+      LIMIT 100
+    `;
+    
+    const result = await db.query(query);
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error('Error getting verified verifications:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Rejected verifications
+app.get('/api/admin/verifications/rejected', requireRole('verification_admin'), async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        vr.id,
+        vr.user_id,
+        vr.status,
+        vr.phone_number,
+        vr.rejection_reason,
+        vr.updated_at,
+        u.username as user_name,
+        u.email as user_email
+      FROM public.verification_requests vr
+      LEFT JOIN public.users u ON vr.user_id = u.id
+      WHERE vr.status = 'rejected'
+      ORDER BY vr.updated_at DESC
+      LIMIT 100
+    `;
+    
+    const result = await db.query(query);
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error('Error getting rejected verifications:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET: Verification stats for admin dashboard
 app.get('/api/admin/verifications/stats', requireRole('verification_admin'), async (req, res) => {
   try {
@@ -3155,6 +3280,89 @@ app.post('/api/admin/verifications/reject', requireRole('verification_admin'), a
   }
 });
 
+// PATCH: Approve verification by ID (Verification Admin)
+app.patch('/api/admin/verifications/:id/approve', requireRole('verification_admin'), async (req, res) => {
+  try {
+    const verificationId = req.params.id;
+    const { notes } = req.body;
+    const adminId = req.session.user.id;
+    
+    if (!verificationId) {
+      return res.status(400).json({ error: 'Verification ID is required' });
+    }
+    
+    const result = await approveVerification(verificationId, adminId);
+    
+    if (!result) {
+      return res.status(500).json({ error: 'Failed to approve verification' });
+    }
+    
+    await logAction(adminId, 'approved_verification', 'verification_requests', verificationId, null, notes || 'approved', req);
+    
+    res.json({ message: 'Verification approved', verificationId });
+  } catch (err) {
+    console.error('Error approving verification:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH: Reject verification by ID (Verification Admin)
+app.patch('/api/admin/verifications/:id/reject', requireRole('verification_admin'), async (req, res) => {
+  try {
+    const verificationId = req.params.id;
+    const { reason } = req.body;
+    const adminId = req.session.user.id;
+    
+    if (!verificationId) {
+      return res.status(400).json({ error: 'Verification ID is required' });
+    }
+    
+    const result = await rejectVerification(verificationId, adminId, reason);
+    
+    if (!result) {
+      return res.status(500).json({ error: 'Failed to reject verification' });
+    }
+    
+    await logAction(adminId, 'rejected_verification', 'verification_requests', verificationId, null, reason || 'rejected', req);
+    
+    res.json({ message: 'Verification rejected', verificationId });
+  } catch (err) {
+    console.error('Error rejecting verification:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE: Delete verification request (Verification Admin)
+app.delete('/api/admin/verifications/:id', requireRole('verification_admin'), async (req, res) => {
+  try {
+    const verificationId = req.params.id;
+    const adminId = req.session.user.id;
+    
+    if (!verificationId) {
+      return res.status(400).json({ error: 'Verification ID is required' });
+    }
+    
+    const query = `
+      DELETE FROM public.verification_requests
+      WHERE id = $1
+      RETURNING id
+    `;
+    
+    const result = await db.query(query, [verificationId]);
+    
+    if (!result || result.rows.length === 0) {
+      return res.status(404).json({ error: 'Verification request not found' });
+    }
+    
+    await logAction(adminId, 'deleted_verification', 'verification_requests', verificationId, null, 'deleted', req);
+    
+    res.json({ message: 'Verification request deleted', verificationId });
+  } catch (err) {
+    console.error('Error deleting verification:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // -------------------
 // Listing Approval Workflow API
 // -------------------
@@ -3213,8 +3421,8 @@ app.post('/api/listings/:listingId/submit-for-approval', requireAuth, async (req
   }
 });
 
-// GET: Listings pending admin approval (Listing Admin)
-app.get('/api/admin/listings/pending-approval', requireRole('listing_admin'), async (req, res) => {
+// GET: Listings pending admin approval (System Admin)
+app.get('/api/admin/listings/pending-approval', requireRole('system_admin'), async (req, res) => {
   try {
     const listings = await getListingsPendingAdminApproval();
     res.json(listings);
@@ -3240,8 +3448,8 @@ app.get('/api/admin/listings/pending-head-admin', requireRole('head_admin'), asy
   }
 });
 
-// POST: Approve listing (Listing Admin)
-app.post('/api/admin/listings/:listingId/approve', requireRole('listing_admin'), async (req, res) => {
+// POST: Approve listing (System Admin)
+app.post('/api/admin/listings/:listingId/approve', requireRole('system_admin'), async (req, res) => {
   try {
     const listingId = req.params.listingId;
     const adminId = req.session.user.id;
@@ -3288,7 +3496,7 @@ app.post('/api/admin/listings/:listingId/approve', requireRole('listing_admin'),
     
     // Create notification for listing owner
     if (listing.owner_id) {
-      await createListingStatusNotification(listing.owner_id, listingId, listing.title, 'listing_admin_approved');
+      await createListingStatusNotification(listing.owner_id, listingId, listing.title, 'system_admin_approved');
     }
     
     console.log(`[LISTING APPROVAL] Successfully approved listing ${listingId}`, workflow);
@@ -3356,7 +3564,7 @@ app.post('/api/admin/listings/:listingId/publish', requireRole('head_admin'), as
 });
 
 // POST: Reject listing
-app.post('/api/admin/listings/:listingId/reject', requireRole('listing_admin', 'head_admin'), async (req, res) => {
+app.post('/api/admin/listings/:listingId/reject', requireRole('system_admin', 'head_admin'), async (req, res) => {
   try {
     const listingId = req.params.listingId;
     const adminId = req.session.user.id;
@@ -3385,6 +3593,37 @@ app.post('/api/admin/listings/:listingId/reject', requireRole('listing_admin', '
     res.json({ message: 'Listing rejected', workflow });
   } catch (err) {
     console.error('Error rejecting listing:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Re-approve a rejected listing (for head admin)
+app.post('/api/admin/listings/:listingId/re-approve', requireRole('head_admin'), async (req, res) => {
+  try {
+    const listingId = req.params.listingId;
+    const adminId = req.session.user.id;
+    const { notes } = req.body;
+    
+    // Verify listing exists and is in rejected status
+    const { rows: listingRows } = await db.query(
+      'SELECT id FROM listings WHERE id = $1',
+      [listingId]
+    );
+    
+    if (listingRows.length === 0) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    
+    // Change status from rejected back to admin_approved
+    const workflow = await updateListingStatus(listingId, 'admin_approved', adminId, notes || '', req);
+    
+    if (!workflow) {
+      return res.status(500).json({ error: 'Failed to re-approve listing' });
+    }
+    
+    res.json({ message: 'Listing re-approved', workflow });
+  } catch (err) {
+    console.error('Error re-approving listing:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -3637,7 +3876,7 @@ app.get('/api/success-stories', async (req, res) => {
         u.email as investor_email
       FROM public.success_stories ss
       JOIN users u ON ss.investor_id = u.id
-      WHERE ss.status = 'approved'
+      WHERE ss.status = 'published'
       ORDER BY ss.created_at DESC`
     );
 
@@ -3732,9 +3971,9 @@ app.get('/api/admin/success-stories/pending', requireAuth, async (req, res) => {
   try {
     const userId = req.session.user.id;
 
-    // Check if user is listing admin or head admin
+    // Check if user is system admin or head admin
     const { rows: adminUser } = await db.query(
-      `SELECT role FROM users WHERE id = $1 AND (role IN ('listing_admin', 'head_admin') OR admin_role IN ('listing_admin', 'head_admin'))`,
+      `SELECT role FROM users WHERE id = $1 AND (role IN ('system_admin', 'head_admin') OR admin_role IN ('system_admin', 'head_admin'))`,
       [userId]
     );
 
@@ -3759,15 +3998,18 @@ app.get('/api/admin/success-stories/pending', requireAuth, async (req, res) => {
         ss.status,
         ss.category,
         ss.created_at,
-        ss.listing_admin_notes,
+        ss.system_admin_notes,
         ss.head_admin_notes,
+        ss.approved_by_system_admin_id,
         u.username as investor_name,
         u.email as investor_email,
-        l.title as listing_title
+        l.title as listing_title,
+        admin_user.username as system_admin_name
       FROM public.success_stories ss
       JOIN users u ON ss.investor_id = u.id
       JOIN listings l ON ss.listing_id = l.id
-      WHERE ss.status IN ('pending', 'listing_admin_approved', 'published', 'rejected')
+      LEFT JOIN users admin_user ON ss.approved_by_system_admin_id = admin_user.id
+      WHERE ss.status IN ('pending', 'system_admin_approved', 'published', 'rejected')
       ORDER BY ss.created_at DESC`
     );
 
@@ -3778,42 +4020,81 @@ app.get('/api/admin/success-stories/pending', requireAuth, async (req, res) => {
   }
 });
 
-// PATCH: Listing admin approve success story
-app.patch('/api/admin/success-stories/:storyId/listing-admin-approve', requireAuth, async (req, res) => {
+// PATCH: System admin approve success story
+app.patch('/api/admin/success-stories/:storyId/system-admin-approve', requireAuth, async (req, res) => {
   try {
     const userId = req.session.user.id;
     const storyId = req.params.storyId;
     const { notes } = req.body;
 
-    // Check if user is listing admin
+    // Check if user is system admin
     const { rows: adminUser } = await db.query(
-      `SELECT role FROM users WHERE id = $1 AND (role IN ('listing_admin', 'head_admin') OR admin_role IN ('listing_admin', 'head_admin'))`,
+      `SELECT role FROM users WHERE id = $1 AND (role IN ('system_admin', 'head_admin') OR admin_role IN ('system_admin', 'head_admin'))`,
       [userId]
     );
 
     if (!adminUser || adminUser.length === 0) {
-      return res.status(403).json({ error: 'Listing admin access required' });
+      return res.status(403).json({ error: 'System admin access required' });
     }
 
-    // Update story status
+    // Update story status - allow approving from pending or rejected status
     const { rows: updated } = await db.query(
       `UPDATE public.success_stories
-       SET status = 'listing_admin_approved',
-           listing_admin_notes = $1,
-           approved_by_listing_admin_id = $2,
+       SET status = 'system_admin_approved',
+           system_admin_notes = $1,
+           approved_by_system_admin_id = $2,
            updated_at = NOW()
-       WHERE id = $3 AND status = 'pending'
+       WHERE id = $3 AND status IN ('pending', 'rejected')
        RETURNING *`,
       [notes || '', userId, storyId]
     );
 
     if (!updated || updated.length === 0) {
-      return res.status(404).json({ error: 'Story not found or already processed' });
+      return res.status(404).json({ error: 'Story not found or cannot be approved from current status' });
     }
 
-    res.json({ message: 'Story approved by listing admin', story: updated[0] });
+    res.json({ message: 'Story approved by system admin', story: updated[0] });
   } catch (err) {
     console.error('Error approving success story:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH: System admin rejection
+app.patch('/api/admin/success-stories/:storyId/system-admin-reject', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const storyId = req.params.storyId;
+    const { notes } = req.body;
+
+    // Check if user is system admin
+    const { rows: adminUser } = await db.query(
+      `SELECT role FROM users WHERE id = $1 AND (role IN ('system_admin', 'head_admin') OR admin_role IN ('system_admin', 'head_admin'))`,
+      [userId]
+    );
+
+    if (!adminUser || adminUser.length === 0) {
+      return res.status(403).json({ error: 'System admin access required' });
+    }
+
+    // Update story status - allow rejecting from pending status
+    const { rows: updated } = await db.query(
+      `UPDATE public.success_stories
+       SET status = 'rejected',
+           system_admin_notes = $1,
+           updated_at = NOW()
+       WHERE id = $2 AND status = 'pending'
+       RETURNING *`,
+      [notes || '', storyId]
+    );
+
+    if (!updated || updated.length === 0) {
+      return res.status(404).json({ error: 'Story not found or cannot be rejected from current status' });
+    }
+
+    res.json({ message: 'Story rejected by system admin', story: updated[0] });
+  } catch (err) {
+    console.error('Error rejecting success story:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -3835,7 +4116,7 @@ app.patch('/api/admin/success-stories/:storyId/head-admin-approve', requireAuth,
       return res.status(403).json({ error: 'Head admin access required' });
     }
 
-    // Update story status to published
+    // Update story status to published - allow publishing from system_admin_approved or rejected status
     const { rows: updated } = await db.query(
       `UPDATE public.success_stories
        SET status = 'published',
@@ -3843,18 +4124,57 @@ app.patch('/api/admin/success-stories/:storyId/head-admin-approve', requireAuth,
            approved_by_head_admin_id = $2,
            approved_at = NOW(),
            updated_at = NOW()
-       WHERE id = $3 AND status = 'listing_admin_approved'
+       WHERE id = $3 AND status IN ('system_admin_approved', 'rejected')
        RETURNING *`,
       [notes || '', userId, storyId]
     );
 
     if (!updated || updated.length === 0) {
-      return res.status(404).json({ error: 'Story not found or not at listing admin approval stage' });
+      return res.status(404).json({ error: 'Story not found or cannot be published from current status' });
     }
 
     res.json({ message: 'Story approved and published', story: updated[0] });
   } catch (err) {
     console.error('Error finalizing success story approval:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH: Head admin rejection
+app.patch('/api/admin/success-stories/:storyId/head-admin-reject', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const storyId = req.params.storyId;
+    const { notes } = req.body;
+
+    // Check if user is head admin
+    const { rows: adminUser } = await db.query(
+      `SELECT role FROM users WHERE id = $1 AND (role = 'head_admin' OR admin_role = 'head_admin')`,
+      [userId]
+    );
+
+    if (!adminUser || adminUser.length === 0) {
+      return res.status(403).json({ error: 'Head admin access required' });
+    }
+
+    // Update story status - allow rejecting from system_admin_approved or published status
+    const { rows: updated } = await db.query(
+      `UPDATE public.success_stories
+       SET status = 'rejected',
+           head_admin_notes = $1,
+           updated_at = NOW()
+       WHERE id = $2 AND status IN ('system_admin_approved', 'published')
+       RETURNING *`,
+      [notes || '', storyId]
+    );
+
+    if (!updated || updated.length === 0) {
+      return res.status(404).json({ error: 'Story not found or cannot be rejected from current status' });
+    }
+
+    res.json({ message: 'Story rejected by head admin', story: updated[0] });
+  } catch (err) {
+    console.error('Error rejecting success story:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -3868,7 +4188,7 @@ app.patch('/api/admin/success-stories/:storyId/reject', requireAuth, async (req,
 
     // Check if user is admin
     const { rows: adminUser } = await db.query(
-      `SELECT role FROM users WHERE id = $1 AND (role IN ('listing_admin', 'head_admin') OR admin_role IN ('listing_admin', 'head_admin'))`,
+      `SELECT role FROM users WHERE id = $1 AND (role IN ('system_admin', 'head_admin') OR admin_role IN ('system_admin', 'head_admin'))`,
       [userId]
     );
 
@@ -3876,20 +4196,20 @@ app.patch('/api/admin/success-stories/:storyId/reject', requireAuth, async (req,
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // Update story status
+    // Update story status - allow rejecting from any status
     const { rows: updated } = await db.query(
       `UPDATE public.success_stories
        SET status = 'rejected',
            head_admin_notes = $1,
            approved_by_head_admin_id = $2,
            updated_at = NOW()
-       WHERE id = $3 AND status IN ('pending', 'listing_admin_approved')
+       WHERE id = $3
        RETURNING *`,
       [notes || '', userId, storyId]
     );
 
     if (!updated || updated.length === 0) {
-      return res.status(404).json({ error: 'Story not found or already processed' });
+      return res.status(404).json({ error: 'Story not found' });
     }
 
     res.json({ message: 'Story rejected', story: updated[0] });
@@ -3945,6 +4265,51 @@ app.get('/api/admin/listings/approvals', requireRole('head_admin'), async (req, 
   } catch (err) {
     console.error('Error getting all listing approvals:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Rejected listings (for both system admin and head admin)
+app.get('/api/admin/listings/rejected', requireRole('system_admin', 'head_admin'), async (req, res) => {
+  try {
+    console.log('[Rejected Listings] Fetching rejected listings...');
+    const { rows } = await db.query(
+      `SELECT 
+        la.id, 
+        la.listing_id, 
+        l.id as id, 
+        l.title, 
+        l.owner_first_name, 
+        l.owner_last_name, 
+        l.type, 
+        l.price, 
+        l.size_sqm as size, 
+        l.description, 
+        l.status,
+        l.image_url, 
+        l.oct_tct_url, 
+        l.tax_declaration_url, 
+        l.doas_url, 
+        l.government_id_url,
+        u.email as owner_email, 
+        u.username as owner_username, 
+        l.views, 
+        l.inquiries, 
+        l.created_at,
+        la.listing_status, 
+        la.rejection_reason, 
+        la.head_admin_approved_at
+       FROM listing_approvals la
+       JOIN listings l ON la.listing_id = l.id
+       JOIN users u ON l.owner_id = u.id
+       WHERE la.listing_status = 'rejected'
+       ORDER BY la.rejected_at DESC NULLS LAST
+       LIMIT 50`
+    );
+    console.log(`[Rejected Listings] Found ${rows.length} rejected listings`);
+    res.json(rows);
+  } catch (err) {
+    console.error('Error getting rejected listings:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
   }
 });
 
@@ -4018,11 +4383,11 @@ app.post('/api/admin/create-admin', requireAuth, async (req, res) => {
     let canCreateRole = false;
     
     if (creatorAdminRole === 'head_admin') {
-      // Head Admin can create: head_admin, listing_admin, verification_admin, system_admin
-      canCreateRole = ['head_admin', 'listing_admin', 'verification_admin', 'system_admin'].includes(adminRole);
-    } else if (creatorAdminRole === 'listing_admin') {
-      // Listing Admin can only create: listing_admin
-      canCreateRole = adminRole === 'listing_admin';
+      // Head Admin can create: head_admin, verification_admin, system_admin
+      canCreateRole = ['head_admin', 'verification_admin', 'system_admin'].includes(adminRole);
+    } else if (creatorAdminRole === 'system_admin') {
+      // System Admin can only create: system_admin
+      canCreateRole = adminRole === 'system_admin';
     } else if (creatorAdminRole === 'verification_admin') {
       // Verification Admin can only create: verification_admin
       canCreateRole = adminRole === 'verification_admin';
@@ -4030,9 +4395,9 @@ app.post('/api/admin/create-admin', requireAuth, async (req, res) => {
       // Regular users cannot create admins
       return res.status(403).json({ error: 'You do not have permission to create admin accounts' });
     }
-    
+
     if (!canCreateRole) {
-      return res.status(403).json({ error: `You can only create ${creatorAdminRole === 'head_admin' ? 'head_admin, listing_admin, verification_admin, or system_admin' : adminRole} accounts` });
+      return res.status(403).json({ error: `You can only create ${creatorAdminRole === 'head_admin' ? 'head_admin, verification_admin, or system_admin' : adminRole} accounts` });
     }
     
     // Validate admin role exists
@@ -4076,6 +4441,117 @@ app.post('/api/admin/create-admin', requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('Error creating admin user:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH: Update admin account
+app.patch('/api/admin/update-admin/:adminId', requireAuth, async (req, res) => {
+  try {
+    const adminId = req.params.adminId;
+    const { username, email, admin_role, password } = req.body;
+    const updaterId = req.session.user.id;
+    const updaterRole = req.session.user.admin_role;
+
+    // Only head admin can edit all admins
+    if (updaterRole !== 'head_admin') {
+      return res.status(403).json({ error: 'Only head admin can edit admin accounts' });
+    }
+
+    if (!username || !email || !admin_role) {
+      return res.status(400).json({ error: 'Username, email, and role are required' });
+    }
+
+    // Check if username is already taken by another user
+    const { rows: usernameCheck } = await db.query(
+      'SELECT id FROM users WHERE username = $1 AND id != $2',
+      [username, adminId]
+    );
+
+    if (usernameCheck.length > 0) {
+      return res.status(400).json({ error: 'Username already in use' });
+    }
+
+    // Check if email is already taken by another user
+    const { rows: emailCheck } = await db.query(
+      'SELECT id FROM users WHERE email = $1 AND id != $2',
+      [email, adminId]
+    );
+
+    if (emailCheck.length > 0) {
+      return res.status(400).json({ error: 'Email already in use' });
+    }
+
+    // Build update query with proper parameter indexing
+    let updateQuery = 'UPDATE users SET username = $1, email = $2, admin_role = $3';
+    let params = [username, email, admin_role];
+
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updateQuery += ', password = $4';
+      params.push(hashedPassword);
+    }
+
+    // adminId will be the next available parameter index
+    const adminIdIndex = params.length + 1;
+    updateQuery += ` WHERE id = $${adminIdIndex} RETURNING id, username, email, admin_role`;
+    params.push(adminId);
+
+    const { rows: updated } = await db.query(updateQuery, params);
+
+    if (updated.length === 0) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+
+    await logAction(updaterId, 'updated_admin_user', 'users', adminId, null, `Username: ${username}, Role: ${admin_role}`, req);
+
+    res.json({
+      message: 'Admin account updated successfully',
+      user: updated[0]
+    });
+  } catch (err) {
+    console.error('Error updating admin user:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE: Delete admin account
+app.delete('/api/admin/delete-admin/:adminId', requireAuth, async (req, res) => {
+  try {
+    const adminId = req.params.adminId;
+    const deleterId = req.session.user.id;
+    const deleterRole = req.session.user.admin_role;
+
+    // Only head admin can delete admins
+    if (deleterRole !== 'head_admin') {
+      return res.status(403).json({ error: 'Only head admin can delete admin accounts' });
+    }
+
+    // Prevent deleting yourself
+    if (parseInt(adminId) === deleterId) {
+      return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+
+    // Get admin info before deletion
+    const { rows: adminRows } = await db.query(
+      'SELECT username, email FROM users WHERE id = $1',
+      [adminId]
+    );
+
+    if (adminRows.length === 0) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+
+    const adminInfo = adminRows[0];
+
+    // Delete the admin user
+    await db.query('DELETE FROM users WHERE id = $1', [adminId]);
+
+    await logAction(deleterId, 'deleted_admin_user', 'users', adminId, null, `${adminInfo.username} (${adminInfo.email})`, req);
+
+    res.json({ message: 'Admin account deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting admin user:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
