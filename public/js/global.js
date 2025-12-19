@@ -300,13 +300,11 @@ function setUserRole(role, user) {
           
           if (adminRole === 'head_admin') {
               adminNav.href = '/head-admin';
-          } else if (adminRole === 'listing_admin') {
-              adminNav.href = '/listing-admin';
-          } else if (adminRole === 'verification_admin') {
-              adminNav.href = '/verification-admin';
           } else if (adminRole === 'system_admin') {
               adminNav.href = '/system-admin';
-              adminNav.textContent = 'Content Editor';
+              adminNav.textContent = 'System Admin';
+          } else if (adminRole === 'verification_admin') {
+              adminNav.href = '/verification-admin';
           } else {
               adminNav.href = '/admin-dashboard'; // fallback
           }

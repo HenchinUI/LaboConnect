@@ -145,11 +145,11 @@ async function updateDashboardForRole() {
       badgeEl.textContent = 'Head Admin (Super Admin)';
       document.getElementById('head-admin-section').classList.add('active');
       loadHeadAdminData();
-    } else if (adminRole === 'listing_admin') {
-      titleEl.textContent = 'Listing Admin Dashboard';
-      badgeEl.textContent = 'Listing Admin';
+    } else if (adminRole === 'system_admin') {
+      titleEl.textContent = 'System Admin Dashboard';
+      badgeEl.textContent = 'System Admin';
       document.getElementById('listing-admin-section').classList.add('active');
-      loadListingAdminData();
+      loadSystemAdminData();
     } else if (adminRole === 'verification_admin') {
       titleEl.textContent = 'Verification Admin Dashboard';
       badgeEl.textContent = 'Verification Admin';
@@ -162,8 +162,8 @@ async function updateDashboardForRole() {
   }
 }
 
-// Load data for Listing Admin
-function loadListingAdminData() {
+// Load data for System Admin
+function loadSystemAdminData() {
   switchView('pending');
   loadAdminStats();
   loadPendingStories();
@@ -172,14 +172,22 @@ function loadListingAdminData() {
 // Load data for Verification Admin
 async function loadVerificationAdminData() {
   try {
-    const response = await fetch('/api/admin/verifications/pending');
-    const data = await response.json();
-    renderVerificationQueue(data);
+    // Set initial view to pending
+    currentVerificationView = 'pending';
     
-    // Load stats for verification admin
-    loadVerificationStats();
+    // Mark pending button as active
+    const buttons = document.querySelectorAll('#verification-tab button.btn-ghost');
+    buttons.forEach(btn => {
+      btn.classList.remove('active');
+      if (btn.textContent.toLowerCase() === 'pending') {
+        btn.classList.add('active');
+      }
+    });
+    
+    // Load verifications
+    await loadVerifications();
   } catch (err) {
-    console.warn('Error loading verifications:', err);
+    console.warn('Could not load verification admin data:', err);
   }
 }
 
@@ -198,6 +206,196 @@ async function loadVerificationStats() {
     if (rejected) rejected.textContent = stats.rejected || 0;
   } catch (err) {
     console.warn('Error loading verification stats:', err);
+  }
+}
+
+// Load and display verifications (for verification admin)
+let currentVerificationView = 'pending';
+async function loadVerifications() {
+  console.log('[loadVerifications] Loading view:', currentVerificationView);
+  try {
+    let endpoint = '/api/admin/verifications/pending';
+    if (currentVerificationView === 'verified') {
+      endpoint = '/api/admin/verifications/verified';
+    } else if (currentVerificationView === 'rejected') {
+      endpoint = '/api/admin/verifications/rejected';
+    }
+    
+    const response = await fetch(endpoint);
+    const data = await response.json();
+    
+    if (currentVerificationView === 'pending') {
+      renderPendingVerifications(data);
+    } else if (currentVerificationView === 'verified') {
+      renderVerifiedUsers(data);
+    } else if (currentVerificationView === 'rejected') {
+      renderRejectedUsers(data);
+    }
+    
+    // Update stats
+    loadVerificationStats();
+  } catch (err) {
+    console.warn('Error loading verifications:', err);
+    const container = document.getElementById('verificationsList');
+    if (container) {
+      container.innerHTML = '<p class="muted">Error loading verifications</p>';
+    }
+  }
+}
+
+// Switch verification view (pending/verified/rejected)
+function switchVerificationView(view) {
+  console.log('[switchVerificationView] Switching to view:', view);
+  currentVerificationView = view;
+  
+  // Update button styling
+  const buttons = document.querySelectorAll('#verification-tab button.btn-ghost');
+  buttons.forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.textContent.toLowerCase().includes(view)) {
+      btn.classList.add('active');
+    }
+  });
+  
+  // Load the view
+  loadVerifications();
+}
+
+// Render pending verifications
+function renderPendingVerifications(requests) {
+  const container = document.getElementById('verificationsList');
+  if (!requests || requests.length === 0) {
+    container.innerHTML = '<p class="muted">No pending verification requests</p>';
+    return;
+  }
+  
+  container.innerHTML = requests.map(req => `
+    <div class="admin-item">
+      <div class="admin-item-title">${req.user_name || 'Unknown User'}</div>
+      <div class="admin-item-meta">Email: ${req.user_email || 'N/A'}</div>
+      <div class="admin-item-meta">Phone: ${req.phone_number || 'N/A'}</div>
+      ${req.id_document_url ? `<div class="admin-item-meta"><a href="${req.id_document_url}" target="_blank" class="link">View Document</a></div>` : ''}
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button class="btn btn-secondary" onclick="viewVerificationDetails(${req.id})">View Details</button>
+        <button class="btn btn-success" onclick="approveVerification(${req.id})">Verify</button>
+        <button class="btn btn-danger" onclick="rejectVerification(${req.id})">Reject</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Render verified users
+function renderVerifiedUsers(users) {
+  const container = document.getElementById('verificationsList');
+  if (!users || users.length === 0) {
+    container.innerHTML = '<p class="muted">No verified users</p>';
+    return;
+  }
+  
+  container.innerHTML = users.map(user => `
+    <div class="admin-item">
+      <div class="admin-item-title">${user.user_name || 'Unknown User'}</div>
+      <div class="admin-item-meta">Email: ${user.user_email || 'N/A'}</div>
+      <div class="admin-item-meta">Phone: ${user.phone_number || 'N/A'}</div>
+      <div class="admin-item-meta">Verified: <strong>${new Date(user.verified_at).toLocaleDateString()}</strong></div>
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button class="btn btn-secondary" onclick="viewVerificationDetails(${user.id})">View Details</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Render rejected users
+function renderRejectedUsers(users) {
+  const container = document.getElementById('verificationsList');
+  if (!users || users.length === 0) {
+    container.innerHTML = '<p class="muted">No rejected verifications</p>';
+    return;
+  }
+  
+  container.innerHTML = users.map(user => `
+    <div class="admin-item">
+      <div class="admin-item-title">${user.user_name || 'Unknown User'}</div>
+      <div class="admin-item-meta">Email: ${user.user_email || 'N/A'}</div>
+      <div class="admin-item-meta">Phone: ${user.phone_number || 'N/A'}</div>
+      <div class="admin-item-meta">Rejection Reason: <strong>${user.rejection_reason || 'No reason provided'}</strong></div>
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button class="btn btn-secondary" onclick="viewVerificationDetails(${user.id})">View Details</button>
+        <button class="btn btn-danger" onclick="deleteVerification(${user.id})">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Approve verification
+async function approveVerification(requestId) {
+  if (!confirm('Are you sure you want to verify this user?')) return;
+  
+  try {
+    const response = await fetch(`/api/admin/verifications/${requestId}/approve`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: '' })
+    });
+    
+    const data = await response.json();
+    if (data.error) {
+      alert('Error: ' + data.error);
+    } else {
+      alert('User verified successfully!');
+      loadVerifications();
+    }
+  } catch (err) {
+    console.error('Error approving verification:', err);
+    alert('Error approving verification');
+  }
+}
+
+// Reject verification
+async function rejectVerification(requestId) {
+  const reason = prompt('Enter rejection reason:');
+  if (!reason) return;
+  
+  try {
+    const response = await fetch(`/api/admin/verifications/${requestId}/reject`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason })
+    });
+    
+    const data = await response.json();
+    if (data.error) {
+      alert('Error: ' + data.error);
+    } else {
+      alert('Verification rejected');
+      loadVerifications();
+    }
+  } catch (err) {
+    console.error('Error rejecting verification:', err);
+    alert('Error rejecting verification');
+  }
+}
+
+// Delete verification request
+async function deleteVerification(requestId) {
+  if (!confirm('Are you sure you want to delete this verification request? This action cannot be undone.')) return;
+  
+  try {
+    const response = await fetch(`/api/admin/verifications/${requestId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const data = await response.json();
+    if (data.error) {
+      alert('Error: ' + data.error);
+    } else {
+      alert('Verification request deleted');
+      loadVerifications();
+    }
+  } catch (err) {
+    console.error('Error deleting verification:', err);
+    alert('Error deleting verification');
   }
 }
 
@@ -438,65 +636,224 @@ async function submitVerificationDecision(action, reason) {
 }
 
 function switchHeadAdminTab(tab) {
-  // Hide all tabs
+  console.log('[switchHeadAdminTab] Switching to tab:', tab);
+  
+  // Hide all tabs within head admin section
   document.querySelectorAll('#head-admin-section > div[id$="-tab"]').forEach(el => {
-    el.classList.remove('active');
+    console.log('[switchHeadAdminTab] Hiding tab:', el.id);
+    el.style.display = 'none';
   });
   
   // Update buttons
-  document.querySelectorAll('.tab-btn').forEach(el => {
+  document.querySelectorAll('#head-admin-section .tab-btn').forEach(el => {
     el.classList.remove('active');
   });
   
-  // Show selected tab
-  const tabEl = document.getElementById(tab + '-tab');
+  // Show selected tab - construct proper ID for head admin tabs
+  let tabId = tab === 'success-stories' ? 'head-admin-success-stories-tab' : (tab + '-tab');
+  const tabEl = document.getElementById(tabId);
+  console.log('[switchHeadAdminTab] Tab element found:', !!tabEl, tabId);
+  
   if (tabEl) {
-    tabEl.classList.add('active');
-    event.target.classList.add('active');
+    tabEl.style.display = 'block';
+    console.log('[switchHeadAdminTab] Tab displayed:', tab);
+    
+    if (event && event.target) {
+      event.target.classList.add('active');
+    }
     
     // Load data for listings tab
     if (tab === 'listings') {
+      console.log('[switchHeadAdminTab] Loading listings');
       loadAdminStats();
     }
     // Load data for success stories tab
     else if (tab === 'success-stories') {
-      loadHeadAdminStories();
+      console.log('[switchHeadAdminTab] Loading success stories');
+      loadHeadAdminStories().then(() => {
+        // Auto-switch to first non-empty view
+        console.log('[switchHeadAdminTab] After loading, auto-switching to first non-empty view');
+        console.log('[switchHeadAdminTab] headPendingStories:', headPendingStories ? headPendingStories.length : 'null');
+        console.log('[switchHeadAdminTab] headPublishedStories:', headPublishedStories ? headPublishedStories.length : 'null');
+        console.log('[switchHeadAdminTab] headRejectedStories:', headRejectedStories ? headRejectedStories.length : 'null');
+        
+        if (headPendingStories && headPendingStories.length > 0) {
+          console.log('[switchHeadAdminTab] Switching to pending view');
+          switchHeadAdminStoriesView('pending');
+        } else if (headPublishedStories && headPublishedStories.length > 0) {
+          console.log('[switchHeadAdminTab] Switching to published view');
+          switchHeadAdminStoriesView('published');
+        } else if (headRejectedStories && headRejectedStories.length > 0) {
+          console.log('[switchHeadAdminTab] Switching to rejected view');
+          switchHeadAdminStoriesView('rejected');
+        } else {
+          console.log('[switchHeadAdminTab] No stories found in any category');
+        }
+      });
     }
+    // Load data for admin management tab
+    else if (tab === 'admin-management') {
+      console.log('[switchHeadAdminTab] Loading admin management');
+      loadAdminsList();
+    }
+  } else {
+    console.warn('[switchHeadAdminTab] Tab element not found:', tabId);
+  }
+}
+
+// Verification Admin tab switching
+function switchVerificationAdminTab(tab) {
+  console.log('[switchVerificationAdminTab] Switching to tab:', tab);
+  
+  // Hide all tabs within verification admin section
+  document.querySelectorAll('#verification-admin-section > div[id$="-tab"]').forEach(el => {
+    console.log('[switchVerificationAdminTab] Hiding tab:', el.id);
+    el.style.display = 'none';
+  });
+  
+  // Update buttons
+  document.querySelectorAll('#verification-admin-section .tab-btn').forEach(el => {
+    el.classList.remove('active');
+  });
+  
+  // Show selected tab
+  let tabId;
+  if (tab === 'verifications') {
+    tabId = 'verification-tab';
+  } else if (tab === 'admin-management') {
+    tabId = 'verification-admin-management-tab';
+  } else {
+    tabId = tab + '-tab';
+  }
+  
+  const tabEl = document.getElementById(tabId);
+  console.log('[switchVerificationAdminTab] Tab element found:', !!tabEl, tabId);
+  
+  if (tabEl) {
+    tabEl.style.display = 'block';
+    console.log('[switchVerificationAdminTab] Tab displayed:', tab);
+    
+    if (event && event.target) {
+      event.target.classList.add('active');
+    }
+    
+    // Load data for the selected tab
+    if (tab === 'verifications') {
+      console.log('[switchVerificationAdminTab] Loading verifications');
+      loadVerifications();
+    } else if (tab === 'admin-management') {
+      console.log('[switchVerificationAdminTab] Loading admin management');
+      loadAdminsList();
+    }
+  } else {
+    console.warn('[switchVerificationAdminTab] Tab element not found:', tabId);
   }
 }
 
 function switchHeadAdminStoriesView(view) {
+  console.log('[switchHeadAdminStoriesView] Switching to view:', view);
+  
+  // Update active tab highlighting for head admin stories
+  const storyButtons = document.querySelectorAll('#head-admin-success-stories-tab > div[style*="flex"] button.btn-ghost');
+  storyButtons.forEach(btn => {
+    btn.classList.remove('active');
+  });
+  
+  // Find and highlight the clicked button
+  const activeStoryButton = Array.from(storyButtons).find(btn => {
+    const text = btn.textContent.toLowerCase();
+    return (view === 'pending' && (text.includes('awaiting') || text.includes('pending'))) || 
+           (view === 'published' && text.includes('published')) || 
+           (view === 'rejected' && text.includes('rejected'));
+  });
+  if (activeStoryButton) activeStoryButton.classList.add('active');
+  
   // Hide all story views
-  document.getElementById('pending-stories-view').style.display = 'none';
-  document.getElementById('published-stories-view').style.display = 'none';
-  document.getElementById('rejected-stories-view').style.display = 'none';
+  const pendingView = document.getElementById('pending-stories-view');
+  const publishedView = document.getElementById('published-stories-view');
+  const rejectedView = document.getElementById('rejected-stories-view');
+  
+  console.log('[switchHeadAdminStoriesView] View elements found - pending:', !!pendingView, 'published:', !!publishedView, 'rejected:', !!rejectedView);
+  
+  if (pendingView) pendingView.style.display = 'none';
+  if (publishedView) publishedView.style.display = 'none';
+  if (rejectedView) rejectedView.style.display = 'none';
   
   // Show selected view
   if (view === 'pending') {
-    document.getElementById('pending-stories-view').style.display = 'block';
+    console.log('[switchHeadAdminStoriesView] Showing pending view');
+    if (pendingView) pendingView.style.display = 'block';
   } else if (view === 'published') {
-    document.getElementById('published-stories-view').style.display = 'block';
+    console.log('[switchHeadAdminStoriesView] Showing published view');
+    if (publishedView) publishedView.style.display = 'block';
   } else if (view === 'rejected') {
-    document.getElementById('rejected-stories-view').style.display = 'block';
+    console.log('[switchHeadAdminStoriesView] Showing rejected view');
+    if (rejectedView) rejectedView.style.display = 'block';
   }
 }
 
 async function loadAdminsList() {
   try {
+    // Get current user's role
+    const userResponse = await fetch('/api/admin/user-info');
+    const userData = await userResponse.json();
+    const currentRole = userData.user.admin_role;
+    
     const response = await fetch('/api/admin/all-admins');
     const admins = await response.json();
     
-    const container = document.getElementById('adminsList');
-    if (!admins || admins.length === 0) {
-      container.innerHTML = '<p class="muted">No admin accounts found</p>';
+    // Filter admins to show only those with the same role as current user
+    // EXCEPT for head_admin, who should see all admin types
+    let filteredAdmins = admins;
+    if (currentRole !== 'head_admin') {
+      filteredAdmins = admins.filter(admin => admin.admin_role === currentRole);
+    }
+    
+    // Find the correct adminsList container based on which section is active
+    let container = null;
+    const headAdminMgmtTab = document.getElementById('admin-management-tab');
+    const systemAdminMgmtTab = document.getElementById('system-admin-management-tab');
+    const verificationAdminMgmtTab = document.getElementById('verification-admin-management-tab');
+    
+    if (headAdminMgmtTab && headAdminMgmtTab.style.display !== 'none') {
+      container = headAdminMgmtTab.querySelector('#adminsList');
+    } else if (systemAdminMgmtTab && systemAdminMgmtTab.style.display !== 'none') {
+      container = systemAdminMgmtTab.querySelector('#adminsList');
+    } else if (verificationAdminMgmtTab && verificationAdminMgmtTab.style.display !== 'none') {
+      container = verificationAdminMgmtTab.querySelector('#adminsList');
+    }
+    
+    // Fallback to first adminsList if not found
+    if (!container) {
+      container = document.getElementById('adminsList');
+    }
+    
+    if (!container) {
+      console.error('[loadAdminsList] No adminsList container found');
       return;
     }
     
-    container.innerHTML = admins.map(admin => `
-      <div class="admin-item">
-        <div class="admin-item-title">${admin.username}</div>
-        <div class="admin-item-meta">Email: ${admin.email}</div>
-        <div class="admin-item-meta">Role: <strong>${admin.admin_role.replace('_', ' ').toUpperCase()}</strong></div>
+    if (!filteredAdmins || filteredAdmins.length === 0) {
+      container.innerHTML = '<p class="muted">No admin accounts found with your role</p>';
+      return;
+    }
+    
+    // Only show edit/delete buttons for head admin
+    const canEditDelete = currentRole === 'head_admin';
+    
+    container.innerHTML = filteredAdmins.map(admin => `
+      <div class="admin-item" style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid rgba(0,0,0,0.06);border-radius:8px;margin-bottom:10px">
+        <div>
+          <div class="admin-item-title">${admin.username}</div>
+          <div class="admin-item-meta">Email: ${admin.email}</div>
+          <div class="admin-item-meta">Role: <strong>${admin.admin_role.replace('_', ' ').toUpperCase()}</strong></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          ${canEditDelete ? `
+            <button class="btn btn-sm btn-primary" onclick="openEditAdminModal(${admin.id}, '${admin.username}', '${admin.email}', '${admin.admin_role}')" style="padding:6px 12px;font-size:12px">Edit</button>
+            <button class="btn btn-sm btn-ghost" style="background:#f44336;color:white;border:none;padding:6px 12px;font-size:12px;cursor:pointer" onclick="deleteAdmin(${admin.id}, '${admin.username}')">Delete</button>
+          ` : ''}
+        </div>
       </div>
     `).join('');
   } catch (err) {
@@ -518,15 +875,14 @@ function openCreateAdminModal() {
       // Add options based on admin role
       if (adminRole === 'head_admin') {
         roleSelect.innerHTML += `
-          <option value="listing_admin">Listing Admin</option>
           <option value="verification_admin">Verification Admin</option>
           <option value="system_admin">System Admin</option>
           <option value="head_admin">Head Admin</option>
         `;
-        document.getElementById('createAdminHint').textContent = 'As Head Admin, you can create any admin role.';
-      } else if (adminRole === 'listing_admin') {
-        roleSelect.innerHTML += `<option value="listing_admin">Listing Admin</option>`;
-        document.getElementById('createAdminHint').textContent = 'As Listing Admin, you can only create other Listing Admins.';
+        document.getElementById('createAdminHint').textContent = 'As Head Admin, you can create Verification Admin, System Admin, or Head Admin roles.';
+      } else if (adminRole === 'system_admin') {
+        roleSelect.innerHTML += `<option value="system_admin">System Admin</option>`;
+        document.getElementById('createAdminHint').textContent = 'As System Admin, you can only create other System Admins.';
       } else if (adminRole === 'verification_admin') {
         roleSelect.innerHTML += `<option value="verification_admin">Verification Admin</option>`;
         document.getElementById('createAdminHint').textContent = 'As Verification Admin, you can only create other Verification Admins.';
@@ -580,6 +936,132 @@ async function submitCreateAdmin(event) {
   }
 }
 
+function openEditAdminModal(adminId, username, email, adminRole) {
+  const overlay = document.createElement('div');
+  overlay.id = 'editAdminOverlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+  `;
+
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  `;
+
+  modal.innerHTML = `
+    <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 20px;">Edit Admin Account</h3>
+    
+    <div style="margin-bottom: 12px;">
+      <label style="display:block;margin-bottom:6px;font-weight:600;font-size:14px">Username</label>
+      <input type="text" id="editAdminUsername" value="${username}" style="width:100%;padding:8px;border:1px solid rgba(0,0,0,0.1);border-radius:6px">
+    </div>
+
+    <div style="margin-bottom: 12px;">
+      <label style="display:block;margin-bottom:6px;font-weight:600;font-size:14px">Email</label>
+      <input type="email" id="editAdminEmail" value="${email}" style="width:100%;padding:8px;border:1px solid rgba(0,0,0,0.1);border-radius:6px">
+    </div>
+
+    <div style="margin-bottom: 12px;">
+      <label style="display:block;margin-bottom:6px;font-weight:600;font-size:14px">Role</label>
+      <select id="editAdminRole" style="width:100%;padding:8px;border:1px solid rgba(0,0,0,0.1);border-radius:6px">
+        <option value="system_admin" ${adminRole === 'system_admin' ? 'selected' : ''}>System Admin</option>
+        <option value="verification_admin" ${adminRole === 'verification_admin' ? 'selected' : ''}>Verification Admin</option>
+        <option value="head_admin" ${adminRole === 'head_admin' ? 'selected' : ''}>Head Admin</option>
+      </select>
+    </div>
+
+    <div style="margin-bottom: 12px;">
+      <label style="display:block;margin-bottom:6px;font-weight:600;font-size:14px">New Password (leave blank to keep current)</label>
+      <input type="password" id="editAdminPassword" placeholder="Leave empty to keep current password" style="width:100%;padding:8px;border:1px solid rgba(0,0,0,0.1);border-radius:6px">
+    </div>
+
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+      <button class="btn btn-ghost" onclick="closeEditAdminModal()" style="padding: 10px 20px;">Cancel</button>
+      <button class="btn btn-primary" onclick="submitEditAdmin(${adminId})" style="padding: 10px 20px;">Save Changes</button>
+    </div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+}
+
+function closeEditAdminModal() {
+  const overlay = document.getElementById('editAdminOverlay');
+  if (overlay) {
+    overlay.remove();
+  }
+}
+
+async function submitEditAdmin(adminId) {
+  const username = document.getElementById('editAdminUsername').value.trim();
+  const email = document.getElementById('editAdminEmail').value.trim();
+  const adminRole = document.getElementById('editAdminRole').value;
+  const newPassword = document.getElementById('editAdminPassword').value;
+
+  if (!username || !email || !adminRole) {
+    alert('Please fill in all required fields');
+    return;
+  }
+
+  const body = { username, email, admin_role: adminRole };
+  if (newPassword) {
+    body.password = newPassword;
+  }
+
+  try {
+    const response = await fetch(`/api/admin/update-admin/${adminId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error);
+
+    showToast('Admin account updated successfully');
+    closeEditAdminModal();
+    loadAdminsList();
+  } catch (err) {
+    console.error('Error updating admin:', err);
+    showToast(err.message || 'Error updating admin account', true);
+  }
+}
+
+async function deleteAdmin(adminId, username) {
+  if (!confirm(`Delete admin account "${username}"? This action cannot be undone.`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/admin/delete-admin/${adminId}`, {
+      method: 'DELETE'
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error);
+
+    showToast('Admin account deleted successfully');
+    loadAdminsList();
+  } catch (err) {
+    console.error('Error deleting admin:', err);
+    showToast(err.message || 'Error deleting admin account', true);
+  }
+}
+
 function logout() {
   if (typeof logoutUser === 'function') {
     logoutUser();
@@ -589,15 +1071,95 @@ function logout() {
   }
 }
 
+// System Admin tab switching
+function switchSystemAdminTab(tab) {
+  console.log('[switchSystemAdminTab] Switching to tab:', tab);
+  
+  // Hide all tabs in the listing-admin-section
+  document.querySelectorAll('#listing-admin-section > div[id$="-tab"]').forEach(el => {
+    console.log('[switchSystemAdminTab] Hiding tab:', el.id);
+    el.style.display = 'none';
+  });
+  
+  // Update buttons
+  document.querySelectorAll('#listing-admin-section .tab-btn').forEach(el => {
+    el.classList.remove('active');
+  });
+  
+  // Show selected tab - construct proper ID for system admin tabs
+  let tabId;
+  if (tab === 'success-stories') {
+    tabId = 'system-admin-success-stories-tab';
+  } else if (tab === 'admin-management') {
+    tabId = 'system-admin-management-tab';
+  } else {
+    tabId = tab + '-tab';
+  }
+  
+  const tabEl = document.getElementById(tabId);
+  console.log('[switchSystemAdminTab] Tab element found:', !!tabEl, tabId);
+  
+  if (tabEl) {
+    tabEl.style.display = 'block';
+    console.log('[switchSystemAdminTab] Tab displayed:', tab);
+    
+    if (event && event.target) {
+      event.target.classList.add('active');
+    }
+    
+    // Load data for the selected tab
+    if (tab === 'property-listings') {
+      console.log('[switchSystemAdminTab] Loading property listings');
+      switchView('pending');
+      loadAdminStats();
+    } else if (tab === 'success-stories') {
+      console.log('[switchSystemAdminTab] Loading success stories');
+      loadPendingStories();
+    } else if (tab === 'admin-management') {
+      console.log('[switchSystemAdminTab] Loading admin management');
+      loadAdminsList();
+    }
+  } else {
+    console.warn('[switchSystemAdminTab] Tab element not found:', tabId);
+  }
+}
+
+// Head Admin tab switching (existing function, ensure it's defined)
+
 // ---------------- Load Listings ----------------
 // Load listings for a specific view. Tries multiple endpoint fallbacks for compatibility.
 async function loadListings(status = 'pending') {
   currentView = status;
   
-  // Find the correct tbody based on which section is active
-  let tbody = null;
+  // Update active tab highlighting - find buttons in the currently active section
   const headAdminSection = document.getElementById('head-admin-section');
   const listingAdminSection = document.getElementById('listing-admin-section');
+  let targetSection = null;
+  
+  if (headAdminSection?.classList.contains('active')) {
+    targetSection = headAdminSection;
+  } else if (listingAdminSection?.classList.contains('active')) {
+    targetSection = listingAdminSection;
+  }
+  
+  if (targetSection) {
+    const buttons = targetSection.querySelectorAll('button.btn-ghost[onclick*="switchView"]');
+    buttons.forEach(btn => {
+      btn.classList.remove('active');
+    });
+    
+    // Find and highlight the active button
+    const activeButton = Array.from(buttons).find(btn => {
+      const text = btn.textContent.toLowerCase();
+      return (status === 'pending' && text.includes('pending')) || 
+             (status === 'approved' && (text.includes('published') || text.includes('final'))) || 
+             (status === 'rejected' && text.includes('rejected'));
+    });
+    if (activeButton) activeButton.classList.add('active');
+  }
+  
+  // Find the correct tbody based on which section is active
+  let tbody = null;
   
   if (headAdminSection?.classList.contains('active')) {
     console.log('[loadListings] Head admin section is active, finding tbody within it');
@@ -629,18 +1191,21 @@ async function loadListings(status = 'pending') {
 
   // Try new role-based endpoints first
   const user = JSON.parse(localStorage.getItem('laboCurrentUser')) || {};
-  const isListingAdmin = user.admin_role === 'listing_admin';
+  const isSystemAdmin = user.admin_role === 'system_admin';
   const isHeadAdmin = user.admin_role === 'head_admin';
 
   let listings = [];
   let endpoint = null;
 
-  console.log(`[loadListings] Loading status="${status}", isListingAdmin=${isListingAdmin}, isHeadAdmin=${isHeadAdmin}`);
+  console.log(`[loadListings] Loading status="${status}", isSystemAdmin=${isSystemAdmin}, isHeadAdmin=${isHeadAdmin}`);
 
-  // Use role-based endpoints for listing and head admins
-  if (isListingAdmin && status === 'pending') {
+  // Use role-based endpoints for system and head admins
+  if (isSystemAdmin && status === 'pending') {
     endpoint = '/api/admin/listings/pending-approval';
-    console.log('[loadListings] Using listing admin endpoint:', endpoint);
+    console.log('[loadListings] Using system admin endpoint:', endpoint);
+  } else if (isSystemAdmin && status === 'rejected') {
+    endpoint = '/api/admin/listings/rejected';
+    console.log('[loadListings] Using system admin rejected endpoint:', endpoint);
   } else if (isHeadAdmin && status === 'pending') {
     endpoint = '/api/admin/listings/pending-head-admin';
     console.log('[loadListings] Using head admin pending endpoint:', endpoint);
@@ -648,6 +1213,9 @@ async function loadListings(status = 'pending') {
     // For head admin, "approved" view shows all listings (or published ones)
     endpoint = '/api/admin/listings/approvals';
     console.log('[loadListings] Using head admin all approvals endpoint:', endpoint);
+  } else if (isHeadAdmin && status === 'rejected') {
+    endpoint = '/api/admin/listings/rejected';
+    console.log('[loadListings] Using head admin rejected endpoint:', endpoint);
   } else {
     // Fallback to old endpoints for other views or roles
     const candidates = [
@@ -685,6 +1253,13 @@ async function loadListings(status = 'pending') {
         // Normalize the response structure for listing_approvals format
         if (Array.isArray(listings) && listings.length > 0 && listings[0].listing_id) {
           // Already in correct format from pending-approval endpoint
+        }
+        
+        // For head admin "approved" view, filter to show only published listings
+        if (isHeadAdmin && status === 'approved') {
+          const beforeFilter = listings.length;
+          listings = listings.filter(l => l.listing_status === 'published');
+          console.log(`[loadListings] Head admin approved filter: ${beforeFilter} -> ${listings.length} listings`);
         }
       } else {
         console.warn(`[loadListings] API error ${res.status}`);
@@ -736,8 +1311,8 @@ async function loadListings(status = 'pending') {
       // Head admin pending view: Publish button
       actions += ` <button class="btn-sm btn btn-primary" onclick="takeAction(${listingId}, 'publish')">Publish</button>`;
       actions += ` <button class="btn-sm btn btn-ghost" onclick="takeAction(${listingId}, 'reject')">Reject</button>`;
-    } else if (isListingAdmin && status === 'pending') {
-      // Listing admin pending view: Approve button
+    } else if (isSystemAdmin && status === 'pending') {
+      // System admin pending view: Approve button
       actions += ` <button class="btn-sm btn btn-primary" onclick="takeAction(${listingId}, 'approve')">Approve</button>`;
       actions += ` <button class="btn-sm btn btn-ghost" onclick="takeAction(${listingId}, 'reject')">Reject</button>`;
     } else if (status === 'pending') {
@@ -775,32 +1350,9 @@ async function loadListings(status = 'pending') {
       ${selectCell}
       <td style="vertical-align:middle">${thumbHtml}</td>
       <td style="vertical-align:middle">${escapeHtml(title)}</td>
+      <td style="vertical-align:middle">${ownerName}</td>
+      <td style="vertical-align:middle">${adminApprovedByName}</td>
     `;
-
-    // For head admin viewing pending approvals
-    if (isHeadAdmin && status === 'pending') {
-      tableHTML += `
-        <td style="vertical-align:middle">${ownerName}</td>
-        <td style="vertical-align:middle">${adminApprovedByName}</td>
-        <td style="vertical-align:middle"><span class="muted">${escapeHtml(listing.listing_status || 'pending')}</span></td>
-      `;
-    }
-    // For head admin viewing approved/published listings
-    else if (isHeadAdmin && status === 'approved') {
-      tableHTML += `
-        <td style="vertical-align:middle">${ownerName}</td>
-        <td style="vertical-align:middle">${escapeHtml(listing.listing_status || 'published')}</td>
-      `;
-    }
-    // For listing admin or other views
-    else {
-      tableHTML += `
-        <td style="vertical-align:middle">${formatPropertyType(listing.type)}</td>
-        <td style="vertical-align:middle"><span class="muted">${escapeHtml(listing.status || listing.listing_status || 'pending')}</span></td>
-        <td style="vertical-align:middle">${new Date(listing.created_at).toLocaleDateString()}</td>
-        <td style="vertical-align:middle">${ownerEmail ? `<a href=\"mailto:${escapeHtml(ownerEmail)}\">${escapeHtml(ownerEmail)}</a>` : '-'}</td>
-      `;
-    }
 
     tableHTML += `<td style="white-space:nowrap;vertical-align:middle">${actions}</td>`;
     
@@ -820,11 +1372,92 @@ async function loadListings(status = 'pending') {
 // Toggle selection mode (shows/hides checkboxes)
 function toggleSelectMode() {
   selectionActive = !selectionActive;
-  const tableWrap = document.querySelector('.admin-table-wrap');
-  if (tableWrap) {
-    if (selectionActive) tableWrap.classList.add('selection-active');
-    else tableWrap.classList.remove('selection-active');
+  console.log('[toggleSelectMode] selectionActive:', selectionActive);
+  
+  // Find the correct table wrap in the currently visible listings tab
+  let tableWrap;
+  let activeSection;
+  const headAdminListingsTab = document.getElementById('listings-tab');
+  const systemAdminListingsTab = document.getElementById('property-listings-tab');
+  
+  console.log('[toggleSelectMode] Head admin tab display:', headAdminListingsTab?.style.display);
+  console.log('[toggleSelectMode] System admin tab display:', systemAdminListingsTab?.style.display);
+  
+  // Check which is actually visible (not just inline style, but computed visibility)
+  const headAdminVisible = headAdminListingsTab && headAdminListingsTab.offsetHeight > 0;
+  const systemAdminVisible = systemAdminListingsTab && systemAdminListingsTab.offsetHeight > 0;
+  
+  console.log('[toggleSelectMode] Head admin visible:', headAdminVisible);
+  console.log('[toggleSelectMode] System admin visible:', systemAdminVisible);
+  
+  if (systemAdminVisible) {
+    tableWrap = systemAdminListingsTab.querySelector('.admin-table-wrap');
+    activeSection = document.getElementById('listing-admin-section');
+    console.log('[toggleSelectMode] Using system admin listings table');
+  } else if (headAdminVisible) {
+    tableWrap = headAdminListingsTab.querySelector('.admin-table-wrap');
+    activeSection = document.getElementById('head-admin-section');
+    console.log('[toggleSelectMode] Using head admin listings table');
   }
+  
+  console.log('[toggleSelectMode] Table wrap found:', !!tableWrap);
+  
+  if (tableWrap) {
+    if (selectionActive) {
+      tableWrap.classList.add('selection-active');
+      console.log('[toggleSelectMode] Added selection-active class');
+      console.log('[toggleSelectMode] Table wrap classes after add:', tableWrap.className);
+    } else {
+      tableWrap.classList.remove('selection-active');
+      console.log('[toggleSelectMode] Removed selection-active class');
+      console.log('[toggleSelectMode] Table wrap classes after remove:', tableWrap.className);
+    }
+  } else {
+    console.warn('[toggleSelectMode] No table wrap found');
+  }
+  
+  // Show/hide action buttons - find them within the active section
+  let approveBtn, rejectBtn, clearBtn;
+  
+  if (activeSection) {
+    approveBtn = activeSection.querySelector('#approveSelectedBtn');
+    rejectBtn = activeSection.querySelector('#rejectSelectedBtn');
+    clearBtn = activeSection.querySelector('#clearSelectionBtn');
+  } else {
+    // Fallback to global search
+    approveBtn = document.getElementById('approveSelectedBtn');
+    rejectBtn = document.getElementById('rejectSelectedBtn');
+    clearBtn = document.getElementById('clearSelectionBtn');
+  }
+  
+  console.log('[toggleSelectMode] Looking for buttons in active section:', {
+    approveBtn: !!approveBtn,
+    rejectBtn: !!rejectBtn,
+    clearBtn: !!clearBtn
+  });
+  
+  if (selectionActive) {
+    if (approveBtn) {
+      approveBtn.style.removeProperty('display');
+      approveBtn.style.display = 'block';
+      console.log('[toggleSelectMode] Approve button display set to:', approveBtn.style.display);
+    }
+    if (rejectBtn) {
+      rejectBtn.style.removeProperty('display');
+      rejectBtn.style.display = 'block';
+      console.log('[toggleSelectMode] Reject button display set to:', rejectBtn.style.display);
+    }
+    if (clearBtn) {
+      clearBtn.style.removeProperty('display');
+      clearBtn.style.display = 'block';
+      console.log('[toggleSelectMode] Clear button display set to:', clearBtn.style.display);
+    }
+  } else {
+    if (approveBtn) approveBtn.style.display = 'none';
+    if (rejectBtn) rejectBtn.style.display = 'none';
+    if (clearBtn) clearBtn.style.display = 'none';
+  }
+  
   // Ensure checkboxes are cleared when toggling off
   if (!selectionActive) clearSelection();
 }
@@ -860,9 +1493,33 @@ async function bulkAction(action) {
   }
 
   try {
+    const user = JSON.parse(localStorage.getItem('laboCurrentUser')) || {};
+    const isSystemAdmin = user.admin_role === 'system_admin';
+    const isHeadAdmin = user.admin_role === 'head_admin';
+
     const promises = ids.map(id => {
-      if (action === 'approve') return fetch(`/admin/approve-listing/${id}`, { method: 'POST' });
-      if (action === 'delete') return fetch(`/admin/listings/${id}`, { method: 'DELETE' });
+      if (action === 'approve') {
+        let url;
+        if (isSystemAdmin) {
+          url = `/api/admin/listings/${id}/approve`;
+        } else if (isHeadAdmin) {
+          // Check if we're in the rejected view - if so, use re-approve
+          // Otherwise use publish endpoint
+          if (currentView === 'rejected') {
+            url = `/api/admin/listings/${id}/re-approve`;
+          } else {
+            url = `/api/admin/listings/${id}/publish`;
+          }
+        }
+        return fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes: '' })
+        });
+      }
+      if (action === 'delete') {
+        return fetch(`/api/admin/listings/${id}`, { method: 'DELETE' });
+      }
       return Promise.resolve();
     });
 
@@ -886,6 +1543,35 @@ async function bulkAction(action) {
 
 function switchView(view) {
   currentView = view;
+  
+  // Update active tab highlighting for system admin and head admin listings
+  // Find buttons in the currently active section
+  const headAdminSection = document.getElementById('head-admin-section');
+  const listingAdminSection = document.getElementById('listing-admin-section');
+  let targetSection = null;
+  
+  if (headAdminSection?.classList.contains('active')) {
+    targetSection = headAdminSection;
+  } else if (listingAdminSection?.classList.contains('active')) {
+    targetSection = listingAdminSection;
+  }
+  
+  if (targetSection) {
+    const buttons = targetSection.querySelectorAll('button.btn-ghost[onclick*="switchView"]');
+    buttons.forEach(btn => {
+      btn.classList.remove('active');
+    });
+    
+    // Find and highlight the clicked button
+    const activeButton = Array.from(buttons).find(btn => {
+      const text = btn.textContent.toLowerCase();
+      return (view === 'pending' && text.includes('pending')) || 
+             (view === 'approved' && (text.includes('published') || text.includes('final'))) || 
+             (view === 'rejected' && text.includes('rejected'));
+    });
+    if (activeButton) activeButton.classList.add('active');
+  }
+  
   loadListings(view);
 }
 
@@ -916,21 +1602,26 @@ function openAppDetails(id){
     }
 
     body.innerHTML = `
-      <p><strong>Owner:</strong> ${ownerName || '-'}</p>
-      <p><strong>Owner Email:</strong> ${ownerEmail ? `<a href="mailto:${escapeHtml(ownerEmail)}">${escapeHtml(ownerEmail)}</a>` : '-'}</p>
-      <p><strong>Type:</strong> ${formatPropertyType(app.type)}</p>
-      <p><strong>Status:</strong> ${escapeHtml(app.status)}</p>
-      <p><strong>Price:</strong> ${escapeHtml(app.price)}</p>
-      <p><strong>Size:</strong> ${escapeHtml(app.size || '-')}</p>
-      <p><strong>Views:</strong> ${escapeHtml(app.views || 0)}</p>
-      <p><strong>Inquiries:</strong> ${escapeHtml(app.inquiries || 0)}</p>
-      <p><strong>Description:</strong> ${escapeHtml(app.description)}</p>
-      ${app.image_url ? `<div class="modal-docs"><img class=\"modal-doc-thumb\" src=\"${escapeHtml(app.image_url)}\" alt=\"image\" onclick=\"openImagePreview('${escapeHtml(app.image_url)}')\"></div>` : ''}
-      <div style="margin-top:8px">
-        ${renderDocumentHTML(app.oct_tct_url, 'OCT / TCT')}
-        ${renderDocumentHTML(app.tax_declaration_url, 'Tax Declaration')}
-        ${renderDocumentHTML(app.doas_url, 'DOAS')}
-        ${renderDocumentHTML(app.government_id_url, 'Government ID')}
+      <div class="modal-content-wrapper">
+        <div class="modal-left">
+          <p><strong>Owner:</strong> ${ownerName || '-'}</p>
+          <p><strong>Owner Email:</strong> ${ownerEmail ? `<a href="mailto:${escapeHtml(ownerEmail)}">${escapeHtml(ownerEmail)}</a>` : '-'}</p>
+          <p><strong>Type:</strong> ${formatPropertyType(app.type)}</p>
+          <p><strong>Status:</strong> ${escapeHtml(app.status)}</p>
+          <p><strong>Price:</strong> ₱${app.price ? Number(app.price).toLocaleString('en-PH') : '-'}</p>
+          <p><strong>Size:</strong> ${app.size ? escapeHtml(app.size) + ' m²' : '-'}</p>
+          <p><strong>Description:</strong> ${escapeHtml(app.description)}</p>
+        </div>
+        <div class="modal-right">
+          ${app.image_url ? `<div class="property-image-section"><h3>Property Image</h3><img class=\"modal-doc-thumb\" src=\"${escapeHtml(app.image_url)}\" alt=\"image\" onclick=\"openImagePreview('${escapeHtml(app.image_url)}')\" style=\"width:100%;cursor:pointer;\"></div>` : ''}
+          <h3>Documents</h3>
+          <div style="margin-top:8px">
+            ${renderDocumentHTML(app.oct_tct_url, 'OCT / TCT')}
+            ${renderDocumentHTML(app.tax_declaration_url, 'Tax Declaration')}
+            ${renderDocumentHTML(app.doas_url, 'DOAS')}
+            ${renderDocumentHTML(app.government_id_url, 'Government ID')}
+          </div>
+        </div>
       </div>
     `;
 
@@ -1023,17 +1714,26 @@ async function takeAction(id, action) {
 
     let url, opts = { method: 'POST', headers: { 'Content-Type': 'application/json' } };
     const user = JSON.parse(localStorage.getItem('laboCurrentUser')) || {};
-    const isListingAdmin = user.admin_role === 'listing_admin';
+    const isSystemAdmin = user.admin_role === 'system_admin';
     const isHeadAdmin = user.admin_role === 'head_admin';
 
     if (action === 'approve') {
-      // Use role-based endpoint if applicable
-      if (isListingAdmin) {
+      // For rejected listings in the rejected view, use re-approve endpoint
+      // Otherwise use the normal approve endpoint
+      if (isSystemAdmin) {
         url = `/api/admin/listings/${id}/approve`;
         opts.body = JSON.stringify({ notes: '' });
       } else if (isHeadAdmin) {
-        url = `/api/admin/listings/${id}/publish`;
-        opts.body = JSON.stringify({ notes: '' });
+        // Check if we're in the rejected view - if so, use re-approve
+        // Otherwise use publish endpoint
+        if (currentView === 'rejected') {
+          // Always use re-approve to change from 'rejected' to 'admin_approved'
+          url = `/api/admin/listings/${id}/re-approve`;
+          opts.body = JSON.stringify({ notes: '' });
+        } else {
+          url = `/api/admin/listings/${id}/publish`;
+          opts.body = JSON.stringify({ notes: '' });
+        }
       } else {
         url = `/admin/approve-listing/${id}`;
       }
@@ -1057,10 +1757,133 @@ async function takeAction(id, action) {
 
     if (res.ok) {
       closeAppModal();
-      // reload the current view to reflect changes; stay on same view
-      await loadListings(currentView);
-      await loadAdminStats();
-      showToast(`${action.charAt(0).toUpperCase() + action.slice(1)}d successfully`);
+      
+      // Special handling for re-approve action - may need to publish afterward
+      if (action === 'approve' && currentView === 'rejected' && isHeadAdmin) {
+        const listing = rejectedListings.find(l => (l.listing_id || l.id) === id);
+        const wasPublished = listing && listing.head_admin_approved_at;
+        
+        // Clear all listing arrays to ensure fresh reload
+        pendingListings = [];
+        approvedListings = [];
+        rejectedListings = [];
+        currentListings = [];
+        
+        // If it was previously published, call publish endpoint after re-approve
+        if (wasPublished) {
+          try {
+            console.log(`[takeAction] Re-approved listing ${id}, now publishing...`);
+            const publishRes = await fetch(`/api/admin/listings/${id}/publish`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ notes: '' })
+            });
+            if (!publishRes.ok) {
+              const publishErr = await publishRes.json();
+              console.error('Publish after re-approve failed:', publishErr);
+            }
+          } catch (e) {
+            console.error('Error publishing after re-approve:', e);
+          }
+        }
+        
+        // Fetch fresh data for all views
+        const endpoints = {
+          'pending': isHeadAdmin ? '/api/admin/listings/pending-head-admin' : '/api/admin/listings/pending-approval',
+          'approved': '/api/admin/listings/approvals',
+          'rejected': '/api/admin/listings/rejected'
+        };
+        
+        for (const [status, endpoint] of Object.entries(endpoints)) {
+          try {
+            const response = await fetch(endpoint, { credentials: 'same-origin' });
+            if (response.ok) {
+              const listings = await response.json();
+              if (status === 'pending') pendingListings = listings;
+              else if (status === 'approved') approvedListings = listings;
+              else if (status === 'rejected') rejectedListings = listings;
+            }
+          } catch (e) {
+            console.error(`Error loading ${status} listings:`, e);
+          }
+        }
+        
+        await loadAdminStats();
+        
+        // Refresh all views' HTML to ensure clean display
+        // Find tbody the same way loadListings does
+        const headAdminSection = document.getElementById('head-admin-section');
+        const listingAdminSection = document.getElementById('listing-admin-section');
+        let tbody = null;
+        
+        if (headAdminSection?.classList.contains('active')) {
+          tbody = headAdminSection.querySelector('tbody#appsTable');
+        } else if (listingAdminSection?.classList.contains('active')) {
+          tbody = listingAdminSection.querySelector('tbody#appsTable');
+        } else {
+          tbody = document.querySelector('tbody#appsTable');
+        }
+        
+        if (tbody) {
+          tbody.innerHTML = ''; // Clear to prevent stale data
+        }
+        
+        // Determine target view based on previous state
+        const targetView = wasPublished ? 'approved' : 'pending';
+        currentView = targetView;
+        await loadListings(targetView);
+        showToast(`Listing re-approved and restored to ${wasPublished ? 'published' : 'pending'} view`);
+      } else {
+        // For other actions, clear and reload all views
+        pendingListings = [];
+
+        approvedListings = [];
+        rejectedListings = [];
+        currentListings = [];
+        
+        // Fetch fresh data for all views
+        const endpoints = {
+          'pending': isSystemAdmin ? '/api/admin/listings/pending-approval' : '/api/admin/listings/pending-head-admin',
+          'approved': '/api/admin/listings/approvals',
+          'rejected': '/api/admin/listings/rejected'
+        };
+        
+        for (const [status, endpoint] of Object.entries(endpoints)) {
+          try {
+            const response = await fetch(endpoint, { credentials: 'same-origin' });
+            if (response.ok) {
+              const listings = await response.json();
+              if (status === 'pending') pendingListings = listings;
+              else if (status === 'approved') approvedListings = listings;
+              else if (status === 'rejected') rejectedListings = listings;
+            }
+          } catch (e) {
+            console.error(`Error loading ${status} listings:`, e);
+          }
+        }
+        
+        await loadAdminStats();
+        
+        // Refresh current view display
+        // Find tbody the same way loadListings does
+        const headAdminSection2 = document.getElementById('head-admin-section');
+        const listingAdminSection2 = document.getElementById('listing-admin-section');
+        let tbody2 = null;
+        
+        if (headAdminSection2?.classList.contains('active')) {
+          tbody2 = headAdminSection2.querySelector('tbody#appsTable');
+        } else if (listingAdminSection2?.classList.contains('active')) {
+          tbody2 = listingAdminSection2.querySelector('tbody#appsTable');
+        } else {
+          tbody2 = document.querySelector('tbody#appsTable');
+        }
+        
+        if (tbody2) {
+          tbody2.innerHTML = ''; // Clear to prevent stale data
+        }
+        await loadListings(currentView);
+        showToast(`${action.charAt(0).toUpperCase() + action.slice(1)}d successfully`);
+      }
     } else {
       showToast(data.error || 'Action failed', true);
     }
@@ -1181,7 +2004,7 @@ function openRejectionModal(listingId) {
 
     // Perform the rejection API call
     try {
-      const res = await fetch(`/admin/listings/${listingId}/reject`, {
+      const res = await fetch(`/api/admin/listings/${listingId}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason })
@@ -1192,8 +2015,60 @@ function openRejectionModal(listingId) {
 
       if (res.ok) {
         closeAppModal();
-        await loadListings(currentView);
+        // Save current view to restore after reload
+        const savedView = currentView;
+        const user = JSON.parse(localStorage.getItem('laboCurrentUser')) || {};
+        const isSystemAdmin = user.admin_role === 'system_admin';
+        
+        // Clear all listing arrays to ensure fresh reload
+        pendingListings = [];
+        approvedListings = [];
+        rejectedListings = [];
+        currentListings = [];
+        
+        // Fetch fresh data for all views
+        const endpoints = {
+          'pending': isSystemAdmin ? '/api/admin/listings/pending-approval' : '/api/admin/listings/pending-head-admin',
+          'approved': '/api/admin/listings/approvals',
+          'rejected': '/api/admin/listings/rejected'
+        };
+        
+        for (const [status, endpoint] of Object.entries(endpoints)) {
+          try {
+            const response = await fetch(endpoint, { credentials: 'same-origin' });
+            if (response.ok) {
+              const listings = await response.json();
+              if (status === 'pending') pendingListings = listings;
+              else if (status === 'approved') approvedListings = listings;
+              else if (status === 'rejected') rejectedListings = listings;
+            }
+          } catch (e) {
+            console.error(`Error loading ${status} listings:`, e);
+          }
+        }
+        
         await loadAdminStats();
+        
+        // Clear tbody to prevent stale HTML - find it the same way loadListings does
+        const headAdminSection = document.getElementById('head-admin-section');
+        const listingAdminSection = document.getElementById('listing-admin-section');
+        let tbody = null;
+        
+        if (headAdminSection?.classList.contains('active')) {
+          tbody = headAdminSection.querySelector('tbody#appsTable');
+        } else if (listingAdminSection?.classList.contains('active')) {
+          tbody = listingAdminSection.querySelector('tbody#appsTable');
+        } else {
+          tbody = document.querySelector('tbody#appsTable');
+        }
+        
+        if (tbody) {
+          tbody.innerHTML = '';
+        }
+        
+        // Restore the original view and reload display once
+        currentView = savedView;
+        await loadListings(savedView);
         showToast('Listing rejected successfully');
       } else {
         showToast(data.error || 'Rejection failed', true);
@@ -1320,7 +2195,7 @@ function openBulkRejectionModal(listingIds) {
     // Perform bulk rejection API calls
     try {
       const promises = listingIds.map(id =>
-        fetch(`/admin/listings/${id}/reject`, {
+        fetch(`/api/admin/listings/${id}/reject`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ reason })
@@ -1475,6 +2350,7 @@ async function createAdminToken() {
 // ==================== SUCCESS STORIES ====================
 
 let pendingStories = [];
+let rejectedStories = [];
 let headPendingStories = [];
 let headPublishedStories = [];
 let headRejectedStories = [];
@@ -1490,9 +2366,11 @@ async function loadPendingStories() {
     }
     const data = await response.json();
     
-    // Filter only 'pending' stories (not listing_admin_approved)
+    // Filter only 'pending' stories (not system_admin_approved)
     pendingStories = Array.isArray(data) ? data.filter(s => s.status === 'pending') : [];
+    rejectedStories = Array.isArray(data) ? data.filter(s => s.status === 'rejected') : [];
     document.getElementById('stat-stories-pending').textContent = pendingStories.length;
+    document.getElementById('stat-stories-rejected').textContent = rejectedStories.length;
     renderStoriesTable();
   } catch (err) {
     console.error('Error loading stories:', err);
@@ -1503,20 +2381,32 @@ async function loadPendingStories() {
 // Load pending stories for head admin
 async function loadHeadAdminStories() {
   try {
+    console.log('[loadHeadAdminStories] Starting to load head admin stories');
     const response = await fetch('/api/admin/success-stories/pending');
+    console.log('[loadHeadAdminStories] Response status:', response.status);
+    
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Failed to load stories');
     }
     const data = await response.json();
+    console.log('[loadHeadAdminStories] Got data:', data);
+    console.log('[loadHeadAdminStories] Data is array:', Array.isArray(data));
+    console.log('[loadHeadAdminStories] Data length:', Array.isArray(data) ? data.length : 'not an array');
     
     // Store all stories
     allHeadAdminStories = Array.isArray(data) ? data : [];
+    console.log('[loadHeadAdminStories] All stories count:', allHeadAdminStories.length);
     
-    // Filter by status
-    headPendingStories = allHeadAdminStories.filter(s => s.status === 'listing_admin_approved');
+    // Filter by status and log each story
+    headPendingStories = allHeadAdminStories.filter(s => {
+      console.log('[loadHeadAdminStories] Checking story', s.id, '- status:', s.status, '- is system_admin_approved?', s.status === 'system_admin_approved');
+      return s.status === 'system_admin_approved';
+    });
     headPublishedStories = allHeadAdminStories.filter(s => s.status === 'published');
     headRejectedStories = allHeadAdminStories.filter(s => s.status === 'rejected');
+    
+    console.log('[loadHeadAdminStories] Pending:', headPendingStories.length, 'Published:', headPublishedStories.length, 'Rejected:', headRejectedStories.length);
     
     // Update counts
     document.getElementById('stat-stories-head-pending').textContent = headPendingStories.length;
@@ -1525,12 +2415,24 @@ async function loadHeadAdminStories() {
     if (statPublished) statPublished.textContent = headPublishedStories.length;
     if (statRejected) statRejected.textContent = headRejectedStories.length;
     
+    console.log('[loadHeadAdminStories] About to render tables');
     renderHeadStoriesTable();
     renderHeadPublishedStoriesTable();
     renderHeadRejectedStoriesTable();
+    
+    // Initialize active tab highlighting for stories
+    switchHeadAdminStoriesView('pending');
+    
+    console.log('[loadHeadAdminStories] Finished rendering');
+    
+    return Promise.resolve();
   } catch (err) {
     console.error('Error loading head admin stories:', err);
-    document.getElementById('headStoriesTable').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#f44336">Error: ' + err.message + '</td></tr>';
+    const tbody = document.getElementById('headStoriesTable');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#f44336">Error: ' + err.message + '</td></tr>';
+    }
+    return Promise.reject(err);
   }
 }
 
@@ -1551,8 +2453,10 @@ function renderStoriesTable() {
       <td>${story.location}</td>
       <td>${story.business_type}</td>
       <td><span class="badge" style="background:#ffc107;color:#000">Pending</span></td>
-      <td style="text-align:right">
+      <td style="text-align:right;display:flex;gap:6px;justify-content:flex-end">
         <button class="btn btn-sm btn-primary" onclick="openStoryModal(${story.id}, 'listing-admin')">Review</button>
+        <button class="btn btn-sm btn-primary" onclick="openApproveStoryModal(${story.id})">Approve & Send</button>
+        <button class="btn btn-sm btn-ghost" style="background:#f44336;color:white;border:none" onclick="openRejectStoryModal(${story.id})">Reject</button>
       </td>
     </tr>
   `).join('');
@@ -1566,54 +2470,191 @@ function toggleStorySelection(storyId, checked) {
   }
 }
 
+function renderRejectedStoriesTable() {
+  const tbody = document.getElementById('storiesTable');
+  
+  if (!rejectedStories || rejectedStories.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">No rejected success stories</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rejectedStories.map(story => `
+    <tr>
+      ${storiesSelectionActive ? `<td><input type="checkbox" onchange="toggleStorySelection(${story.id}, this.checked)" ${selectedStories.has(story.id) ? 'checked' : ''}></td>` : ''}
+      <td><img src="${story.image_url}" alt="${story.business_name}" style="width:60px;height:60px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="previewImage('${story.image_url}')"></td>
+      <td><strong>${story.business_name}</strong></td>
+      <td>${story.investor_name}</td>
+      <td>${story.location}</td>
+      <td>${story.business_type}</td>
+      <td><span class="badge" style="background:#f44336;color:#fff">Rejected</span></td>
+      <td style="text-align:right;display:flex;gap:6px;justify-content:flex-end">
+        <button class="btn btn-sm btn-primary" onclick="openStoryModal(${story.id}, 'listing-admin')">Review</button>
+        <button class="btn btn-sm btn-primary" onclick="openApproveStoryModal(${story.id})">Re-Approve</button>
+        <button class="btn btn-sm btn-ghost" style="background:#f44336;color:white;border:none" onclick="deleteStoryInline(${story.id})">Delete</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function approveStoryInline(storyId) {
+  try {
+    const response = await fetch(`/api/admin/success-stories/${storyId}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: '' })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      showToast(error.error || 'Failed to approve story', true);
+      return;
+    }
+    
+    showToast('Story approved and sent to head admin');
+    await loadPendingStories();
+    switchStoriesView('pending');
+  } catch (err) {
+    console.error('Error approving story:', err);
+    showToast('Error approving story', true);
+  }
+}
+
+async function rejectStoryInline(storyId) {
+  const reason = prompt('Enter rejection reason:');
+  if (!reason) return;
+  
+  try {
+    const response = await fetch(`/api/admin/success-stories/${storyId}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      showToast(error.error || 'Failed to reject story', true);
+      return;
+    }
+    
+    showToast('Story rejected');
+    await loadPendingStories();
+    switchStoriesView('rejected');
+  } catch (err) {
+    console.error('Error rejecting story:', err);
+    showToast('Error rejecting story', true);
+  }
+}
+
+async function deleteStoryInline(storyId) {
+  if (!confirm('Delete this story permanently?')) return;
+  
+  try {
+    const response = await fetch(`/api/admin/success-stories/${storyId}`, {
+      method: 'DELETE'
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      showToast(error.error || 'Failed to delete story', true);
+      return;
+    }
+    
+    showToast('Story deleted');
+    await loadPendingStories();
+    switchStoriesView('rejected');
+  } catch (err) {
+    console.error('Error deleting story:', err);
+    showToast('Error deleting story', true);
+  }
+}
+
 function renderHeadStoriesTable() {
+  console.log('[renderHeadStoriesTable] Called');
   const tbody = document.getElementById('headStoriesTable');
+  console.log('[renderHeadStoriesTable] tbody found:', !!tbody);
+  
+  if (!tbody) {
+    console.error('[renderHeadStoriesTable] tbody not found - cannot render');
+    return;
+  }
+  
+  console.log('[renderHeadStoriesTable] headPendingStories length:', headPendingStories ? headPendingStories.length : 'undefined');
   
   if (!headPendingStories || headPendingStories.length === 0) {
+    console.log('[renderHeadStoriesTable] No pending stories - showing empty message');
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">No stories awaiting final approval</td></tr>';
     return;
   }
 
+  console.log('[renderHeadStoriesTable] Rendering', headPendingStories.length, 'stories');
   tbody.innerHTML = headPendingStories.map(story => `
     <tr>
       <td><img src="${story.image_url}" alt="${story.business_name}" style="width:60px;height:60px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="previewImage('${story.image_url}')"></td>
       <td><strong>${story.business_name}</strong></td>
       <td>${story.investor_name}</td>
-      <td>${story.listing_admin_notes || 'N/A'}</td>
-      <td><span class="badge" style="background:#4CAF50;color:#fff">Listing Admin Approved</span></td>
-      <td style="text-align:right">
+      <td>${story.system_admin_name || 'N/A'}</td>
+      <td><span class="badge" style="background:#4CAF50;color:#fff">System Admin Approved</span></td>
+      <td style="text-align:right;display:flex;gap:6px;justify-content:flex-end">
         <button class="btn btn-sm btn-primary" onclick="openStoryModal(${story.id}, 'head-admin')">Review</button>
+        <button class="btn btn-sm btn-primary" onclick="openPublishStoryModal(${story.id})">Publish</button>
+        <button class="btn btn-sm btn-ghost" style="background:#f44336;color:white;border:none" onclick="openRejectStoryModal(${story.id})">Reject</button>
       </td>
     </tr>
   `).join('');
 }
 
 function renderHeadPublishedStoriesTable() {
+  console.log('[renderHeadPublishedStoriesTable] Called');
   const tbody = document.getElementById('headPublishedStoriesTable');
+  console.log('[renderHeadPublishedStoriesTable] tbody found:', !!tbody);
+  
+  if (!tbody) {
+    console.error('[renderHeadPublishedStoriesTable] tbody not found - cannot render');
+    return;
+  }
+  
+  console.log('[renderHeadPublishedStoriesTable] headPublishedStories length:', headPublishedStories ? headPublishedStories.length : 'undefined');
   
   if (!headPublishedStories || headPublishedStories.length === 0) {
+    console.log('[renderHeadPublishedStoriesTable] No published stories - showing empty message');
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">No published success stories</td></tr>';
     return;
   }
 
+  console.log('[renderHeadPublishedStoriesTable] Rendering', headPublishedStories.length, 'stories');
   tbody.innerHTML = headPublishedStories.map(story => `
     <tr>
       <td><img src="${story.image_url}" alt="${story.business_name}" style="width:60px;height:60px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="previewImage('${story.image_url}')"></td>
       <td><strong>${story.business_name}</strong></td>
       <td>${story.investor_name}</td>
       <td><span class="badge" style="background:#2196F3;color:#fff">Published</span></td>
+      <td style="text-align:right;display:flex;gap:6px;justify-content:flex-end">
+        <button class="btn btn-sm btn-primary" onclick="openStoryModal(${story.id}, 'head-admin')">Review</button>
+        <button class="btn btn-sm btn-ghost" style="background:#f44336;color:white;border:none" onclick="openRejectStoryModal(${story.id})">Reject</button>
+      </td>
     </tr>
   `).join('');
 }
 
 function renderHeadRejectedStoriesTable() {
+  console.log('[renderHeadRejectedStoriesTable] Called');
   const tbody = document.getElementById('headRejectedStoriesTable');
+  console.log('[renderHeadRejectedStoriesTable] tbody found:', !!tbody);
+  
+  if (!tbody) {
+    console.error('[renderHeadRejectedStoriesTable] tbody not found - cannot render');
+    return;
+  }
+  
+  console.log('[renderHeadRejectedStoriesTable] headRejectedStories length:', headRejectedStories ? headRejectedStories.length : 'undefined');
   
   if (!headRejectedStories || headRejectedStories.length === 0) {
+    console.log('[renderHeadRejectedStoriesTable] No rejected stories - showing empty message');
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">No rejected success stories</td></tr>';
     return;
   }
 
+  console.log('[renderHeadRejectedStoriesTable] Rendering', headRejectedStories.length, 'stories');
   tbody.innerHTML = headRejectedStories.map(story => `
     <tr>
       <td><img src="${story.image_url}" alt="${story.business_name}" style="width:60px;height:60px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="previewImage('${story.image_url}')"></td>
@@ -1621,14 +2662,30 @@ function renderHeadRejectedStoriesTable() {
       <td>${story.investor_name}</td>
       <td>${story.head_admin_notes || 'N/A'}</td>
       <td><span class="badge" style="background:#f44336;color:#fff">Rejected</span></td>
+      <td style="text-align:right;display:flex;gap:6px;justify-content:flex-end">
+        <button class="btn btn-sm btn-primary" onclick="openStoryModal(${story.id}, 'head-admin')">Review</button>
+        <button class="btn btn-sm btn-primary" onclick="openPublishStoryModal(${story.id})">Re-Publish</button>
+      </td>
     </tr>
   `).join('');
 }
 
 async function openStoryModal(storyId, role) {
   try {
-    const stories = role === 'head-admin' ? headPendingStories : pendingStories;
-    const story = stories.find(s => s.id === storyId);
+    // Search for the story across all arrays
+    let story = null;
+    let storyStatus = null;
+    
+    if (role === 'head-admin') {
+      story = headPendingStories.find(s => s.id === storyId);
+      if (!story) story = headPublishedStories.find(s => s.id === storyId);
+      if (!story) story = headRejectedStories.find(s => s.id === storyId);
+      if (story) storyStatus = story.status;
+    } else {
+      story = pendingStories.find(s => s.id === storyId);
+      if (!story) story = allHeadAdminStories?.find(s => s.id === storyId);
+      if (story) storyStatus = story.status;
+    }
     
     if (!story) {
       showToast('Story not found', true);
@@ -1647,7 +2704,8 @@ async function openStoryModal(storyId, role) {
         <p>${story.description}</p>
         <p><strong>Achievement:</strong></p>
         <p>${story.key_achievement}</p>
-        ${story.listing_admin_notes ? `<p><strong>Listing Admin Notes:</strong><br>${story.listing_admin_notes}</p>` : ''}
+        ${story.system_admin_notes ? `<p><strong>System Admin Notes:</strong><br>${story.system_admin_notes}</p>` : ''}
+        ${story.head_admin_notes ? `<p><strong>Head Admin Notes:</strong><br>${story.head_admin_notes}</p>` : ''}
       </div>
     `;
 
@@ -1655,18 +2713,45 @@ async function openStoryModal(storyId, role) {
     document.getElementById('storyModalBody').innerHTML = html;
 
     const actionsDiv = document.getElementById('storyModalActions');
-    if (role === 'listing-admin') {
-      actionsDiv.innerHTML = `
-        <button class="btn btn-primary" onclick="approveStory(${storyId})">Approve & Send to Head Admin</button>
-        <button class="btn btn-ghost" style="background:#f44336;color:white" onclick="openRejectStoryModal(${storyId})">Reject</button>
-      `;
-    } else {
-      actionsDiv.innerHTML = `
-        <button class="btn btn-primary" onclick="publishStory(${storyId})">Publish Story</button>
-        <button class="btn btn-ghost" style="background:#f44336;color:white" onclick="openRejectStoryModal(${storyId})">Reject</button>
-      `;
+    let actionButtons = '';
+
+    if (role === 'listing-admin' || role === 'system-admin') {
+      // System admin can approve pending, re-approve rejected, or reject any
+      if (storyStatus === 'pending') {
+        actionButtons = `
+          <button class="btn btn-primary" onclick="openApproveStoryModal(${storyId})">Approve & Send to Head Admin</button>
+          <button class="btn btn-ghost" style="background:#f44336;color:white" onclick="openRejectStoryModal(${storyId})">Reject</button>
+        `;
+      } else if (storyStatus === 'rejected') {
+        actionButtons = `
+          <button class="btn btn-primary" onclick="openApproveStoryModal(${storyId})">Re-Approve Story</button>
+          <button class="btn btn-ghost" style="background:#f44336;color:white" onclick="openRejectStoryModal(${storyId})">Delete</button>
+        `;
+      } else if (storyStatus === 'system_admin_approved') {
+        actionButtons = `
+          <button class="btn btn-ghost" style="background:#f44336;color:white" onclick="openRejectStoryModal(${storyId})">Reject</button>
+        `;
+      }
+    } else if (role === 'head-admin') {
+      // Head admin can publish system-admin-approved stories, reject them, publish published stories is weird so maybe revoke, and re-approve rejected
+      if (storyStatus === 'system_admin_approved') {
+        actionButtons = `
+          <button class="btn btn-primary" onclick="openPublishStoryModal(${storyId})">Publish Story</button>
+          <button class="btn btn-ghost" style="background:#f44336;color:white" onclick="openRejectStoryModal(${storyId})">Reject</button>
+        `;
+      } else if (storyStatus === 'published') {
+        actionButtons = `
+          <button class="btn btn-ghost" style="background:#f44336;color:white" onclick="openRejectStoryModal(${storyId})">Reject</button>
+        `;
+      } else if (storyStatus === 'rejected') {
+        actionButtons = `
+          <button class="btn btn-primary" onclick="openPublishStoryModal(${storyId})">Re-Publish Story</button>
+          <button class="btn btn-ghost" style="background:#f44336;color:white" onclick="openRejectStoryModal(${storyId})">Delete</button>
+        `;
+      }
     }
 
+    actionsDiv.innerHTML = actionButtons;
     document.getElementById('storyModal').classList.add('open');
   } catch (err) {
     console.error('Error opening story modal:', err);
@@ -1678,10 +2763,133 @@ function closeStoryModal() {
   document.getElementById('storyModal').classList.remove('open');
 }
 
-async function approveStory(storyId) {
+function openApproveStoryModal(storyId) {
+  const overlay = document.createElement('div');
+  overlay.id = 'approveStoryOverlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+  `;
+
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  `;
+
+  modal.innerHTML = `
+    <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 20px;">Approve Success Story</h3>
+    <p style="color: #666; margin-bottom: 20px;">Are you sure you want to approve this story?</p>
+    
+    <label style="display: block; margin-bottom: 15px;">
+      <span style="font-size: 14px; font-weight: 500; display: block; margin-bottom: 8px;">Add notes (optional):</span>
+      <textarea 
+        id="approveStoryNotes" 
+        placeholder="Add any notes..." 
+        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-family: Arial, sans-serif; min-height: 80px; box-sizing: border-box; resize: vertical;"
+      ></textarea>
+    </label>
+
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+      <button class="btn btn-ghost" onclick="closeApproveStoryModal()" style="padding: 10px 20px;">Cancel</button>
+      <button class="btn btn-primary" id="confirmApproveStoryBtn" style="padding: 10px 20px;">Approve</button>
+    </div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  document.getElementById('confirmApproveStoryBtn').addEventListener('click', async () => {
+    const notes = document.getElementById('approveStoryNotes').value.trim();
+    closeApproveStoryModal();
+    await approveStory(storyId, notes);
+  });
+}
+
+function closeApproveStoryModal() {
+  const overlay = document.getElementById('approveStoryOverlay');
+  if (overlay) {
+    overlay.remove();
+  }
+}
+
+function openPublishStoryModal(storyId) {
+  const overlay = document.createElement('div');
+  overlay.id = 'publishStoryOverlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+  `;
+
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  `;
+
+  modal.innerHTML = `
+    <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 20px;">Publish Success Story</h3>
+    <p style="color: #666; margin-bottom: 20px;">Are you sure you want to publish this story?</p>
+    
+    <label style="display: block; margin-bottom: 15px;">
+      <span style="font-size: 14px; font-weight: 500; display: block; margin-bottom: 8px;">Add notes (optional):</span>
+      <textarea 
+        id="publishStoryNotes" 
+        placeholder="Add any notes..." 
+        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-family: Arial, sans-serif; min-height: 80px; box-sizing: border-box; resize: vertical;"
+      ></textarea>
+    </label>
+
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+      <button class="btn btn-ghost" onclick="closePublishStoryModal()" style="padding: 10px 20px;">Cancel</button>
+      <button class="btn btn-primary" id="confirmPublishStoryBtn" style="padding: 10px 20px;">Publish</button>
+    </div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  document.getElementById('confirmPublishStoryBtn').addEventListener('click', async () => {
+    const notes = document.getElementById('publishStoryNotes').value.trim();
+    closePublishStoryModal();
+    await publishStory(storyId, notes);
+  });
+}
+
+function closePublishStoryModal() {
+  const overlay = document.getElementById('publishStoryOverlay');
+  if (overlay) {
+    overlay.remove();
+  }
+}
+
+async function approveStory(storyId, notes = '') {
   try {
-    const notes = prompt('Add notes (optional):');
-    const response = await fetch(`/api/admin/success-stories/${storyId}/listing-admin-approve`, {
+    const response = await fetch(`/api/admin/success-stories/${storyId}/system-admin-approve`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
@@ -1700,9 +2908,8 @@ async function approveStory(storyId) {
   }
 }
 
-async function publishStory(storyId) {
+async function publishStory(storyId, notes = '') {
   try {
-    const notes = prompt('Add notes (optional):');
     const response = await fetch(`/api/admin/success-stories/${storyId}/head-admin-approve`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -1723,15 +2930,123 @@ async function publishStory(storyId) {
 }
 
 function openRejectStoryModal(storyId) {
-  const reason = prompt('Reason for rejection:');
-  if (reason) {
-    rejectStory(storyId, reason);
+  const overlay = document.createElement('div');
+  overlay.id = 'storyRejectionOverlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+  `;
+
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  `;
+
+  let reasonsHTML = '';
+  STORY_REJECTION_REASONS.forEach((reason) => {
+    reasonsHTML += `
+      <label style="display: block; margin-bottom: 12px; cursor: pointer;">
+        <input type="radio" name="story_rejection_reason" value="${reason}" style="margin-right: 10px;">
+        <span style="font-size: 14px;">${reason}</span>
+      </label>
+    `;
+  });
+
+  modal.innerHTML = `
+    <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 20px;">Reject Success Story</h3>
+    <p style="color: #666; margin-bottom: 20px;">Select a reason for rejecting this story:</p>
+    
+    <div style="margin-bottom: 20px; max-height: 300px; overflow-y: auto;">
+      ${reasonsHTML}
+    </div>
+
+    <div id="customReasonStoryContainer" style="display: none; margin-bottom: 20px;">
+      <textarea 
+        id="customReasonStory" 
+        placeholder="Enter your custom rejection reason..." 
+        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-family: Arial, sans-serif; min-height: 80px; box-sizing: border-box; resize: vertical;"
+      ></textarea>
+    </div>
+
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+      <button class="btn btn-ghost" onclick="closeRejectStoryModal()" style="padding: 10px 20px;">Cancel</button>
+      <button class="btn btn-danger" id="confirmRejectStoryBtn" style="padding: 10px 20px;">Reject</button>
+    </div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Show custom reason input when "Custom reason" is selected
+  const radios = modal.querySelectorAll('input[name="story_rejection_reason"]');
+  radios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      const customContainer = document.getElementById('customReasonStoryContainer');
+      if (e.target.value === 'Custom reason') {
+        customContainer.style.display = 'block';
+        document.getElementById('customReasonStory').focus();
+      } else {
+        customContainer.style.display = 'none';
+      }
+    });
+  });
+
+  // Handle rejection confirmation
+  document.getElementById('confirmRejectStoryBtn').addEventListener('click', async () => {
+    const selectedRadio = modal.querySelector('input[name="story_rejection_reason"]:checked');
+    if (!selectedRadio) {
+      showToast('Please select a reason', true);
+      return;
+    }
+
+    let reason = selectedRadio.value;
+    if (reason === 'Custom reason') {
+      const customText = document.getElementById('customReasonStory').value.trim();
+      if (!customText) {
+        showToast('Please enter a custom reason', true);
+        return;
+      }
+      reason = customText;
+    }
+
+    // Close the modal
+    closeRejectStoryModal();
+
+    // Perform the rejection
+    await rejectStory(storyId, reason);
+  });
+}
+
+function closeRejectStoryModal() {
+  const overlay = document.getElementById('storyRejectionOverlay');
+  if (overlay) {
+    overlay.remove();
   }
 }
 
 async function rejectStory(storyId, reason) {
   try {
-    const response = await fetch(`/api/admin/success-stories/${storyId}/reject`, {
+    // Determine which endpoint to use based on admin role
+    const user = JSON.parse(localStorage.getItem('laboCurrentUser')) || {};
+    const isHeadAdmin = user.admin_role === 'head_admin';
+    const endpoint = isHeadAdmin 
+      ? `/api/admin/success-stories/${storyId}/head-admin-reject`
+      : `/api/admin/success-stories/${storyId}/system-admin-reject`;
+
+    const response = await fetch(endpoint, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
@@ -1743,11 +3058,12 @@ async function rejectStory(storyId, reason) {
 
     showToast('Story rejected');
     closeStoryModal();
-    const user = await getUserRole();
-    if (user.admin_role === 'listing_admin') {
-      loadPendingStories();
+    
+    // Reload appropriate view based on role
+    if (isHeadAdmin) {
+      await loadHeadAdminStories();
     } else {
-      loadHeadAdminStories();
+      await loadPendingStories();
     }
   } catch (err) {
     console.error('Error rejecting story:', err);
@@ -1755,9 +3071,27 @@ async function rejectStory(storyId, reason) {
   }
 }
 
+// Story rejection reasons (similar to listing rejection)
+const STORY_REJECTION_REASONS = [
+  'Inappropriate content',
+  'Inaccurate or unverifiable information',
+  'Photos are unclear or missing',
+  'Does not meet success story requirements',
+  'Duplicate story',
+  'Violates platform terms and conditions',
+  'Custom reason'
+];
+
 function switchStoriesView(view) {
-  // For now just show pending
-  renderStoriesTable();
+  const currentStoriesView = view || 'pending';
+  
+  if (currentStoriesView === 'pending') {
+    pendingStories.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    renderStoriesTable();
+  } else if (currentStoriesView === 'rejected') {
+    rejectedStories.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    renderRejectedStoriesTable();
+  }
 }
 
 // Stories bulk action tracking
@@ -1770,6 +3104,21 @@ function toggleStoriesSelectMode() {
   
   const btn = document.getElementById('toggleStoriesSelectBtn');
   btn.textContent = storiesSelectionActive ? 'Disable Select' : 'Toggle Select';
+  
+  // Show/hide action buttons
+  const approveBtn = document.getElementById('approveStoriesSelectedBtn');
+  const rejectBtn = document.getElementById('rejectStoriesSelectedBtn');
+  const clearBtn = document.getElementById('clearStoriesSelectionBtn');
+  
+  if (storiesSelectionActive) {
+    if (approveBtn) approveBtn.style.display = 'block';
+    if (rejectBtn) rejectBtn.style.display = 'block';
+    if (clearBtn) clearBtn.style.display = 'block';
+  } else {
+    if (approveBtn) approveBtn.style.display = 'none';
+    if (rejectBtn) rejectBtn.style.display = 'none';
+    if (clearBtn) clearBtn.style.display = 'none';
+  }
   
   const table = document.getElementById('storiesTable');
   table.parentElement.classList.toggle('selection-active');
@@ -1793,7 +3142,7 @@ async function bulkApproveStories() {
   try {
     let approved = 0;
     for (const storyId of selectedStories) {
-      const response = await fetch(`/api/admin/success-stories/${storyId}/listing-admin-approve`, {
+      const response = await fetch(`/api/admin/success-stories/${storyId}/system-admin-approve`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',

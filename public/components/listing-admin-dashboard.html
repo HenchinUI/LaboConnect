@@ -492,7 +492,7 @@
         
         if (!response.ok) throw new Error(data.error);
         
-        // Filter to only show stories with status 'pending' (not listing_admin_approved)
+        // Filter to only show stories with status 'pending' (not system_admin_approved)
         pendingStories = data.filter(s => s.status === 'pending');
         document.getElementById('pendingStoriesCount').textContent = pendingStories.length;
         renderPendingStories();
@@ -659,7 +659,7 @@
       
       try {
         const notes = document.getElementById('storyApprovalNotes').value;
-        const response = await fetch(`/api/admin/success-stories/${currentStoryId}/listing-admin-approve`, {
+        const response = await fetch(`/api/admin/success-stories/${currentStoryId}/system-admin-approve`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ notes })

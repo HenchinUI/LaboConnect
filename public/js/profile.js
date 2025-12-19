@@ -158,7 +158,7 @@ async function loadNotifications() {
 // Convert notification status codes to user-friendly messages
 function getStatusMessage(status) {
   const statusMap = {
-    'listing_admin_approved': 'Pre-approved by Listing Admin',
+    'system_admin_approved': 'Pre-approved by System Admin',
     'published': 'Published & Live',
     'approved': 'Approved',
     'rejected': 'Rejected',
@@ -1179,7 +1179,7 @@ async function openSuccessStoryModalForListing(listingId, listingTitle, listingI
         return;
       }
 
-      // If story already exists but is not published (pending/listing_admin_approved/rejected)
+      // If story already exists but is not published (pending/system_admin_approved/rejected)
       // show a message to user
       if (story && story.id) {
         showMessage(`You've already submitted a success story for this listing. Status: ${story.status}. Please wait for admin review.`, 'info');

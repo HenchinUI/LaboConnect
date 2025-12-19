@@ -300,6 +300,13 @@ button.btn {
   color: #fff;
 }
 
+.btn-ghost.active {
+  background: linear-gradient(90deg,var(--accent),var(--accent-2));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 16px rgba(45,143,90,0.15);
+}
+
 #formMsg {
   display: none;
   background: linear-gradient(90deg,#dff7e9,#eafbf0);

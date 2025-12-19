@@ -510,7 +510,7 @@
         <label for="adminRole">Admin Role *</label>
         <select id="adminRole" required>
           <option value="">Select a role</option>
-          <option value="listing_admin">Listing Admin</option>
+          <option value="system_admin">System Admin</option>
           <option value="verification_admin">Verification Admin</option>
           <option value="head_admin">Head Admin</option>
         </select>
@@ -587,8 +587,8 @@
         // Store all stories for filtering
         allStories = Array.isArray(data) ? data : [];
         
-        // Filter to only show stories with status 'listing_admin_approved' (awaiting head admin final approval)
-        pendingStories = allStories.filter(s => s.status === 'listing_admin_approved');
+        // Filter to only show stories with status 'system_admin_approved' (awaiting head admin final approval)
+        pendingStories = allStories.filter(s => s.status === 'system_admin_approved');
         publishedStories = allStories.filter(s => s.status === 'published');
         rejectedStories = allStories.filter(s => s.status === 'rejected');
         
@@ -915,7 +915,7 @@
           <p><strong>Location:</strong> ${story.location}</p>
           <p><strong>Type:</strong> ${story.business_type}</p>
           <p><strong>Investor:</strong> ${story.investor_name}</p>
-          <p><strong>Listing Admin Notes:</strong> ${story.listing_admin_notes || 'N/A'}</p>
+          <p><strong>System Admin Notes:</strong> ${story.system_admin_notes || 'N/A'}</p>
           <img src="${story.image_url}" alt="${story.business_name}" style="max-width: 100%; max-height: 250px; border-radius: 4px; margin-top: 10px;">
           <p><strong>Description:</strong></p>
           <p>${story.description}</p>

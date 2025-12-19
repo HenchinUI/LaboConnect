@@ -569,6 +569,11 @@ class InlineContentEditor {
       // Store in localStorage that edit mode is disabled
       localStorage.setItem('inline-editor-disabled', 'true');
       
+      // Update indicator text if on index page
+      if (typeof updateIndicatorText === 'function') {
+        updateIndicatorText();
+      }
+      
       // Remove all event listeners from editable elements
       this.removeEditListeners();
       

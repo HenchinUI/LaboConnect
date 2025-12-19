@@ -16,6 +16,35 @@
     .submit-wrap.visible { opacity: 1; transform: translateY(0); }
     .submit-cta { padding:18px; border-radius:8px; background:#fff; box-shadow:0 6px 20px rgba(2,6,23,0.04); text-align:center }
     .submit-cta .btn { margin-top:8px }
+    
+    /* Edit Mode Indicator */
+    #editModeIndicator {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgb(102, 126, 234);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 50px;
+      font-size: 12px;
+      font-weight: 600;
+      z-index: 10000;
+      box-shadow: rgba(102, 126, 234, 0.4) 0px 4px 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: none;
+      user-select: none;
+      pointer-events: auto;
+    }
+    
+    #editModeIndicator:hover {
+      transform: scale(1.05);
+      box-shadow: rgba(102, 126, 234, 0.6) 0px 6px 16px;
+    }
+    
+    #editModeIndicator.hidden {
+      display: none;
+    }
   </style>
 
 <style type="text/css" id="operaUserStyle"></style></head>
@@ -42,7 +71,7 @@
     </nav>
 
     <!-- Guest: Simple Login Button | Logged In: Profile Dropdown -->
-    <div class="profile-wrap" style="position:relative;">
+    <div class="profile-wrap" style="position:relative;display:flex;align-items:center;gap:10px;">
       <!-- GUEST STATE: Simple Login Button -->
       <button id="guestLoginBtn" class="btn btn-primary" style="display:none" onclick="console.log('Guest Login clicked'); openGuest(); return false;">Login / Sign Up</button>
 
@@ -53,8 +82,8 @@
           <span id="unreadDot" class="unread-dot" style="display: none; cursor: pointer;"></span>
         </button>
 
-        <button id="profileBtn" class="btn btn-ghost" title="Account" style="display:flex;align-items:center;gap:8px;">
-          <span id="profileName" style="cursor: pointer;">system</span>
+        <button id="profileBtn" class="btn btn-ghost" title="Account" style="display:flex;align-items:center;gap:8px;font-size:18px;">
+          👤
         </button>
 
         <button id="logoutBtn" class="btn btn-ghost" title="Logout">Logout</button>
@@ -1141,7 +1170,82 @@ listingForm.addEventListener("submit", async (e) => {
 <script src="/js/inline-editor.js"></script>
 
 <script>
+  // Edit Mode Toggle Indicator (Index page only)
+  function initEditModeIndicator() {
+    // Only show indicator on index.html
+    if (!window.location.pathname.endsWith('index.html') && !window.location.pathname.endsWith('/')) {
+      return;
+    }
+    
+    // Check if user is system admin
+    fetch('/api/session')
+      .then(res => res.json())
+      .then(data => {
+        if (data.user && data.user.admin_role === 'system_admin') {
+          const indicator = document.getElementById('editModeIndicator');
+          if (indicator) {
+            indicator.classList.remove('hidden');
+            updateIndicatorText();
+            
+            // Add click handler to toggle edit mode
+            indicator.addEventListener('click', toggleEditMode);
+          }
+        }
+      })
+      .catch(err => console.error('Error initializing edit mode indicator:', err));
+    
+    // Listen for localStorage changes to update indicator text dynamically
+    window.addEventListener('storage', function(e) {
+      if (e.key === 'inline-editor-disabled') {
+        updateIndicatorText();
+      }
+    });
+  }
+  
+  // Update indicator text based on edit mode state
+  function updateIndicatorText() {
+    const indicator = document.getElementById('editModeIndicator');
+    const isEditModeDisabled = localStorage.getItem('inline-editor-disabled') === 'true';
+    
+    if (indicator) {
+      if (isEditModeDisabled) {
+        indicator.textContent = '✏️ EDIT MODE OFF';
+      } else {
+        indicator.textContent = '✏️ EDIT MODE ON';
+      }
+    }
+  }
+  
+  // Toggle edit mode on/off
+  async function toggleEditMode() {
+    try {
+      const isCurrentlyDisabled = localStorage.getItem('inline-editor-disabled') === 'true';
+      
+      if (isCurrentlyDisabled) {
+        // Enable edit mode
+        localStorage.removeItem('inline-editor-disabled');
+        // Trigger update immediately
+        updateIndicatorText();
+        // Small delay then reload to reinitialize editor
+        setTimeout(() => location.reload(), 100);
+      } else {
+        // Disable edit mode by setting flag
+        localStorage.setItem('inline-editor-disabled', 'true');
+        // Trigger update immediately
+        updateIndicatorText();
+        // Reload to fully disable edit mode
+        setTimeout(() => location.reload(), 100);
+      }
+    } catch (err) {
+      console.error('Error toggling edit mode:', err);
+    }
+  }
+  
+  // Initialize indicator when DOM is ready
+  document.addEventListener('DOMContentLoaded', initEditModeIndicator);
+  
   // Use the shared loader in /js/home.js so listings are rendered consistently and only once.
+  // If fetchApprovedListings is not present (older page), fallback to a basic fetch/render.
   // If fetchApprovedListings is not present (older page), fallback to a basic fetch/render.
   (function(){
     if (typeof fetchApprovedListings === 'function') {
@@ -1236,6 +1340,9 @@ listingForm.addEventListener("submit", async (e) => {
     opacity: 1;
   }
 </style>
+
+<!-- Edit Mode Indicator (System Admin Only) -->
+<div id="editModeIndicator" class="hidden"></div>
 
 <script>
   // Ensure promote image shows on hover
