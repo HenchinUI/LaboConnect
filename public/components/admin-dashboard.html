@@ -267,6 +267,7 @@
       <button class="tab-btn active" onclick="switchHeadAdminTab('listings')">Listings</button>
       <button class="tab-btn" onclick="switchHeadAdminTab('success-stories')">Success Stories</button>
       <button class="tab-btn" onclick="switchHeadAdminTab('admin-management')">Manage Admins</button>
+      <button class="tab-btn" onclick="switchHeadAdminTab('user-management')">Manage Users</button>
     </div>
 
     <!-- Listings Tab -->
@@ -390,6 +391,19 @@
       </div>
     </div>
 
+    <!-- User Management Tab (Head Admin Only) -->
+    <div id="user-management-tab" style="display:none">
+      <div class="card">
+        <h2 style="margin:0 0 12px 0">Manage Users</h2>
+        <div style="margin-bottom:15px;">
+          <input type="text" id="userSearchInput" placeholder="Search users by name or email..." style="padding: 10px 12px; border: 1px solid #ddd; border-radius: 4px; width: 100%; max-width: 400px; font-size: 13px;">
+        </div>
+        <div id="usersList" style="display: grid; gap: 12px;">
+          <p class="muted">Loading users...</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Reports Tab -->
     <div id="reports-tab" class="role-section">
       <div class="card">
@@ -494,6 +508,70 @@
       <button class="btn btn-secondary" onclick="closeVerificationModal()">Cancel</button>
       <button class="btn btn-primary" onclick="submitVerificationDecision('reject', null)">Confirm Rejection</button>
     </div>
+  </div>
+</div>
+
+<!-- Edit User Modal -->
+<div id="editUserModal" class="modal" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; width: 100%; height: 100%; flex-direction: column; align-items: center; justify-content: center; z-index: 10000; overflow-y: auto;">
+  <div class="modal-content" style="background: white; padding: 30px; border-radius: 8px; max-width: 500px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 20px auto;">
+    <h2 style="margin-bottom: 20px;">Edit User</h2>
+    <form id="editUserForm" style="display: flex; flex-direction: column; gap: 15px;">
+      <input type="hidden" id="editUserId">
+      
+      <!-- User Type (Editable) -->
+      <div>
+        <label for="editUserType" style="display: block; margin-bottom: 8px; font-weight: 500;">User Type:</label>
+        <select id="editUserType" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+          <option value="investor">Investor</option>
+          <option value="business">Business</option>
+          <option value="admin">Admin</option>
+          <option value="head_admin">Head Admin</option>
+        </select>
+      </div>
+
+      <!-- Username (Editable) -->
+      <div>
+        <label for="editUsername" style="display: block; margin-bottom: 8px; font-weight: 500;">Username:</label>
+        <input type="text" id="editUsername" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+      </div>
+
+      <!-- Email (Editable) -->
+      <div>
+        <label for="editEmail" style="display: block; margin-bottom: 8px; font-weight: 500;">Email:</label>
+        <input type="email" id="editEmail" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+      </div>
+
+      <!-- Verification Status (Read-only) -->
+      <div>
+        <label style="display: block; margin-bottom: 8px; font-weight: 500;">Verification Status:</label>
+        <input type="text" id="editVerificationStatus" readonly style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #f5f5f5; color: #666;">
+      </div>
+
+      <!-- New Password (Optional) -->
+      <div>
+        <label for="editNewPassword" style="display: block; margin-bottom: 8px; font-weight: 500;">New Password <span style="color: #999; font-weight: 400; font-size: 12px;">(optional - leave blank to keep current)</span></label>
+        <input type="password" id="editNewPassword" placeholder="Enter new password if you want to change it" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+        <div id="passwordStrength" style="font-size: 12px; margin-top: 4px; color: #666;"></div>
+      </div>
+
+      <!-- Reason for Change (Required) -->
+      <div>
+        <label for="editChangeReason" style="display: block; margin-bottom: 8px; font-weight: 500;">Reason for Change:</label>
+        <textarea id="editChangeReason" placeholder="Explain why you're making these changes..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; min-height: 100px; font-family: inherit; resize: vertical; box-sizing: border-box;"></textarea>
+      </div>
+
+      <!-- Notify User -->
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <input type="checkbox" id="editNotifyUser" checked style="cursor: pointer;">
+        <label for="editNotifyUser" style="cursor: pointer; margin: 0;">Notify user about this change via email</label>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 15px;">
+        <button type="button" class="btn btn-secondary" onclick="closeEditUserModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
   </div>
 </div>
 

@@ -4,18 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LaboConnect | The Hidden Wealth of the North</title>
+  <link rel="icon" type="image/png" href="/assets/img/Labo-Logo.png">
   
   <link rel="stylesheet" href="../css/pasabog.css">
   
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  
+  <script>
+    function markVisitedAndGo() {
+      localStorage.setItem('laboconnect_visited', 'true');
+      window.location.href = '/components/index.html';
+    }
+  </script>
 </head>
 <body>
-
+    
     <nav class="floating-nav">
-        <a href="javascript:history.back()" class="nav-link" style="margin-right: 15px;">
-            <i class="fa-solid fa-arrow-left"></i> Back
-        </a>
-
         <a href="#home" class="nav-link">Home</a>
         <a href="#nature" class="nav-link">Nature</a>
         <a href="#heritage" class="nav-link">Heritage</a>
@@ -23,19 +27,28 @@
     </nav>
     
     <!-- Improve hero section -->
-    <header id="home" class="hero-section" role="banner">
-        <div class="hero-content">
+<header id="home" class="hero-section" role="banner">
+    
+    <a href="index.html" class="site-logo">
+        <i class="fa-solid fa-leaf brand-icon"></i>
+        <span>Labo<span class="brand-highlight">Connect</span></span>
+    </a>
+
+    <div class="hero-content">
         <div class="hero-subtitle">Welcome to Camarines Norte's Gem</div>
         <h1 class="hero-title">This is Labo</h1>
-        <p style="color:rgba(255,255,255,0.8); font-size:1.1rem; margin-bottom:40px;">
-            A 1st Class Municipality where history, nature, and economic progress converge. Home of the majestic <strong>Mt. Labo</strong>, the Golden <strong>Queen Pineapple</strong>, and vibrant cultural festivals like the <strong>Busig-on Festival</strong>.      </p>
+        <p style="color:rgba(255,255,255,0.9); font-size:1.1rem; margin-bottom:40px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">
+            Immerse yourself in a 1st Class Municipality rich in history and life. From the peaks of the majestic <strong>Mt. Labo</strong> to the sweetness of the <strong>Golden Queen Pineapple</strong> and the rhythm of the <strong>Busig-on Festival</strong>, discover a place where heritage and economic growth bloom together.
+        </p> 
+        
         <div style="display:flex; gap:20px; justify-content:center; flex-wrap:wrap;" role="group" aria-label="Primary Actions">
-            <a href="#nature" class="hero-btn" aria-label="Discover Places">Discover Places</a>
-            <a href="#economy" class="hero-btn outline" aria-label="Investor Profile">Investor Profile</a>
+            <a href="#nature" class="hero-btn" aria-label="Discover Places">Discover Labo</a>
+            <a href="javascript:void(0)" onclick="markVisitedAndGo()" class="hero-btn outline" aria-label="Investor Profile">Enter LABOCONNECT Portal</a>
         </div>
-        </div>
-        <div class="scroll-down"><i class="fa-solid fa-chevron-down"></i></div>
-    </header>
+    </div>
+
+    <div class="scroll-down"><i class="fa-solid fa-chevron-down"></i></div>
+</header>
 
     <div class="marquee-container">
         <div class="marquee-text">
@@ -184,18 +197,34 @@
     </section>
 
 <section class="section" style="padding:0;">
-    <div class="festival-banner" style="background-image: url('/assets/img/WhyLabo/busg2.jpg'); background-size: cover; background-position: center;">
+    <div class="festival-banner" style="
+        background-image: url('/assets/img/WhyLabo/busg2.jpg'); 
+        background-size: cover; 
+        background-position: center; 
+        padding: 50px 20px; /* Added padding to give the text box space */
+        display: flex;
+        justify-content: center;
+        align-items: center;">
         
-        <span class="section-tag" style="background:var(--accent); color:#fff; padding:5px 10px; border-radius:4px;">September 1 - 8</span>
-        
-        <h2 class="section-headline" style="margin-top:15px; color: #fff; text-shadow: 3px 0 #000, -3px 0 #000, 0 3px #000, 0 -3px #000, 2px 2px #000, -2px -2px #000, 2px -2px #000, -2px 2px #000;">
-            Busig-on Festival
-        </h2>
-        
-        <p style="max-width:600px; margin:20px auto; color:#fff; font-size:1.1rem; font-weight:600; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;">
-            A colorful celebration of the <strong>Epic of Busig-on</strong>. The festival highlights Bicolano values of heroism and resilience through street dancing and talent showcases.
-        </p>
-        
+        <div style="
+            background: rgba(0, 0, 0, 0.3); /* Dark see-through tint */
+            backdrop-filter: blur(8px);     /* This creates the blur effect */
+            -webkit-backdrop-filter: blur(8px); /* For Safari support */
+            padding: 40px;
+            border-radius: 15px;
+            max-width: 700px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.3);"> <span class="section-tag" style="background:var(--accent); color:#fff; padding:5px 10px; border-radius:4px;">September 1 - 8</span>
+            
+            <h2 class="section-headline" style="margin-top:15px; color: #fff; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">
+                Busig-on Festival
+            </h2>
+            
+            <p style="margin:20px auto; color:#fff; font-size:1.1rem; font-weight:400; line-height: 1.6;">
+                A colorful celebration of the <strong>Epic of Busig-on</strong>. The festival highlights Bicolano values of heroism and resilience through street dancing and talent showcases.
+            </p>
+
+        </div>
     </div>
 </section>
 
@@ -422,6 +451,49 @@
         <h3 class="info-title">Lifestyle & Quality of Life</h3>
         <p class="info-text">Clean, safe, and accessible environment combined with vibrant culture, festivals, and natural beauty makes Labo ideal for wellness, retreats, and remote work hubs.</p>
         </div>
+
+        <div class="info-card">
+        <i class="fa-solid fa-truck-fast info-icon"></i>
+        <h3 class="info-title">Gateway & Logistics Hub</h3>
+        <p class="info-text">Strategically located along the Maharlika Highway, Labo serves as the critical junction connecting Manila, Daet, and the rest of the Bicol Region, ideal for warehousing and distribution centers.</p>
+        </div>
+
+        <div class="info-card">
+        <i class="fa-solid fa-map-marked-alt info-icon"></i>
+        <h3 class="info-title">Expansive Land Area</h3>
+        <p class="info-text">As the municipality with the largest land area in Camarines Norte, Labo offers vast, affordable developable land for industrial parks, subdivisions, and eco-zones unlike congested urban centers.</p>
+        </div>
+
+        <div class="info-card">
+        <i class="fa-solid fa-users-line info-icon"></i>
+        <h3 class="info-title">High-Demand Market</h3>
+        <p class="info-text">With a population exceeding 100,000, Labo represents one of the largest consumer markets in the province, ready for malls, franchises, and banking institutions.</p>
+        </div>
+
+        <div class="info-card">
+        <i class="fa-solid fa-basket-shopping info-icon"></i>
+        <h3 class="info-title">Vibrant MSME Sector</h3>
+        <p class="info-text">Strong support for local craftsmanship, from abaca weaving to food processing, offering partnership opportunities for export and local distribution.</p>
+        </div>
+
+        <div class="info-card">
+        <i class="fa-solid fa-industry info-icon"></i>
+        <h3 class="info-title">Reliable Utilities</h3>
+        <p class="info-text">Access to stable power supply (CANORECO) and abundant water resources, ensuring continuous operations for manufacturing and commercial establishments.</p>
+        </div>
+
+        <div class="info-card">
+        <i class="fa-solid fa-graduation-cap info-icon"></i>
+        <h3 class="info-title">Academic & Technical Hub</h3>
+        <p class="info-text">Presence of higher education institutions and TESDA-accredited centers producing a steady stream of professionals and skilled technicians annually.</p>
+        </div>
+
+
+        <div class="info-card">
+        <i class="fa-solid fa-file-signature info-icon"></i>
+        <h3 class="info-title">Business-Friendly Governance</h3>
+        <p class="info-text">Efficient business processing (BOSS), tax incentives, and transparent policies designed to accelerate startup growth and compliance.</p>
+        </div>
     </div>
     </section>
 
@@ -529,7 +601,7 @@
 
     <!-- Back to Homepage Button -->
     <div style="text-align:center; margin-top:20px;">
-        <a href="/components/index.html" class="hero-btn" style="text-decoration:none; display:inline-block; padding:10px 20px; background-color: var(--accent); color: #fff; border-radius: 5px; transition: background-color 0.3s;">
+        <a href="javascript:void(0)" onclick="markVisitedAndGo()" class="hero-btn" style="text-decoration:none; display:inline-block; padding:10px 20px; background-color: var(--accent); color: #fff; border-radius: 5px; transition: background-color 0.3s;">
             Back to Homepage
         </a>
     </div>

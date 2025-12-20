@@ -115,10 +115,157 @@ function initNotifications(){
         setInterval(fetchNotifCountForUser, 20000);
 }
 
-function openNotifications(){
-        // navigate to inquiries page (owner/admin view)
-        window.location.href = '/components/inquiries.html';
+async function openNotifications(){
+    // Look for the dropdown - it could be in header-import or directly in DOM
+    let modal = document.querySelector('#notificationsDropdown');
+    if (!modal) {
+        modal = document.querySelector('#header-import #notificationsDropdown');
+    }
+    
+    if (!modal) {
+        console.warn('Notifications dropdown not found in DOM');
+        return;
+    }
+    
+    // Look for the button to position the dropdown
+    let notifBtn = document.querySelector('#notifBtn');
+    if (!notifBtn) {
+        notifBtn = document.querySelector('#header-import #notifBtn');
+    }
+    
+    // Toggle modal
+    if (modal.style.display === 'block') {
+        modal.style.display = 'none';
+        return;
+    }
+    
+    modal.style.display = 'block';
+    
+    // Position dropdown relative to button
+    if (notifBtn) {
+        const rect = notifBtn.getBoundingClientRect();
+        modal.style.top = (rect.bottom + 8) + 'px';
+        modal.style.right = (window.innerWidth - rect.right) + 'px';
+    }
+    
+    // Load notifications
+    try {
+        const response = await fetch('/api/notifications?limit=20');
+        const data = await response.json();
+        const notifications = Array.isArray(data) ? data : [];
+        
+        // Look for container in both locations
+        let container = document.querySelector('#notificationsDropdownContent');
+        if (!container) {
+            container = document.querySelector('#header-import #notificationsDropdownContent');
+        }
+        
+        if (!container) {
+            console.warn('Notifications dropdown content container not found');
+            return;
+        }
+        
+        if (notifications.length === 0) {
+            container.innerHTML = '<div style="padding: 20px; text-align: center; color: #6b7280;">No notifications yet</div>';
+            return;
+        }
+        
+        container.innerHTML = notifications.map(notif => {
+            const dateStr = new Date(notif.updated_at).toLocaleDateString();
+            const statusClass = notif.status.replace(/_/g, '-');
+            
+            // Determine navigation link based on notification type
+            let href = '#';
+            let typeLabel = 'Notification';
+            let statusDisplay = notif.status.replace(/_/g, ' ');
+            
+            if (notif.type === 'listing') {
+                href = `/components/user-dashboard.html?tab=listings`;
+                typeLabel = 'Listing Status';
+            } else if (notif.type === 'inquiry') {
+                href = `/components/user-dashboard.html?tab=inquiries`;
+                typeLabel = 'Inquiry Status';
+            } else if (notif.type === 'account') {
+                href = `/components/profile.html`;
+                typeLabel = 'Account Update';
+            } else if (notif.type === 'success_story') {
+                href = `/components/user-dashboard.html?tab=successStories`;
+                typeLabel = 'Success Story';
+                // Format status display for success stories
+                if (notif.status === 'listing_admin_approved') {
+                    statusDisplay = 'Pre-Approved';
+                } else if (notif.status === 'approved') {
+                    statusDisplay = 'Published';
+                } else if (notif.status === 'rejected') {
+                    statusDisplay = 'Rejected';
+                }
+            }
+            
+            return `
+                <a href="${href}" class="notification-dropdown-item" style="display: block; padding: 12px 16px; border-bottom: 1px solid #e5e7eb; text-decoration: none; color: inherit; transition: background 0.2s;">
+                    ${notif.type === 'account' ? 
+                      `<div style="display: flex; flex-direction: column; gap: 8px;">
+                        <div>
+                          <div style="font-weight: 600; color: #1f2937; margin-bottom: 4px;">${notif.title}</div>
+                          <div style="font-size: 0.875rem; color: #6b7280;">${typeLabel} • ${dateStr}</div>
+                        </div>
+                        <div style="font-size: 0.875rem; color: #6b7280;"><strong>Changes:</strong> ${notif.status}</div>
+                        ${notif.reason ? `<div style="font-size: 0.875rem; color: #6b7280;"><strong>Notes:</strong> ${notif.reason}</div>` : ''}
+                      </div>`
+                    : 
+                      `<div style="display: flex; justify-content: space-between; align-items: start; gap: 12px;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #1f2937; margin-bottom: 4px;">${notif.title}</div>
+                            <div style="font-size: 0.875rem; color: #6b7280; margin-bottom: 4px;">
+                                ${typeLabel} • ${dateStr}
+                            </div>
+                            ${notif.type === 'listing' && notif.rejection_reason ? `<div style="font-size: 0.875rem; color: #dc2626;"><strong>Reason:</strong> ${notif.rejection_reason}</div>` : ''}
+                            ${notif.type === 'success_story' ? `<div style="font-size: 0.875rem; color: #6b7280;"><strong>Status:</strong> ${notif.status}</div>` : ''}
+                        </div>
+                        <span style="padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; background: ${notif.type === 'success_story' && notif.status === 'rejected' ? '#fee2e2' : notif.type === 'success_story' && notif.status === 'listing_admin_approved' ? '#fef3c7' : notif.type === 'success_story' && notif.status === 'approved' ? '#dcfce7' : '#e5e7eb'}; color: ${notif.type === 'success_story' && notif.status === 'rejected' ? '#991b1b' : notif.type === 'success_story' && notif.status === 'listing_admin_approved' ? '#92400e' : notif.type === 'success_story' && notif.status === 'approved' ? '#15803d' : '#374151'};">${statusDisplay}</span>
+                      </div>`
+                    }
+                </a>
+            `;
+        }).join('');
+        
+        // Add hover effect
+        document.querySelectorAll('.notification-dropdown-item').forEach(item => {
+            item.addEventListener('mouseenter', function() {
+                this.style.backgroundColor = '#f9fafb';
+            });
+            item.addEventListener('mouseleave', function() {
+                this.style.backgroundColor = 'transparent';
+            });
+        });
+    } catch (e) {
+        console.error('Error loading notifications:', e);
+        let container = document.querySelector('#notificationsDropdownContent');
+        if (!container) {
+            container = document.querySelector('#header-import #notificationsDropdownContent');
+        }
+        if (container) container.innerHTML = '<div style="padding: 20px; text-align: center; color: #dc2626;">Error loading notifications</div>';
+    }
 }
+
+// Close notifications dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    // Look for button and dropdown in both locations
+    let notifBtn = document.querySelector('#notifBtn');
+    if (!notifBtn) notifBtn = document.querySelector('#header-import #notifBtn');
+    
+    let notifDropdown = document.querySelector('#notificationsDropdown');
+    if (!notifDropdown) notifDropdown = document.querySelector('#header-import #notificationsDropdown');
+    
+    if (!notifBtn || !notifDropdown) return;
+    
+    const isClickInsideBtn = notifBtn.contains(event.target);
+    const isClickInsideDropdown = notifDropdown.contains(event.target);
+    
+    if (!isClickInsideBtn && !isClickInsideDropdown && notifDropdown.style.display === 'block') {
+        notifDropdown.style.display = 'none';
+    }
+});
 
 // --- Register Handler ---
 async function handleRegister(e) {
@@ -258,6 +405,7 @@ function setUserRole(role, user) {
   const guestLoginBtn = document.getElementById('guestLoginBtn');
   const loggedInSection = document.getElementById('loggedInSection');
   const profileBtn = document.getElementById('profileBtn');
+  const dashboardBtn = document.getElementById('dashboardBtn');
   
   if (isGuest) {
       console.log('Setting UI for GUEST state');
@@ -268,6 +416,15 @@ function setUserRole(role, user) {
       if (guestLoginBtn) guestLoginBtn.style.display = 'none';
       if (loggedInSection) {
         loggedInSection.style.display = 'flex';
+      }
+      
+      // Hide dashboard button for admins (only for business/investor users)
+      if (dashboardBtn) {
+        if (role === 'admin') {
+          dashboardBtn.style.display = 'none';
+        } else {
+          dashboardBtn.style.display = '';
+        }
       }
       
       // Update profile display

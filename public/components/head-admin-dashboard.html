@@ -381,6 +381,7 @@
       <button class="tab-button active" onclick="switchTab('pending')">Pending Approvals</button>
       <button class="tab-button" onclick="switchTab('all-approvals')">All Approvals</button>
       <button class="tab-button" onclick="switchTab('manage-admins')">Manage Admins</button>
+      <button class="tab-button" onclick="switchTab('manage-users')">Manage Users</button>
     </div>
 
     <div id="pending" class="tab-content active">
@@ -394,6 +395,13 @@
     <div id="manage-admins" class="tab-content">
       <button onclick="openCreateAdminModal()" class="btn btn-approve" style="margin-bottom: 15px;">+ Create New Admin</button>
       <div id="adminsList"></div>
+    </div>
+
+    <div id="manage-users" class="tab-content">
+      <div style="margin-bottom: 20px;">
+        <input type="text" id="userSearchInput" placeholder="Search users by name or email..." style="padding: 10px 15px; border: 1px solid #ddd; border-radius: 4px; width: 100%; max-width: 400px;">
+      </div>
+      <div id="usersList" class="listings-grid"></div>
     </div>
 
     <!-- Success Stories Section -->
@@ -518,6 +526,39 @@
       <div class="modal-actions">
         <button onclick="submitCreateAdmin()" class="btn-primary">Create Admin</button>
         <button onclick="closeCreateAdminModal()" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit User Modal -->
+  <div class="modal-overlay" id="editUserModal">
+    <div class="modal" style="max-width: 600px;">
+      <button class="modal-close" onclick="closeEditUserModal()">&times;</button>
+      <h2>Edit User</h2>
+      <div id="editUserInfo" style="margin-bottom: 15px; padding: 15px; background: #f5f5f5; border-radius: 4px;">
+        <!-- User info will be loaded here -->
+      </div>
+      <div class="form-group">
+        <label for="editUsername">Username</label>
+        <input type="text" id="editUsername">
+      </div>
+      <div class="form-group">
+        <label for="editEmail">Email</label>
+        <input type="email" id="editEmail">
+      </div>
+      <div class="form-group">
+        <label for="editEditReason">Reason for Edit *</label>
+        <textarea id="editEditReason" placeholder="Explain why you're editing this user's information..." required style="min-height: 80px;"></textarea>
+      </div>
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="editNotifyUser">
+          Notify user about this change
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button onclick="submitEditUser()" class="btn-primary">Save Changes</button>
+        <button onclick="closeEditUserModal()" class="btn-secondary">Cancel</button>
       </div>
     </div>
   </div>
@@ -1005,19 +1046,172 @@
       loadPendingListings();
       loadAllApprovals();
       loadPendingStories();
+      loadAllUsers();
     });
 
     // Close modals on outside click
-    ['approvalModal', 'createAdminModal', 'storyApprovalModal', 'storyRejectionModal'].forEach(id => {
+    ['approvalModal', 'createAdminModal', 'storyApprovalModal', 'storyRejectionModal', 'editUserModal'].forEach(id => {
       document.getElementById(id)?.addEventListener('click', (e) => {
         if (e.target.id === id) {
           if (id === 'approvalModal') closeApprovalModal();
           else if (id === 'createAdminModal') closeCreateAdminModal();
           else if (id === 'storyApprovalModal') closeStoryApprovalModal();
           else if (id === 'storyRejectionModal') closeStoryRejectionModal();
+          else if (id === 'editUserModal') closeEditUserModal();
         }
       });
     });
+
+    // ============ USER MANAGEMENT FUNCTIONS ============
+    let allUsers = [];
+    let currentEditingUserId = null;
+
+    async function loadAllUsers() {
+      try {
+        const response = await fetch('/api/admin/users');
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error);
+        
+        allUsers = data;
+        displayUsers(allUsers);
+      } catch (err) {
+        console.error('Error loading users:', err);
+        document.getElementById('usersList').innerHTML = `<div class="empty-state">Error loading users: ${err.message}</div>`;
+      }
+    }
+
+    function displayUsers(users) {
+      const container = document.getElementById('usersList');
+      
+      if (users.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👥</div><p>No users found</p></div>';
+        return;
+      }
+
+      container.innerHTML = users.map(user => `
+        <div class="listing-row" style="grid-template-columns: 1fr 100px 100px 100px 150px;">
+          <div>
+            <div class="listing-title">${user.username}</div>
+            <div class="listing-meta">
+              📧 ${user.email}<br>
+              👤 Type: <strong>${user.user_type || 'N/A'}</strong> | Verified: ${user.is_verified ? '✅' : '❌'}
+            </div>
+          </div>
+          <div style="text-align: center;">
+            <span class="status-badge" style="background: ${user.user_type === 'business' ? '#d1fae5' : '#dbeafe'}; color: ${user.user_type === 'business' ? '#065f46' : '#0c2d6b'};">
+              ${user.user_type === 'business' ? 'Business' : 'Investor'}
+            </span>
+          </div>
+          <div style="text-align: center;">
+            <span class="status-badge" style="background: ${user.is_verified ? '#d1fae5' : '#fef3c7'}; color: ${user.is_verified ? '#065f46' : '#92400e'};">
+              ${user.is_verified ? 'Verified' : 'Pending'}
+            </span>
+          </div>
+          <div style="text-align: center;">
+            <span class="status-badge" style="background: #e0e7ff; color: #3730a3;">
+              ${new Date(user.created_at).toLocaleDateString()}
+            </span>
+          </div>
+          <div class="action-buttons" style="justify-content: flex-end;">
+            <button class="btn btn-view" onclick="openEditUserModal(${user.id}, '${user.username}', '${user.email}')">Edit</button>
+            <button class="btn btn-reject" onclick="deleteUser(${user.id}, '${user.username}')">Delete</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('userSearchInput')?.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase();
+      const filtered = allUsers.filter(user => 
+        user.username.toLowerCase().includes(searchTerm) ||
+        user.email.toLowerCase().includes(searchTerm)
+      );
+      displayUsers(filtered);
+    });
+
+    function openEditUserModal(userId, username, email) {
+      currentEditingUserId = userId;
+      document.getElementById('editUserInfo').innerHTML = `
+        <p><strong>User ID:</strong> ${userId}</p>
+        <p><strong>Current Username:</strong> ${username}</p>
+        <p><strong>Current Email:</strong> ${email}</p>
+      `;
+      document.getElementById('editUsername').value = username;
+      document.getElementById('editEmail').value = email;
+      document.getElementById('editEditReason').value = '';
+      document.getElementById('editNotifyUser').checked = true;
+      document.getElementById('editUserModal').classList.add('open');
+    }
+
+    function closeEditUserModal() {
+      currentEditingUserId = null;
+      document.getElementById('editUserModal').classList.remove('open');
+    }
+
+    async function submitEditUser() {
+      if (!currentEditingUserId) return;
+
+      const newUsername = document.getElementById('editUsername').value.trim();
+      const newEmail = document.getElementById('editEmail').value.trim();
+      const reason = document.getElementById('editEditReason').value.trim();
+      const notifyUser = document.getElementById('editNotifyUser').checked;
+
+      if (!reason) {
+        alert('Please provide a reason for editing this user');
+        return;
+      }
+
+      if (!newUsername || !newEmail) {
+        alert('Username and email are required');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/admin/users/${currentEditingUserId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: newUsername,
+            email: newEmail,
+            reason: reason,
+            notifyUser: notifyUser
+          })
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+
+        alert('User updated successfully!');
+        closeEditUserModal();
+        loadAllUsers();
+      } catch (err) {
+        console.error('Error updating user:', err);
+        alert('Error updating user: ' + err.message);
+      }
+    }
+
+    async function deleteUser(userId, username) {
+      if (!confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/admin/users/${userId}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+
+        alert('User deleted successfully!');
+        loadAllUsers();
+      } catch (err) {
+        console.error('Error deleting user:', err);
+        alert('Error deleting user: ' + err.message);
+      }
+    }
   </script>
 </body>
 </html>

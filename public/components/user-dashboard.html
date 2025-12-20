@@ -1,0 +1,1850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Dashboard — LABOCONNECT</title>
+  <meta name="description" content="Manage your listings and investments on LABOCONNECT.">
+  <link rel="icon" type="image/png" href="/assets/img/Labo-Logo.png">
+
+  <link rel="stylesheet" href="../css/global.css">
+  <link rel="stylesheet" href="../css/home.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="../css/home.css">
+
+  <style>
+    .dashboard-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 40px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .dashboard-header h1 {
+      margin: 0;
+      font-size: 2rem;
+    }
+
+    .dashboard-tabs {
+      display: flex;
+      gap: 20px;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 30px;
+      padding-bottom: 0;
+    }
+
+    .dashboard-tab {
+      padding: 12px 20px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-weight: 500;
+      color: var(--text-muted);
+      border-bottom: 3px solid transparent;
+      transition: all 0.3s ease;
+    }
+
+    .dashboard-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .activity-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 30px;
+      margin-bottom: 30px;
+    }
+
+    .activity-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .stat-label {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .listing-tab {
+      padding: 12px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-weight: 500;
+      color: var(--text-muted);
+      flex: 1;
+      border-bottom: 3px solid transparent;
+      transition: all 0.3s ease;
+    }
+
+    .listing-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .listing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .listing-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .listing-card-image {
+      width: 100%;
+      height: 150px;
+      background: var(--border);
+      overflow: hidden;
+    }
+
+    .listing-card-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .listing-card-content {
+      padding: 15px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .listing-card-title {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      line-height: 1.3;
+    }
+
+    .listing-card-details {
+      margin-bottom: 10px;
+    }
+
+    .listing-card-type {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 3px;
+    }
+
+    .listing-card-price {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .listing-card-size {
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .listing-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .badge-approved {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .badge-pending {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge-rejected {
+      background: #fecaca;
+      color: #991b1b;
+    }
+
+    .listing-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: auto;
+    }
+
+    .listing-actions button {
+      padding: 8px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 13px;
+      transition: all 0.3s ease;
+    }
+
+    .btn-edit {
+      flex: 1;
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-edit:hover {
+      opacity: 0.9;
+    }
+
+    .btn-view {
+      flex: 1;
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .btn-view:hover {
+      background: var(--text-muted);
+      color: white;
+    }
+
+    .btn-delete {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      background: #fecaca;
+      color: #991b1b;
+    }
+
+    .btn-delete:hover {
+      background: #fca5a5;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+
+    .contact-form-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 30px;
+      margin-bottom: 30px;
+    }
+
+    .form-card-inner {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .field {
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .field label {
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .field input,
+    .field textarea,
+    .field select {
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 14px;
+      transition: border-color 0.3s ease;
+    }
+
+    .field input:focus,
+    .field textarea:focus,
+    .field select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .notification-item {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 15px;
+      background: var(--surface);
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .notification-content {
+      flex: 1;
+    }
+
+    .notification-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .notification-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .notification-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 12px;
+    }
+
+    .badge-pending {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge-approved {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .badge-rejected {
+      background: #fecaca;
+      color: #991b1b;
+    }
+
+    .badge-accepted {
+      background: #bfdbfe;
+      color: #1e40af;
+    }
+
+    .badge-completed {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .investment-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .investment-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .investment-card-image {
+      width: 100%;
+      height: 150px;
+      background: var(--border);
+      overflow: hidden;
+    }
+
+    .investment-card-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .investment-card-content {
+      padding: 15px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .investment-status-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      align-self: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .success-story-filter-btn {
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 14px;
+      transition: all 0.3s ease;
+    }
+
+    .success-story-filter-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .success-story-filter-btn.active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .side-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .investment-tab {
+      padding: 12px 20px;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 14px;
+      border-bottom: 3px solid transparent;
+      transition: all 0.3s ease;
+    }
+
+    .investment-tab:hover {
+      color: var(--accent);
+    }
+
+    .investment-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+<!-- HEADER -->
+<div id="header-import"></div>
+
+<div class="dashboard-container">
+  <!-- Dashboard Header -->
+  <div class="dashboard-header">
+    <h1>Dashboard</h1>
+  </div>
+
+  <!-- Dashboard Tabs -->
+  <div class="dashboard-tabs">
+    <button class="dashboard-tab active" data-tab="overview">Overview</button>
+    <button class="dashboard-tab" data-tab="listings" id="listingsTab">My Listings</button>
+    <button class="dashboard-tab" data-tab="investments" id="investmentsTab">My Investments</button>
+    <button class="dashboard-tab" data-tab="inquiries" id="inquiriesTab">Inquiries</button>
+    <button class="dashboard-tab" data-tab="success-stories" id="successStoriesTab">My Success Stories</button>
+    <button class="dashboard-tab" data-tab="notifications">Notifications</button>
+    <button class="dashboard-tab" data-tab="submit" id="submitTab">Submit Listing</button>
+  </div>
+
+  <!-- OVERVIEW TAB -->
+  <div id="overview" class="tab-content active">
+    <div class="activity-section">
+      <h2>Activity</h2>
+      <div class="activity-stats">
+        <div class="stat-item">
+          <div class="stat-value" id="listingsCount">0</div>
+          <div class="stat-label">Listings Posted</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="inquiriesCount">0</div>
+          <div class="stat-label">Inquiries Received</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="memberSince">2025</div>
+          <div class="stat-label">Member Since</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="activity-section" id="investorStatsSection" style="display: none;">
+      <h2>Investment Activity</h2>
+      <div class="activity-stats">
+        <div class="stat-item">
+          <div class="stat-value" id="totalSpentCount">0</div>
+          <div class="stat-label">Total Invested</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="totalBoughtCount">0</div>
+          <div class="stat-label">Properties Bought</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="lastInvestmentDate">—</div>
+          <div class="stat-label">Last Investment</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="activity-section" id="businessStatsSection" style="display: none;">
+      <h2>Sales Activity</h2>
+      <div class="activity-stats">
+        <div class="stat-item">
+          <div class="stat-value" id="totalSoldCount">0</div>
+          <div class="stat-label">Listings Sold</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="totalEarnings">₱0</div>
+          <div class="stat-label">Total Earnings</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="lastSaleDate">—</div>
+          <div class="stat-label">Last Sale</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LISTINGS TAB (Business Users Only) -->
+  <div id="listings" class="tab-content">
+    <div class="activity-section">
+      <h2>My Listings</h2>
+
+      <!-- Listing Status Tabs -->
+      <div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 0;">
+        <button class="listing-tab active" data-status="approved">Approved</button>
+        <button class="listing-tab" data-status="pending">Pending</button>
+        <button class="listing-tab" data-status="rejected">Rejected</button>
+      </div>
+
+      <!-- Listings Container -->
+      <div id="listingsContainer" class="listing-grid"></div>
+
+      <div id="noListingsMessage" class="empty-state">
+        No listings in this category.
+      </div>
+    </div>
+  </div>
+
+  <!-- SUBMIT LISTING TAB (Business Users Only) -->
+  <div id="submit" class="tab-content">
+    <div class="contact-form-card">
+      <h2>Submit Property Listing</h2>
+      <p class="lead" style="max-width: 800px; margin: 0 0 20px 0;">Share your property with potential investors. Fill out the form below and our team will review your listing.</p>
+
+      <form id="listingForm" enctype="multipart/form-data" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <!-- LEFT COLUMN: Property Details -->
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div class="field">
+            <label for="owner_name">Owner Name *</label>
+            <input id="owner_name" type="text" name="owner_name" placeholder="Full name of property owner" required="">
+          </div>
+
+          <div class="field">
+            <label for="title">Property Title *</label>
+            <input id="title" type="text" name="title" placeholder="e.g., Commercial Lot in Downtown Labo" required="">
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <label for="type">Property Type *</label>
+              <select id="type" name="type" required="">
+                <option value="">-- Select --</option>
+                <option value="For Lease">For Lease</option>
+                <option value="For Sale">For Sale</option>
+                <option value="For Rent">Property For Rent</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="price">Price *</label>
+              <input id="price" type="number" name="price" step="0.01" required="" placeholder="e.g., 1000000">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <label for="size_sqm">Size (Square Meters)</label>
+              <input id="size_sqm" type="number" name="size_sqm" step="0.01" placeholder="e.g., 500">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <label for="latitude">Latitude (optional)</label>
+              <input id="latitude" type="number" name="latitude" step="0.00000001" placeholder="14.117507">
+            </div>
+            <div class="field">
+              <label for="longitude">Longitude (optional)</label>
+              <input id="longitude" type="number" name="longitude" step="0.00000001" placeholder="122.350692">
+            </div>
+          </div>
+
+          <button type="button" id="selectLocationBtn" class="btn btn-secondary" style="width: 100%;">📍 Select Location on Map</button>
+
+          <div class="field">
+            <label for="description">Description *</label>
+            <textarea id="description" name="description" rows="4" placeholder="Describe the property details, location, amenities, etc." required=""></textarea>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN: File Uploads -->
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div class="field">
+            <label for="image">Property Image</label>
+            <input id="image" type="file" name="image" accept="image/*">
+          </div>
+
+          <div class="field">
+            <label for="oct_tct">OCT or TCT *</label>
+            <input id="oct_tct" type="file" name="oct_tct" accept=".pdf,.jpg,.jpeg,.png" required="">
+          </div>
+
+          <div class="field">
+            <label for="tax_declaration">Tax Declaration *</label>
+            <input id="tax_declaration" type="file" name="tax_declaration" accept=".pdf,.jpg,.jpeg,.png" required="">
+          </div>
+
+          <div style="margin-top: auto; padding-top: 12px;">
+            <div class="small muted" style="margin-bottom: 12px;">* Required fields</div>
+            <div style="display: flex; gap: 12px;">
+              <button class="btn btn-primary" type="submit">Submit Listing</button>
+              <button type="button" class="btn btn-ghost" onclick="document.getElementById('listingForm').reset()">Reset</button>
+            </div>
+          </div>
+        </div>
+      </form>
+
+      <p id="listingMessage" style="text-align: center; font-weight: bold; margin-top: 10px;"></p>
+    </div>
+  </div>
+
+  <!-- INVESTMENTS TAB (Investor Users Only) -->
+  <div id="investments" class="tab-content">
+    <div class="activity-section">
+      <h2>My Investments</h2>
+
+      <!-- Investment Status Tabs -->
+      <div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 0;">
+        <button class="investment-tab active" data-status="pending">Pending</button>
+        <button class="investment-tab" data-status="accepted">Accepted</button>
+        <button class="investment-tab" data-status="rejected">Rejected</button>
+        <button class="investment-tab" data-status="completed">Completed</button>
+      </div>
+
+      <!-- Investments Container -->
+      <div id="investmentsContainer" class="investment-grid"></div>
+
+      <div id="noInvestmentsMessage" class="empty-state">
+        No investments in this category.
+      </div>
+    </div>
+  </div>
+
+  <!-- INQUIRIES TAB -->
+  <div id="inquiries" class="tab-content">
+    <div class="activity-section">
+      <h2>Inquiries</h2>
+      
+      <div id="inquiriesContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
+
+      <div id="noInquiriesMessage" class="empty-state">
+        No inquiries yet.
+      </div>
+    </div>
+  </div>
+
+  <!-- MY SUCCESS STORIES TAB (Investors Only) -->
+  <div id="success-stories" class="tab-content">
+    <div class="activity-section">
+      <h2>My Success Stories</h2>
+      
+      <div style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
+        <button class="success-story-filter-btn active" data-filter="all">All</button>
+        <button class="success-story-filter-btn" data-filter="pending">Pending</button>
+        <button class="success-story-filter-btn" data-filter="system_admin_approved">Admin Approved</button>
+        <button class="success-story-filter-btn" data-filter="published">Published</button>
+        <button class="success-story-filter-btn" data-filter="rejected">Rejected</button>
+      </div>
+
+      <div id="successStoriesContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
+
+      <div id="noSuccessStoriesMessage" class="empty-state">
+        No success stories yet. Mark an investment as sold to start creating your success story!
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICATIONS TAB -->
+  <div id="notifications" class="tab-content">
+    <div class="activity-section">
+      <h2>Notifications</h2>
+      
+      <div id="notificationsContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
+
+      <div id="noNotificationsMessage" class="empty-state">
+        No notifications yet.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div id="footer-import"></div>
+
+<!-- SUCCESS STORY MODAL -->
+<div id="successStoryModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+  <div style="background: #ffffff; max-width: 600px; margin: 40px auto; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h3 style="margin: 0; font-size: 22px;">Upload Your Success Story</h3>
+      <button id="closeSuccessModal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);">×</button>
+    </div>
+
+    <!-- Listing Image Preview -->
+    <div style="margin-bottom: 20px; border-radius: 8px; overflow: hidden;">
+      <img id="listingImagePreview" style="width: 100%; height: 200px; object-fit: cover; border-radius: 8px; display: none;" alt="Listing preview" />
+    </div>
+
+    <form id="successStoryForm" style="display: flex; flex-direction: column; gap: 15px;">
+      <!-- Listing Selection -->
+      <div>
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Select Listing</label>
+        <select id="successListingSelect" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" required>
+          <option value="">Choose a listing you've purchased</option>
+        </select>
+      </div>
+
+      <!-- Image Upload -->
+      <div style="border: 2px dashed var(--border); border-radius: 8px; padding: 20px; text-align: center;">
+        <img id="successStoryImage" style="max-width: 100%; max-height: 200px; margin-bottom: 15px; border-radius: 6px; display: none;" />
+        <input type="file" id="successImageInput" accept="image/*" style="display: none;" />
+        <button type="button" id="uploadImageBtn" class="btn btn-primary" style="margin-bottom: 10px;">Upload Image</button>
+        <p class="small muted" style="margin: 0;">JPG, PNG, or GIF (Max 5MB)</p>
+        <div id="successImageMessage" style="margin-top: 10px; color: var(--accent);"></div>
+      </div>
+
+      <!-- Business Name -->
+      <div>
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Business Name</label>
+        <input type="text" id="successBusinessName" placeholder="e.g., LCC Supermarket" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" required />
+      </div>
+
+      <!-- Location -->
+      <div>
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Location</label>
+        <input type="text" id="successLocation" placeholder="e.g., Maharlika Highway, Labo" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" required />
+      </div>
+
+      <!-- Business Type -->
+      <div>
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Business Type</label>
+        <select id="successBusinessType" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" required>
+          <option value="">Select business type</option>
+          <option value="Retail Supermarket">Retail Supermarket</option>
+          <option value="Restaurant">Restaurant</option>
+          <option value="Café">Café</option>
+          <option value="Farm">Farm</option>
+          <option value="Manufacturing">Manufacturing</option>
+          <option value="Boutique">Boutique</option>
+          <option value="Service Center">Service Center</option>
+          <option value="Warehouse">Warehouse</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      <!-- Custom Business Type (shown when "Other" is selected) -->
+      <div id="customBusinessTypeDiv" style="display: none;">
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Specify Business Type</label>
+        <input type="text" id="successCustomBusinessType" placeholder="e.g., Tech Startup, Fitness Studio, etc." style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" />
+      </div>
+
+      <!-- Category Selection (shown when custom business type is entered) -->
+      <div id="categorySelectionDiv" style="display: none;">
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Business Category</label>
+        <select id="successCategory" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" required>
+          <option value="">Select a category</option>
+          <option value="retail">Retail & Commerce</option>
+          <option value="resort">Hospitality & Tourism</option>
+          <option value="agri">Agriculture & Agri-Tourism</option>
+        </select>
+      </div>
+
+      <!-- Short Description -->
+      <div>
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Short Description</label>
+        <textarea id="successDescription" placeholder="Describe your business and what makes it successful..." style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; min-height: 100px;" required></textarea>
+      </div>
+
+      <!-- Established Year -->
+      <div>
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Year Established</label>
+        <input type="number" id="successEstablishedYear" placeholder="e.g., 2015" min="1900" max="" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" />
+      </div>
+
+      <!-- Key Achievement -->
+      <div>
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Key Achievement</label>
+        <textarea id="successAchievement" placeholder="e.g., Expanded to 3 branches with 150+ employees..." style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; min-height: 80px;" required></textarea>
+      </div>
+
+      <!-- Contact Email -->
+      <div>
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Contact Email</label>
+        <input type="email" id="successContactEmail" placeholder="your@email.com" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" />
+      </div>
+
+      <!-- Status Message -->
+      <div id="successFormMessage" style="padding: 10px; border-radius: 6px; display: none; text-align: center;"></div>
+
+      <!-- Submit Buttons -->
+      <div style="display: flex; gap: 10px;">
+        <button type="submit" class="btn btn-primary" style="flex: 1;">Share Success Story</button>
+        <button type="button" id="cancelSuccessBtn" class="btn btn-ghost" style="flex: 1;">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="../js/global.js"></script>
+<script src="../js/profile.js"></script>
+<script>
+  // Initialize dashboard based on user type
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Load header and footer
+    const headerContainer = document.getElementById('header-import');
+    const footerContainer = document.getElementById('footer-import');
+    
+    try {
+      const headerRes = await fetch('/components/header.html');
+      headerContainer.innerHTML = await headerRes.text();
+      
+      const footerRes = await fetch('/components/footer.html');
+      footerContainer.innerHTML = await footerRes.text();
+      
+      // Setup header logout button after it's loaded
+      const logoutBtn = document.querySelector('#header-import #logoutBtn');
+      if (logoutBtn && !logoutBtn._wired) {
+        logoutBtn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          logoutUser();
+        });
+        logoutBtn._wired = true;
+      }
+
+      // Setup notification button after header is loaded
+      const notifBtn = document.querySelector('#header-import #notifBtn');
+      if (notifBtn && !notifBtn._wired) {
+        notifBtn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          openNotifications();
+        });
+        notifBtn._wired = true;
+      }
+    } catch (e) {
+      console.error('Error loading header/footer:', e);
+    }
+
+    // Check authentication
+    const session = await fetch('/api/session').then(r => r.json()).catch(() => ({}));
+    
+    if (!session.user) {
+      window.location.href = '/components/index.html';
+      return;
+    }
+
+    const userType = session.user.user_type;
+    const isVerified = session.user.is_verified;
+
+    // Hide/show tabs based on user type
+    const submitTab = document.getElementById('submitTab');
+    const listingsTab = document.getElementById('listingsTab');
+    const investmentsTab = document.getElementById('investmentsTab');
+    const successStoriesTab = document.getElementById('successStoriesTab');
+
+    if (userType === 'investor') {
+      submitTab.style.display = 'none';
+      listingsTab.style.display = 'none';
+      successStoriesTab.style.display = 'block';
+      document.getElementById('investorStatsSection').style.display = 'block';
+      loadInvestorStats(session.user.id);
+      loadInvestorInvestments();
+      setupInvestmentTabs();
+      loadNotifications();
+    } else if (userType === 'business') {
+      investmentsTab.style.display = 'none';
+      successStoriesTab.style.display = 'none';
+      document.getElementById('businessStatsSection').style.display = 'block';
+      
+      // Check if user is verified before showing submit listing form
+      if (!isVerified) {
+        const submitContainer = document.getElementById('submitTab').parentElement;
+        submitTab.style.display = 'none';
+        
+        // Show verification alert
+        const alertDiv = document.createElement('div');
+        alertDiv.style.padding = '20px';
+        alertDiv.style.marginTop = '20px';
+        alertDiv.style.backgroundColor = '#fef3c7';
+        alertDiv.style.border = '1px solid #f59e0b';
+        alertDiv.style.borderRadius = '8px';
+        alertDiv.style.color = '#92400e';
+        alertDiv.innerHTML = '<strong>⚠️ Verification Required:</strong> You need to complete email verification before you can submit listings. <a href="/components/profile.html" style="color: #d97706; text-decoration: underline;">Verify now →</a>';
+        document.querySelector('#listingsTab').parentElement.parentElement.insertBefore(alertDiv, submitTab);
+      }
+      
+      loadBusinessStats(session.user.id);
+      loadBusinessListings();
+      setupListingForm();
+      loadNotifications();
+    }
+
+    // Setup tab switching
+    document.querySelectorAll('.dashboard-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabName = tab.dataset.tab;
+        switchTab(tabName);
+        
+        // Load content when switching to specific tabs
+        if (tabName === 'notifications') {
+          loadNotifications();
+        } else if (tabName === 'inquiries') {
+          loadInquiries();
+        } else if (tabName === 'success-stories') {
+          loadSuccessStories();
+        }
+      });
+    });
+
+    // Setup success story filter buttons
+    document.querySelectorAll('.success-story-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.success-story-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const filter = btn.dataset.filter;
+        loadSuccessStories(filter);
+      });
+    });
+
+    // Setup investment status tabs
+    document.querySelectorAll('.investment-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.investment-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const status = tab.dataset.status;
+        loadInvestorInvestments(status);
+      });
+    });
+
+    // Setup listing status tabs
+    document.querySelectorAll('.listing-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.listing-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        loadBusinessListings(tab.dataset.status);
+      });
+    });
+
+    // Setup select location button
+    const selectLocationBtn = document.getElementById('selectLocationBtn');
+    if (selectLocationBtn) {
+      selectLocationBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const modal = document.getElementById('locationPickerModal');
+        if (modal) {
+          modal.style.display = 'flex';
+          // Initialize map when modal opens
+          setTimeout(() => {
+            initializeLocationPickerMap();
+          }, 100);
+        }
+      });
+    }
+
+    // Close modal - X button
+    const closeLocationModalBtn = document.getElementById('closeLocationModal');
+    if (closeLocationModalBtn) {
+      closeLocationModalBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById('locationPickerModal').style.display = 'none';
+        selectedCoordinates = null;
+        document.getElementById('confirmLocationBtn').disabled = true;
+      });
+    }
+
+    // Close modal - Cancel button
+    const cancelLocationBtn = document.getElementById('cancelLocationBtn');
+    if (cancelLocationBtn) {
+      cancelLocationBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById('locationPickerModal').style.display = 'none';
+        selectedCoordinates = null;
+        document.getElementById('confirmLocationBtn').disabled = true;
+      });
+    }
+
+    // Confirm location selection
+    const confirmLocationBtn = document.getElementById('confirmLocationBtn');
+    if (confirmLocationBtn) {
+      confirmLocationBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (selectedCoordinates) {
+          document.getElementById('latitude').value = selectedCoordinates.lat.toFixed(8);
+          document.getElementById('longitude').value = selectedCoordinates.lng.toFixed(8);
+          document.getElementById('locationPickerModal').style.display = 'none';
+          selectedCoordinates = null;
+          document.getElementById('confirmLocationBtn').disabled = true;
+        }
+      });
+    }
+  });
+
+  // Location picker map variables
+  let locationPickerMap = null;
+  let locationPickerMarker = null;
+  let selectedCoordinates = null;
+
+  function initializeLocationPickerMap() {
+    const mapContainer = document.getElementById('locationPickerMap');
+    if (!mapContainer) return;
+    
+    // Remove old map instance if exists
+    if (locationPickerMap) {
+      locationPickerMap.remove();
+    }
+
+    // Create new map instance
+    locationPickerMap = L.map('locationPickerMap').setView([14.153887, 122.828522], 13);
+
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(locationPickerMap);
+
+    // Handle map clicks to place marker
+    locationPickerMap.on('click', function(e) {
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+
+      // Store selected coordinates
+      selectedCoordinates = { lat, lng };
+
+      // Remove old marker if exists
+      if (locationPickerMarker) {
+        locationPickerMap.removeLayer(locationPickerMarker);
+      }
+
+      // Create popup with coordinates
+      const popupContent = `<div style="text-align: center;">
+        <strong>Selected Location</strong>
+        <p style="margin: 5px 0; font-size: 0.85rem; color: #666;">
+          ${lat.toFixed(6)}<br/>${lng.toFixed(6)}
+        </p>
+      </div>`;
+
+      // Add new marker
+      locationPickerMarker = L.marker([lat, lng])
+        .bindPopup(popupContent)
+        .addTo(locationPickerMap)
+        .openPopup();
+
+      // Enable confirm button
+      const confirmBtn = document.getElementById('confirmLocationBtn');
+      if (confirmBtn) confirmBtn.disabled = false;
+    });
+
+    // Trigger map resize after initialization
+    setTimeout(() => {
+      if (locationPickerMap) locationPickerMap.invalidateSize();
+    }, 100);
+  }
+
+
+  function switchTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll('.tab-content').forEach(tab => {
+      tab.classList.remove('active');
+    });
+    document.querySelectorAll('.dashboard-tab').forEach(tab => {
+      tab.classList.remove('active');
+    });
+
+    // Show selected tab
+    document.getElementById(tabName).classList.add('active');
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+  }
+
+  async function loadBusinessStats(userId) {
+    try {
+      const response = await fetch(`/api/user/${userId}/stats`);
+      const stats = await response.json();
+
+      document.getElementById('listingsCount').textContent = stats.listingsCount || 0;
+      document.getElementById('inquiriesCount').textContent = stats.inquiriesCount || 0;
+      document.getElementById('memberSince').textContent = new Date(stats.createdAt).getFullYear();
+      document.getElementById('totalSoldCount').textContent = stats.totalSold || 0;
+      document.getElementById('totalEarnings').textContent = '₱' + (stats.totalEarnings || 0).toLocaleString();
+      document.getElementById('lastSaleDate').textContent = stats.lastSaleDate ? new Date(stats.lastSaleDate).toLocaleDateString() : '—';
+    } catch (e) {
+      console.error('Error loading business stats:', e);
+    }
+  }
+
+  async function loadInvestorStats(userId) {
+    try {
+      const response = await fetch(`/api/investor/${userId}/stats`);
+      const stats = await response.json();
+
+      document.getElementById('listingsCount').textContent = stats.listingsCount || 0;
+      document.getElementById('inquiriesCount').textContent = stats.inquiriesCount || 0;
+      document.getElementById('memberSince').textContent = new Date(stats.createdAt).getFullYear();
+      document.getElementById('totalSpentCount').textContent = '₱' + (stats.totalSpent || 0).toLocaleString();
+      document.getElementById('totalBoughtCount').textContent = stats.totalBought || 0;
+      document.getElementById('lastInvestmentDate').textContent = stats.lastInvestmentDate ? new Date(stats.lastInvestmentDate).toLocaleDateString() : '—';
+    } catch (e) {
+      console.error('Error loading investor stats:', e);
+    }
+  }
+
+  async function loadBusinessListings(status = 'approved') {
+    try {
+      const response = await fetch(`/api/my-listings`);
+      const data = await response.json();
+      
+      // Handle error response
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid response format');
+      }
+      
+      const listings = data;
+      const filtered = listings.filter(l => l.status === status);
+      const container = document.getElementById('listingsContainer');
+      const noMsg = document.getElementById('noListingsMessage');
+
+      if (filtered.length === 0) {
+        container.innerHTML = '';
+        noMsg.style.display = 'block';
+        return;
+      }
+
+      noMsg.style.display = 'none';
+      container.innerHTML = filtered.map(listing => `
+        <div class="listing-card">
+          <div class="listing-card-image">
+            ${listing.image_url ? `<img src="${listing.image_url}" alt="${listing.title}">` : '<div style="width:100%;height:100%;background:var(--border);"></div>'}
+          </div>
+          <div class="listing-card-content">
+            <h3 class="listing-card-title">${listing.title}</h3>
+            <div class="listing-card-details">
+              <div class="listing-card-type">${listing.type}</div>
+              <div class="listing-card-price">₱${listing.price.toLocaleString()}</div>
+              <div class="listing-card-size">${listing.size_sqm ? parseFloat(listing.size_sqm).toFixed(2) : '—'} sq m</div>
+            </div>
+            <div class="listing-badge badge-${status}">${status.charAt(0).toUpperCase() + status.slice(1)}</div>
+            ${listing.rejection_reason ? `<div style="color:#991b1b;font-size:12px;margin-bottom:12px;"><strong>Reason:</strong> ${listing.rejection_reason}</div>` : ''}
+            <div class="listing-actions">
+              <button class="btn-edit" onclick="editListing(${listing.id})">Edit</button>
+              <button class="btn-view" onclick="viewListing(${listing.id})">Details</button>
+              <button class="btn-delete" onclick="deleteListing(${listing.id})">Delete</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      console.error('Error loading listings:', e);
+    }
+  }
+
+  function setupListingForm() {
+    const form = document.getElementById('listingForm');
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+
+      try {
+        const msgEl = document.getElementById('listingMessage');
+        msgEl.textContent = 'Submitting listing...';
+        msgEl.style.color = '#3b82f6';
+
+        const response = await fetch('/submit-listing', {
+          method: 'POST',
+          body: formData,
+          credentials: 'same-origin'
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          msgEl.textContent = 'Listing submitted successfully!';
+          msgEl.style.color = '#10b981';
+          form.reset();
+          setTimeout(() => {
+            msgEl.textContent = '';
+            loadBusinessListings('pending');
+            switchTab('listings');
+          }, 2000);
+        } else {
+          msgEl.textContent = result.error || 'Error submitting listing';
+          msgEl.style.color = '#ef4444';
+        }
+      } catch (e) {
+        const msgEl = document.getElementById('listingMessage');
+        msgEl.textContent = 'Error submitting listing: ' + e.message;
+        msgEl.style.color = '#ef4444';
+      }
+    });
+  }
+
+  function editListing(listingId) {
+    window.location.href = `/components/profile.html?edit=${listingId}`;
+  }
+
+  function viewListing(listingId) {
+    window.location.href = `/components/listing-detail.html?id=${listingId}`;
+  }
+
+  async function deleteListing(listingId) {
+    if (!confirm('Are you sure you want to delete this listing?')) return;
+
+    try {
+      const response = await fetch(`/api/my-listings/${listingId}`, {
+        method: 'DELETE',
+        credentials: 'same-origin'
+      });
+
+      if (response.ok) {
+        loadBusinessListings('approved');
+      } else {
+        alert('Error deleting listing');
+      }
+    } catch (e) {
+      alert('Error: ' + e.message);
+    }
+  }
+
+
+  async function loadInvestorInvestments(status = 'pending') {
+    try {
+      const response = await fetch(`/api/my-investments`);
+      const data = await response.json();
+
+      // Handle error response
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid response format');
+      }
+      
+      let investments = data;
+      
+      // Filter investments by status
+      if (status === 'pending') {
+        investments = investments.filter(inv => 
+          inv.status === 'pending' || inv.status === null
+        );
+      } else if (status === 'accepted') {
+        investments = investments.filter(inv => inv.status === 'accepted');
+      } else if (status === 'rejected') {
+        investments = investments.filter(inv => inv.status === 'rejected');
+      } else if (status === 'completed') {
+        investments = investments.filter(inv => 
+          inv.sold_to_user_id !== null && inv.sold_to_user_id !== undefined
+        );
+      }
+      
+      const container = document.getElementById('investmentsContainer');
+      const noMsg = document.getElementById('noInvestmentsMessage');
+
+      if (investments.length === 0) {
+        container.innerHTML = '';
+        noMsg.style.display = 'block';
+        return;
+      }
+
+      noMsg.style.display = 'none';
+      container.innerHTML = investments.map(inv => {
+        const isSold = inv.sold_to_user_id !== null && inv.sold_to_user_id !== undefined;
+        const badgeClass = isSold ? 'badge-sold' : 'badge-pending';
+        const statusLabel = isSold ? 'Bought' : 'Active';
+        
+        return `
+        <div class="investment-card">
+          <div class="investment-card-image">
+            ${inv.image_url ? `<img src="${inv.image_url}" alt="${inv.title}">` : '<div style="width:100%;height:100%;background:var(--border);"></div>'}
+          </div>
+          <div class="investment-card-content">
+            <h3 class="listing-card-title">${inv.title}</h3>
+            <div class="listing-card-details" style="margin-bottom: 10px;">
+              <div class="listing-card-type">Seller: ${inv.owner_name}</div>
+              <div class="listing-card-price">₱${inv.price.toLocaleString()}</div>
+              <div class="listing-card-size">${inv.size_sqm ? parseFloat(inv.size_sqm).toFixed(2) : '—'} sq m</div>
+            </div>
+            <div class="investment-status-badge ${badgeClass}">${statusLabel}</div>
+            <div class="listing-card-details" style="font-size: 12px; color: var(--text-muted);">
+              <div>Applied: ${new Date(inv.created_at).toLocaleDateString()}</div>
+              ${isSold ? `<div style="color: #10b981; font-weight: bold;">✓ Marked as Sold</div>` : ''}
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 12px;">
+              <a href="/components/listing-detail.html?id=${inv.listing_id}" style="padding: 8px 16px; background: var(--accent); color: white; text-decoration: none; font-size: 14px; font-weight: 500; border-radius: 6px; flex: 1; text-align: center;">View</a>
+              ${isSold ? `<button onclick="openSuccessStoryModal(${inv.listing_id}, '${inv.title.replace(/'/g, "\\'")}', '${inv.image_url || ''}', ${inv.id})" style="padding: 8px 16px; background: var(--accent); color: white; border: none; cursor: pointer; font-size: 14px; font-weight: 500; border-radius: 6px; flex: 1;">Share Success</button>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+      }).join('');
+    } catch (e) {
+      console.error('Error loading investments:', e);
+    }
+  }
+
+  // Load notifications
+  async function loadNotifications() {
+    try {
+      const response = await fetch('/api/notifications?limit=20');
+      const data = await response.json();
+
+      // Handle error response
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid response format');
+      }
+      
+      const notifications = data;
+      const container = document.getElementById('notificationsContainer');
+      const noMsg = document.getElementById('noNotificationsMessage');
+
+      if (notifications.length === 0) {
+        container.innerHTML = '';
+        noMsg.style.display = 'block';
+        return;
+      }
+
+      noMsg.style.display = 'none';
+      container.innerHTML = notifications.map(notif => {
+        const badgeClass = `badge-${notif.status}`;
+        const dateStr = new Date(notif.updated_at).toLocaleDateString();
+        
+        return `
+          <div class="notification-item">
+            <div class="notification-content">
+              <div class="notification-title">${notif.title}</div>
+              <div class="notification-meta">
+                ${notif.type === 'listing' ? 'Listing Status' : 'Inquiry Status'} • ${dateStr}
+                ${notif.type === 'listing' && notif.rejection_reason ? `<br><strong>Reason:</strong> ${notif.rejection_reason}` : ''}
+              </div>
+            </div>
+            <span class="notification-badge ${badgeClass}">${notif.status}</span>
+          </div>
+        `;
+      }).join('');
+    } catch (e) {
+      console.error('Error loading notifications:', e);
+    }
+  }
+
+  // Setup investment status tabs
+  function setupInvestmentTabs() {
+    document.querySelectorAll('.investment-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.investment-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        loadInvestorInvestments(tab.dataset.status);
+      });
+    });
+  }
+
+  // Load inquiries for both business and investor users
+  async function loadInquiries() {
+    const container = document.getElementById('inquiriesContainer');
+    const noMsg = document.getElementById('noInquiriesMessage');
+    container.innerHTML = '<div class="small muted">Loading inquiries...</div>';
+    
+    try {
+      const session = await fetch('/api/session').then(r => r.json()).catch(() => ({}));
+      if (!session.user) {
+        container.innerHTML = '<div class="small muted">Please log in to view inquiries.</div>';
+        return;
+      }
+
+      const res = await fetch('/api/inquiries', {
+        credentials: 'same-origin'
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to load inquiries');
+      }
+
+      const data = await res.json();
+      
+      // Handle response format: { inquiries: [...] }
+      let inquiries = Array.isArray(data) ? data : (data.inquiries || []);
+      
+      if (!Array.isArray(inquiries)) {
+        throw new Error('Invalid response format');
+      }
+      
+      if (inquiries.length === 0) {
+        container.innerHTML = '';
+        noMsg.style.display = 'block';
+        return;
+      }
+
+      noMsg.style.display = 'none';
+      container.innerHTML = inquiries.map(inquiry => {
+        const unreadDot = inquiry.is_read ? '' : '<span style="display:inline-block;width:8px;height:8px;background:#ff6b6b;border-radius:50%;margin-right:6px;vertical-align:middle"></span>';
+        const dateStr = new Date(inquiry.created_at).toLocaleString();
+        const senderName = inquiry.full_name || inquiry.sender_username || 'Unknown';
+        const contact = inquiry.contact_number || '';
+        const email = inquiry.email || '';
+        const message = inquiry.message || '';
+        const listingTitle = inquiry.listing_title || 'Listing';
+        
+        // Check if current user is the listing owner and is a business user
+        const isOwner = inquiry.owner_id === session.user.id;
+        const isBusiness = session.user.user_type === 'business';
+        const isSold = inquiry.listing_sold_to_user_id !== null && inquiry.listing_sold_to_user_id !== undefined;
+        const canModifySaleStatus = isOwner && isBusiness;
+
+        let saleButton = '';
+        if (canModifySaleStatus) {
+          if (isSold) {
+            saleButton = `<button class="btn btn-warning" style="background-color: #f59e0b;" onclick="markListingAsAvailable(${inquiry.listing_id}, '${listingTitle.replace(/'/g, "\\'")}')">Mark as Available</button>`;
+          } else {
+            saleButton = `<button class="btn btn-success" style="background-color: #10b981;" onclick="markListingAsSold(${inquiry.listing_id}, ${inquiry.sender_user_id}, ${inquiry.id}, '${senderName.replace(/'/g, "\\'")}')">Mark as Sold</button>`;
+          }
+        }
+
+        return `
+          <div class="side-card" style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="flex: 1;">
+              <div style="font-weight:800">${unreadDot}${senderName} <span class="small muted">(${dateStr})</span></div>
+              <div class="small muted">Contact: ${contact} — ${email}</div>
+              <div style="margin-top:6px; color: var(--text-muted); font-size: 13px;">${message}</div>
+              <div style="margin-top:8px; font-size: 12px; color: var(--text); background: var(--border); padding: 6px 8px; border-radius: 4px;"><strong>Listing:</strong> ${listingTitle}${isSold ? ' <span style="color: #10b981; font-weight: bold;">(Sold)</span>' : ''}</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-left: 12px; min-width: 120px;">
+              <button class="btn btn-ghost" onclick="window.location.href='/components/listing-detail.html?id=${inquiry.listing_id}'">View Listing</button>
+              <button class="btn btn-primary" onclick="openInquiryChat(${inquiry.id}, '${senderName.replace(/'/g, "\\'")}')">Open Chat</button>
+              ${!inquiry.is_read ? `<button class="btn btn-ghost" onclick="markInquiryAsRead(${inquiry.id})">Mark as read</button>` : `<button class="btn btn-ghost" disabled style="opacity: 0.6;">Read</button>`}
+              ${saleButton}
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (e) {
+      console.error('Error loading inquiries:', e);
+      container.innerHTML = '<div class="small muted">Error loading inquiries</div>';
+    }
+  }
+
+  // Mark inquiry as read
+  async function markInquiryAsRead(inquiryId) {
+    try {
+      const res = await fetch(`/api/inquiries/${inquiryId}/read`, {
+        method: 'PATCH',
+        credentials: 'same-origin'
+      });
+      if (res.ok) {
+        loadInquiries();
+      }
+    } catch (e) {
+      console.error('Error marking inquiry as read:', e);
+    }
+  }
+
+  // Open chat for inquiry
+  function openInquiryChat(inquiryId, senderName) {
+    if (window.openChat) {
+      return openChat(inquiryId, senderName);
+    }
+    // Dynamic load of home.js then call openChat
+    const s = document.createElement('script');
+    s.src = '/js/home.js';
+    s.onload = () => {
+      if (window.openChat) {
+        openChat(inquiryId, senderName);
+      } else {
+        alert('Chat not available');
+      }
+    };
+    s.onerror = () => alert('Failed to load chat support');
+    document.head.appendChild(s);
+  }
+
+  // Mark listing as sold
+  async function markListingAsSold(listingId, buyerId, inquiryId, buyerName) {
+    try {
+      const listingRes = await fetch(`/api/listing/${listingId}`);
+      const listing = await listingRes.json();
+      
+      const salePrice = listing.price || 0;
+      
+      // Show confirmation dialog with price
+      const confirmed = confirm(`Mark this listing as sold to ${buyerName}?\n\nListing: ${listing.title}\nSale Price: ₱${salePrice.toLocaleString()}\n\nThis will mark this listing as sold and close all other inquiries.`);
+      
+      if (!confirmed) return;
+      
+      // Call API to mark as sold
+      const response = await fetch(`/api/listings/${listingId}/mark-sold`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          buyerId,
+          inquiryId,
+          salePrice
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        alert('Error: ' + (result.error || 'Failed to mark listing as sold'));
+        return;
+      }
+      
+      alert('✅ Listing marked as sold! The buyer has been notified and can now share success stories.');
+      loadInquiries(); // Refresh the list
+      
+    } catch (err) {
+      console.error('Error marking listing as sold:', err);
+      alert('Error marking listing as sold');
+    }
+  }
+
+  // Mark listing as available (undo the sale)
+  async function markListingAsAvailable(listingId, listingTitle) {
+    try {
+      // Show confirmation dialog
+      const confirmed = confirm(`Are you sure you want to mark "${listingTitle}" as available again?\n\nThis will undo the sale and remove the buyer's ability to share success stories for this listing.`);
+      
+      if (!confirmed) return;
+      
+      // Call API to mark as available
+      const response = await fetch(`/api/listings/${listingId}/mark-available`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({})
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        alert('Error: ' + (result.error || 'Failed to mark listing as available'));
+        return;
+      }
+      
+      alert('✅ Listing marked as available. The buyer\'s success story has been removed.');
+      loadInquiries(); // Refresh the list
+      
+    } catch (err) {
+      console.error('Error marking listing as available:', err);
+      alert('Error marking listing as available');
+    }
+  }
+
+  // Load success stories for investor
+  async function loadSuccessStories(filter = 'all') {
+    const container = document.getElementById('successStoriesContainer');
+    const noMsg = document.getElementById('noSuccessStoriesMessage');
+    container.innerHTML = '<div class="small muted">Loading success stories...</div>';
+    
+    try {
+      const res = await fetch('/api/investor/success-stories', {
+        credentials: 'same-origin'
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to load success stories');
+      }
+
+      const data = await res.json();
+      const stories = Array.isArray(data) ? data : (data.stories || []);
+      
+      // Filter stories based on selected filter
+      let filtered = stories;
+      if (filter !== 'all') {
+        filtered = stories.filter(s => s.status === filter);
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = '';
+        noMsg.style.display = 'block';
+        return;
+      }
+
+      noMsg.style.display = 'none';
+      container.innerHTML = filtered.map(story => {
+        const statusBadgeClass = `badge-${story.status}`;
+        const statusLabel = story.status.replace(/_/g, ' ').toUpperCase();
+        
+        return `
+          <div class="side-card" style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="flex: 1;">
+              <div style="font-weight: 800; margin-bottom: 8px;">${story.listing_title || 'Listing'}</div>
+              <div style="color: var(--text-muted); font-size: 14px; margin-bottom: 8px;">
+                <div><strong>Business Name:</strong> ${story.business_name || '—'}</div>
+                <div><strong>Type:</strong> ${story.business_type || '—'}</div>
+                <div><strong>Established:</strong> ${story.established_year || '—'}</div>
+              </div>
+              <div style="color: var(--text); font-size: 13px; margin-bottom: 8px;">${story.description || '—'}</div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <span class="notification-badge ${statusBadgeClass}">${statusLabel}</span>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-left: 12px; min-width: 120px;">
+              <button class="btn btn-primary" onclick="openSuccessStoryEditor(${story.id}, ${story.listing_id}, '${story.listing_title.replace(/'/g, "\\'")}', '${story.image_url || ''}')">Edit</button>
+              ${story.status === 'published' ? `<a href="/components/success.html?storyId=${story.id}" class="btn btn-ghost" style="text-align: center;">View</a>` : ''}
+              <button class="btn btn-delete" onclick="deleteSuccessStory(${story.id})">Delete</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (e) {
+      console.error('Error loading success stories:', e);
+      container.innerHTML = '<div class="small muted">Error loading success stories</div>';
+    }
+  }
+
+  // Open success story modal (wrapper that redirects to profile page)
+  function openSuccessStoryModal(listingId, listingTitle, listingImage, inquiryId) {
+    // Open the embedded modal locally
+    const modal = document.getElementById('successStoryModal');
+    if (modal) {
+      modal.style.display = 'block';
+      // Set listing image preview
+      const preview = document.getElementById('listingImagePreview');
+      if (preview && listingImage) {
+        preview.src = listingImage;
+        preview.style.display = 'block';
+      }
+      
+      // Pre-populate dropdown and auto-select the listing
+      const listingSelect = document.getElementById('successListingSelect');
+      if (listingSelect && listingId) {
+        // Check if listing is already in options
+        const existingOption = Array.from(listingSelect.options).find(opt => opt.value === String(listingId));
+        
+        if (existingOption) {
+          // If option exists, just select it
+          listingSelect.value = listingId;
+        } else {
+          // If option doesn't exist, add it and select it
+          const option = document.createElement('option');
+          option.value = listingId;
+          option.textContent = listingTitle;
+          listingSelect.appendChild(option);
+          listingSelect.value = listingId;
+        }
+        
+        // Check if investor can upload a story for this listing
+        checkStoryUploadStatus(listingId);
+      }
+      // Store inquiry ID for later use if needed
+      document.getElementById('successStoryForm').dataset.inquiryId = inquiryId;
+    }
+  }
+
+  // Check if investor can upload success story for a listing
+  async function checkStoryUploadStatus(listingId) {
+    try {
+      const res = await fetch(`/api/investor/success-story-status/${listingId}`, {
+        credentials: 'same-origin'
+      });
+      
+      if (!res.ok) {
+        console.error('Failed to check story status');
+        return;
+      }
+      
+      const data = await res.json();
+      const submitBtn = document.querySelector('#successStoryForm button[type="submit"]');
+      const statusMsg = document.getElementById('successFormMessage');
+      
+      if (!data.canUpload) {
+        // Disable form submission
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.style.opacity = '0.6';
+          submitBtn.style.cursor = 'not-allowed';
+        }
+        
+        // Show message
+        if (statusMsg) {
+          statusMsg.style.display = 'block';
+          statusMsg.style.color = '#991b1b';
+          statusMsg.style.backgroundColor = '#fef2f2';
+          statusMsg.style.border = '1px solid #fca5a5';
+          statusMsg.style.padding = '12px';
+          statusMsg.style.borderRadius = '6px';
+          statusMsg.textContent = '❌ ' + data.message;
+        }
+      } else {
+        // Enable form submission
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.style.opacity = '1';
+          submitBtn.style.cursor = 'pointer';
+        }
+        
+        // Hide status message or show success message
+        if (statusMsg) {
+          if (data.status === 'rejected') {
+            statusMsg.style.display = 'block';
+            statusMsg.style.color = '#065f46';
+            statusMsg.style.backgroundColor = '#d1fae5';
+            statusMsg.style.border = '1px solid #a7f3d0';
+            statusMsg.style.padding = '12px';
+            statusMsg.style.borderRadius = '6px';
+            statusMsg.textContent = '✓ ' + data.message;
+          } else {
+            statusMsg.style.display = 'none';
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error checking story upload status:', err);
+    }
+  }
+
+  // Editor for existing success stories
+  async function openSuccessStoryEditor(storyId, listingId, listingTitle, listingImage, inquiryId) {
+    // For now, open the same modal as creation since it handles both
+    openSuccessStoryModal(listingId, listingTitle, listingImage, inquiryId);
+  }
+
+  // Delete success story
+  async function deleteSuccessStory(storyId) {
+    if (!confirm('Are you sure you want to delete this success story? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/investor/success-stories/${storyId}`, {
+        method: 'DELETE',
+        credentials: 'same-origin'
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        alert('Error deleting success story: ' + (error.error || 'Unknown error'));
+        return;
+      }
+
+      // Reload success stories
+      loadSuccessStories();
+      alert('Success story deleted successfully. You can now upload a new one for this listing.');
+    } catch (err) {
+      console.error('Error deleting success story:', err);
+      alert('Error deleting success story');
+    }
+  }
+
+  // Ensure the modal HTML exists
+  function ensureSuccessStoryModalExists() {
+    if (!document.getElementById('successStoryModal')) {
+      // Modal will be created by profile.js, so we don't need to do anything
+      console.log('Success story modal will be created by profile.js');
+    }
+  }
+
+  // Initialize modal event listeners
+  document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('successStoryModal');
+    const closeBtn = document.getElementById('closeSuccessModal');
+    const cancelBtn = document.getElementById('cancelSuccessBtn');
+    const listingSelect = document.getElementById('successListingSelect');
+    
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+      });
+    }
+    
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+      });
+    }
+
+    // Check story upload status when listing is changed
+    if (listingSelect) {
+      listingSelect.addEventListener('change', function() {
+        if (this.value) {
+          checkStoryUploadStatus(this.value);
+        }
+      });
+    }
+    
+    // Close modal when clicking outside
+    window.addEventListener('click', function(event) {
+      if (event.target === modal) {
+        modal.style.display = 'none';
+      }
+    });
+  });
+
+</script>
+
+<!-- Location Picker Modal -->
+<div id="locationPickerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center;">
+  <div style="background: white; border-radius: 12px; width: 90%; max-width: 800px; height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); position: relative;">
+    <!-- Modal Header -->
+    <div style="padding: 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+      <h2 style="margin: 0px; font-size: 1.3rem; color: rgb(31, 41, 55);">Select Location on Map</h2>
+      <button id="closeLocationModal" type="button" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280; padding: 0; width: 30px; height: 30px; flex-shrink: 0;">✕</button>
+    </div>
+
+    <!-- Modal Map Container -->
+    <div id="locationPickerMap" style="flex: 1; position: relative; width: 100%; min-height: 0;"></div>
+
+    <!-- Modal Footer -->
+    <div style="padding: 20px; border-top: 1px solid #e5e7eb; display: flex; gap: 12px; justify-content: flex-end; flex-shrink: 0;">
+      <button id="cancelLocationBtn" type="button" class="btn btn-ghost" style="margin: 0;">Cancel</button>
+      <button id="confirmLocationBtn" type="button" class="btn btn-primary" disabled="" style="margin: 0;">Confirm Location</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</body>
+</html>

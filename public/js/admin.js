@@ -696,6 +696,11 @@ function switchHeadAdminTab(tab) {
       console.log('[switchHeadAdminTab] Loading admin management');
       loadAdminsList();
     }
+    // Load data for user management tab
+    else if (tab === 'user-management') {
+      console.log('[switchHeadAdminTab] Loading user management');
+      loadAllUsersForAdmin();
+    }
   } else {
     console.warn('[switchHeadAdminTab] Tab element not found:', tabId);
   }
@@ -3187,5 +3192,183 @@ async function bulkRejectStories() {
     loadPendingStories();
   } catch (err) {
     showToast('Error rejecting stories', true);
+  }
+}
+// ==================== USER MANAGEMENT (HEAD ADMIN) ====================
+let allUsersForAdmin = [];
+let currentEditingUserId = null;
+
+async function loadAllUsersForAdmin() {
+  try {
+    const response = await fetch('/api/admin/users', { credentials: 'same-origin' });
+    const data = await response.json();
+    
+    if (!response.ok) throw new Error(data.error);
+    
+    allUsersForAdmin = data;
+    displayUsersForAdmin(allUsersForAdmin);
+  } catch (err) {
+    console.error('Error loading users:', err);
+    document.getElementById('usersList').innerHTML = `<p class="muted" style="color: red;">Error loading users: ${err.message}</p>`;
+  }
+}
+
+function displayUsersForAdmin(users) {
+  const container = document.getElementById('usersList');
+  
+  if (users.length === 0) {
+    container.innerHTML = '<p class="muted">No users found</p>';
+    return;
+  }
+
+  container.innerHTML = users.map(user => `
+    <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+      <div style="flex: 1;">
+        <div style="font-weight: 600; color: #333; margin-bottom: 4px;">${user.username}</div>
+        <div style="font-size: 12px; color: #666;">
+          📧 ${user.email} | 👤 ${user.user_type || 'N/A'} | ${user.is_verified ? '✅ Verified' : '⏳ Pending'}
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-primary" onclick="openEditUserModalAdmin(${user.id}, '${user.username.replace(/'/g, "\\'")}', '${user.email.replace(/'/g, "\\'")}', '${user.user_type.replace(/'/g, "\\'")}', ${user.is_verified})" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+        <button class="btn btn-danger" onclick="deleteUserAdmin(${user.id}, '${user.username.replace(/'/g, "\\'")}')" style="padding: 6px 12px; font-size: 12px; background: #f44336; color: white; border: none; cursor: pointer; border-radius: 4px;">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Search functionality
+document.addEventListener('DOMContentLoaded', () => {
+  const searchInput = document.getElementById('userSearchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase();
+      const filtered = allUsersForAdmin.filter(user => 
+        user.username.toLowerCase().includes(searchTerm) ||
+        user.email.toLowerCase().includes(searchTerm)
+      );
+      displayUsersForAdmin(filtered);
+    });
+  }
+});
+
+function openEditUserModalAdmin(userId, username, email, userType, isVerified) {
+  // Find user to get full details
+  const user = allUsersForAdmin.find(u => u.id === userId);
+  if (!user) {
+    console.error('User not found');
+    return;
+  }
+
+  currentEditingUserId = userId;
+  
+  // Populate modal fields
+  document.getElementById('editUserId').value = userId;
+  document.getElementById('editUsername').value = user.username;
+  document.getElementById('editEmail').value = user.email;
+  document.getElementById('editUserType').value = user.user_type || 'investor';
+  document.getElementById('editVerificationStatus').value = user.is_verified ? 'Verified' : 'Pending Verification';
+  document.getElementById('editChangeReason').value = '';
+  document.getElementById('editNotifyUser').checked = true;
+  
+  // Show modal
+  document.getElementById('editUserModal').style.display = 'flex';
+}
+
+function closeEditUserModal() {
+  document.getElementById('editUserModal').style.display = 'none';
+  currentEditingUserId = null;
+}
+
+// Handle form submission
+document.addEventListener('DOMContentLoaded', () => {
+  const editUserForm = document.getElementById('editUserForm');
+  if (editUserForm) {
+    editUserForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await submitEditUserAdmin();
+    });
+  }
+});
+
+async function submitEditUserAdmin() {
+  if (!currentEditingUserId) return;
+
+  const newUsername = document.getElementById('editUsername').value.trim();
+  const newEmail = document.getElementById('editEmail').value.trim();
+  const newUserType = document.getElementById('editUserType').value.trim();
+  const newPassword = document.getElementById('editNewPassword').value.trim();
+  const reason = document.getElementById('editChangeReason').value.trim();
+  const notifyUser = document.getElementById('editNotifyUser').checked;
+
+  // Validation
+  if (!newUsername) {
+    showToast('Username cannot be empty', true);
+    return;
+  }
+  if (!newEmail) {
+    showToast('Email cannot be empty', true);
+    return;
+  }
+  if (!newEmail.includes('@')) {
+    showToast('Please enter a valid email address', true);
+    return;
+  }
+  if (newPassword && newPassword.length < 6) {
+    showToast('Password must be at least 6 characters long', true);
+    return;
+  }
+  if (!reason) {
+    showToast('Please provide a reason for the change', true);
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/admin/users/${currentEditingUserId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        username: newUsername,
+        email: newEmail,
+        user_type: newUserType,
+        password: newPassword || undefined,
+        reason: reason,
+        notifyUser: notifyUser
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error);
+
+    showToast('User updated successfully! Their dashboard will update on next login.');
+    closeEditUserModal();
+    loadAllUsersForAdmin();
+  } catch (err) {
+    console.error('Error updating user:', err);
+    showToast('Error updating user: ' + err.message, true);
+  }
+}
+
+async function deleteUserAdmin(userId, username) {
+  if (!confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/admin/users/${userId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin'
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error);
+
+    showToast('User deleted successfully!');
+    loadAllUsersForAdmin();
+  } catch (err) {
+    console.error('Error deleting user:', err);
+    showToast('Error deleting user: ' + err.message, true);
   }
 }

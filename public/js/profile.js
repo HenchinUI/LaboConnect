@@ -23,8 +23,11 @@ async function initProfile() {
 
     // Hide business-only sections for investor users
     if (sesData.user.user_type === 'investor') {
-      document.getElementById('myListingsSection').style.display = 'none';
-      document.getElementById('notificationsSection').style.display = 'none';
+      const myListingsSection = document.getElementById('myListingsSection');
+      if (myListingsSection) myListingsSection.style.display = 'none';
+      
+      const notificationsSection = document.getElementById('notificationsSection');
+      if (notificationsSection) notificationsSection.style.display = 'none';
     }
 
     // Load verification status
@@ -75,48 +78,64 @@ function displayProfile(data) {
   const profileInitials = document.getElementById('profileInitials');
   const profilePictureImg = document.getElementById('profilePictureImg');
   
-  if (data.profile_picture_url) {
-    profilePictureImg.src = data.profile_picture_url;
-    profilePictureImg.style.display = 'block';
-    profileInitials.style.display = 'none';
-  } else {
-    const initials = (data.username || '--')
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 2);
-    profileInitials.textContent = initials;
-    profileInitials.style.display = 'inline';
-    profilePictureImg.style.display = 'none';
+  if (profileInitials && profilePictureImg) {
+    if (data.profile_picture_url) {
+      profilePictureImg.src = data.profile_picture_url;
+      profilePictureImg.style.display = 'block';
+      profileInitials.style.display = 'none';
+    } else {
+      const initials = (data.username || '--')
+        .split(' ')
+        .map(n => n[0])
+        .join('')
+        .toUpperCase()
+        .substring(0, 2);
+      profileInitials.textContent = initials;
+      profileInitials.style.display = 'inline';
+      profilePictureImg.style.display = 'none';
+    }
   }
 
   // Personal Info
-  document.getElementById('nameDisplay').textContent = data.username || 'Not provided';
-  document.getElementById('emailDisplay').textContent = data.email || 'Not provided';
-  document.getElementById('contactDisplay').textContent =
-    data.contact_number || 'Not provided';
+  const nameDisplay = document.getElementById('nameDisplay');
+  if (nameDisplay) nameDisplay.textContent = data.username || 'Not provided';
+  
+  const emailDisplay = document.getElementById('emailDisplay');
+  if (emailDisplay) emailDisplay.textContent = data.email || 'Not provided';
+  
+  const contactDisplay = document.getElementById('contactDisplay');
+  if (contactDisplay) contactDisplay.textContent = data.contact_number || 'Not provided';
 
   // Bio
-  document.getElementById('bioDisplay').textContent =
-    data.bio || 'No bio added yet';
+  const bioDisplay = document.getElementById('bioDisplay');
+  if (bioDisplay) bioDisplay.textContent = data.bio || 'No bio added yet';
 
   // Populate edit fields
-  document.getElementById('fullNameInput').value = data.username || '';
-  document.getElementById('emailInput').value = data.email || '';
-  document.getElementById('contactInput').value = data.contact_number || '';
-  document.getElementById('bioInput').value = data.bio || '';
+  const fullNameInput = document.getElementById('fullNameInput');
+  if (fullNameInput) fullNameInput.value = data.username || '';
+  
+  const emailInput = document.getElementById('emailInput');
+  if (emailInput) emailInput.value = data.email || '';
+  
+  const contactInput = document.getElementById('contactInput');
+  if (contactInput) contactInput.value = data.contact_number || '';
+  
+  const bioInput = document.getElementById('bioInput');
+  if (bioInput) bioInput.value = data.bio || '';
 
   // Update stats
-  document.getElementById('listingsCount').textContent = data.listings_count || 0;
-  document.getElementById('inquiriesCount').textContent =
-    data.inquiries_count || 0;
+  const listingsCountEl = document.getElementById('listingsCount');
+  if (listingsCountEl) listingsCountEl.textContent = data.listings_count || 0;
+  
+  const inquiriesCountEl = document.getElementById('inquiriesCount');
+  if (inquiriesCountEl) inquiriesCountEl.textContent = data.inquiries_count || 0;
 
   // Member since date
   if (data.created_at) {
     const date = new Date(data.created_at);
     const year = date.getFullYear();
-    document.getElementById('memberSince').textContent = year;
+    const memberSinceEl = document.getElementById('memberSince');
+    if (memberSinceEl) memberSinceEl.textContent = year;
   }
 
   // Update profile name in header
@@ -262,180 +281,9 @@ async function loadTransactionDashboards() {
     if (!sesData.user) return;
 
     const userType = sesData.user.user_type;
-
-    // Load business seller dashboard
-    if (userType === 'business') {
-      await loadBusinessDashboard();
-    }
-
-    // Load investor buyer dashboard
-    if (userType === 'investor') {
-      await loadInvestorDashboard();
-    }
   } catch (e) {
     console.error('Error loading transaction dashboards:', e);
   }
-}
-
-// Load business seller dashboard - sold listings
-async function loadBusinessDashboard() {
-  try {
-    const res = await fetch('/api/business/dashboard/sold-listings', {
-      credentials: 'same-origin'
-    });
-
-    if (!res.ok) {
-      console.warn('Failed to load business dashboard');
-      return;
-    }
-
-    const data = await res.json();
-    displayBusinessDashboard(data);
-  } catch (e) {
-    console.error('Error loading business dashboard:', e);
-  }
-}
-
-// Display business seller dashboard
-function displayBusinessDashboard(data) {
-  const section = document.getElementById('businessDashboardSection');
-  const tableBody = document.getElementById('businessSalesTableBody');
-
-  if (!data.soldListings || data.soldListings.length === 0) {
-    section.style.display = 'block';
-    tableBody.innerHTML = '<tr style="text-align: center; padding: 40px 20px; color: var(--text-muted);"><td colspan="5">No sales yet.</td></tr>';
-    
-    // Update stats
-    document.getElementById('totalSoldCount').textContent = '0';
-    document.getElementById('totalEarnings').textContent = '₱0';
-    document.getElementById('lastSaleDate').textContent = '—';
-    return;
-  }
-
-  section.style.display = 'block';
-
-  // Update stats
-  const earnings = data.earnings || { totalSold: 0, totalEarned: 0 };
-  document.getElementById('totalSoldCount').textContent = earnings.totalSold || 0;
-  document.getElementById('totalEarnings').textContent = '₱' + (parseFloat(earnings.totalEarned) || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
-  
-  // Get last sale date
-  if (data.soldListings.length > 0) {
-    const lastDate = new Date(data.soldListings[0].sale_date);
-    document.getElementById('lastSaleDate').textContent = lastDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-  }
-
-  // Render table
-  tableBody.innerHTML = data.soldListings.map(sale => {
-    const saleDate = new Date(sale.sale_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-    const salePrice = parseFloat(sale.sale_price).toLocaleString('en-US', { maximumFractionDigits: 2 });
-    
-    return `
-      <tr style="border-bottom: 1px solid var(--border);">
-        <td style="padding: 12px; color: var(--text);">${sale.title || 'N/A'}</td>
-        <td style="padding: 12px; color: var(--text);">${sale.buyer_name || 'N/A'}</td>
-        <td style="padding: 12px; text-align: right; color: var(--accent); font-weight: 600;">₱${salePrice}</td>
-        <td style="padding: 12px; color: var(--text-muted); font-size: 14px;">${saleDate}</td>
-        <td style="padding: 12px; text-align: center;">
-          <a href="/components/inquiries.html?listing=${sale.listing_id}" style="color: var(--accent); text-decoration: none; cursor: pointer;">Chat</a>
-        </td>
-      </tr>
-    `;
-  }).join('');
-}
-
-// Load investor buyer dashboard - purchased listings
-async function loadInvestorDashboard() {
-  try {
-    const res = await fetch('/api/investor/dashboard/bought-listings', {
-      credentials: 'same-origin'
-    });
-
-    if (!res.ok) {
-      console.warn('Failed to load investor dashboard');
-      return;
-    }
-
-    const data = await res.json();
-    displayInvestorDashboard(data);
-  } catch (e) {
-    console.error('Error loading investor dashboard:', e);
-  }
-}
-
-// Display investor buyer dashboard
-function displayInvestorDashboard(data) {
-  const section = document.getElementById('investorDashboardSection');
-  const tableBody = document.getElementById('investorPurchasesTableBody');
-
-  if (!data.boughtListings || data.boughtListings.length === 0) {
-    section.style.display = 'block';
-    tableBody.innerHTML = '<tr style="text-align: center; padding: 40px 20px; color: var(--text-muted);"><td colspan="5">No purchases yet.</td></tr>';
-    
-    // Update stats
-    document.getElementById('totalBoughtCount').textContent = '0';
-    document.getElementById('totalSpent').textContent = '₱0';
-    document.getElementById('lastPurchaseDate').textContent = '—';
-    return;
-  }
-
-  section.style.display = 'block';
-
-  // Update stats
-  const spending = data.spending || { totalBought: 0, totalSpent: 0 };
-  document.getElementById('totalBoughtCount').textContent = spending.totalBought || 0;
-  document.getElementById('totalSpent').textContent = '₱' + (parseFloat(spending.totalSpent) || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
-  
-  // Get last purchase date
-  if (data.boughtListings.length > 0) {
-    const lastDate = new Date(data.boughtListings[0].sale_date);
-    document.getElementById('lastPurchaseDate').textContent = lastDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-  }
-
-  // Render table with async story status check
-  (async () => {
-    const rows = await Promise.all(data.boughtListings.map(async (purchase) => {
-      const purchaseDate = new Date(purchase.sale_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-      const purchasePrice = parseFloat(purchase.sale_price).toLocaleString('en-US', { maximumFractionDigits: 2 });
-      
-      // Check if story exists and is published
-      let storyStatus = null;
-      try {
-        const res = await fetch(`/api/investor/success-story/${purchase.listing_id}`, {
-          credentials: 'same-origin'
-        });
-        if (res.ok) {
-          const story = await res.json();
-          storyStatus = story.status;
-        }
-      } catch (err) {
-        console.error('Error fetching story status:', err);
-      }
-
-      // Determine button text and onclick based on story status
-      let buttonHTML = '';
-      if (storyStatus === 'published') {
-        buttonHTML = `<button onclick="openSuccessStoryModalForListing(${purchase.listing_id}, '${purchase.title.replace(/'/g, "\\'")}', '${purchase.image_url || ''}', ${purchase.inquiry_id})" style="padding: 8px 16px; background: #4CAF50; color: white; border: none; cursor: pointer; font-size: 14px; font-weight: 500; border-radius: 6px; transition: background 0.3s;">See your Success</button>`;
-      } else {
-        buttonHTML = `<button onclick="openSuccessStoryModalForListing(${purchase.listing_id}, '${purchase.title.replace(/'/g, "\\'")}', '${purchase.image_url || ''}', ${purchase.inquiry_id})" style="padding: 8px 16px; background: var(--accent); color: white; border: none; cursor: pointer; font-size: 14px; font-weight: 500; border-radius: 6px; transition: background 0.3s;">Share your Success</button>`;
-      }
-      
-      return `
-        <tr style="border-bottom: 1px solid var(--border);">
-          <td style="padding: 12px; color: var(--text);">${purchase.title || 'N/A'}</td>
-          <td style="padding: 12px; color: var(--text);">${purchase.seller_name || 'N/A'}</td>
-          <td style="padding: 12px; text-align: right; color: var(--accent); font-weight: 600;">₱${purchasePrice}</td>
-          <td style="padding: 12px; color: var(--text-muted); font-size: 14px;">${purchaseDate}</td>
-          <td style="padding: 12px; text-align: center; display: flex; gap: 8px; justify-content: center;">
-            <a href="/components/listing-detail.html?id=${purchase.listing_id}" style="padding: 8px 16px; background: var(--accent); color: white; text-decoration: none; cursor: pointer; font-size: 14px; font-weight: 500; border-radius: 6px; transition: background 0.3s; display: inline-block;">View</a>
-            ${buttonHTML}
-          </td>
-        </tr>
-      `;
-    }));
-    
-    tableBody.innerHTML = rows.join('');
-  })();
 }
 
 // Setup event listeners
@@ -447,12 +295,15 @@ function setupEventListeners() {
   const uploadPictureBtn = document.getElementById('uploadPictureBtn');
   const profilePictureInput = document.getElementById('profilePictureInput');
 
-  editToggleBtn.addEventListener('click', toggleEditMode);
-  saveProfileBtn.addEventListener('click', saveProfile);
-  cancelEditBtn.addEventListener('click', cancelEdit);
-  shareProfileBtn.addEventListener('click', shareProfile);
-  uploadPictureBtn.addEventListener('click', () => profilePictureInput.click());
-  profilePictureInput.addEventListener('change', handleProfilePictureChange);
+  // Only setup if elements exist (profile.html, not user-dashboard.html)
+  if (editToggleBtn) editToggleBtn.addEventListener('click', toggleEditMode);
+  if (saveProfileBtn) saveProfileBtn.addEventListener('click', saveProfile);
+  if (cancelEditBtn) cancelEditBtn.addEventListener('click', cancelEdit);
+  if (shareProfileBtn) shareProfileBtn.addEventListener('click', shareProfile);
+  if (uploadPictureBtn && profilePictureInput) {
+    uploadPictureBtn.addEventListener('click', () => profilePictureInput.click());
+    profilePictureInput.addEventListener('change', handleProfilePictureChange);
+  }
 
   // Success story modal handlers
   const closeSuccessModal = document.getElementById('closeSuccessModal');
@@ -461,11 +312,13 @@ function setupEventListeners() {
   const uploadImageBtn = document.getElementById('uploadImageBtn');
   const successImageInput = document.getElementById('successImageInput');
 
-  closeSuccessModal.addEventListener('click', closeSuccessStoryModal);
-  cancelSuccessBtn.addEventListener('click', closeSuccessStoryModal);
-  successStoryForm.addEventListener('submit', submitSuccessStory);
-  uploadImageBtn.addEventListener('click', () => successImageInput.click());
-  successImageInput.addEventListener('change', handleSuccessImageUpload);
+  if (closeSuccessModal) closeSuccessModal.addEventListener('click', closeSuccessStoryModal);
+  if (cancelSuccessBtn) cancelSuccessBtn.addEventListener('click', closeSuccessStoryModal);
+  if (successStoryForm) successStoryForm.addEventListener('submit', submitSuccessStory);
+  if (uploadImageBtn && successImageInput) {
+    uploadImageBtn.addEventListener('click', () => successImageInput.click());
+    successImageInput.addEventListener('change', handleSuccessImageUpload);
+  }
 
   // Business type dropdown handler
   const businessTypeSelect = document.getElementById('successBusinessType');
@@ -656,6 +509,8 @@ function showPictureMessage(message, type) {
 // Show message
 function showMessage(message, type) {
   const messageEl = document.getElementById('profileMessage');
+  if (!messageEl) return; // Element doesn't exist on this page
+  
   const className = type === 'success' ? 'success-message' : 'error-message';
 
   messageEl.className = className;
@@ -697,6 +552,11 @@ function displayVerificationStatus(status) {
   const statusContainer = document.getElementById('verificationStatusContainer');
   const badgeDiv = document.getElementById('verificationBadge');
   
+  // Skip if elements don't exist (e.g., on user-dashboard.html)
+  if (!statusText || !statusDesc || !requestBtn || !badge || !statusContainer || !badgeDiv) {
+    return;
+  }
+  
   if (status.status === 'verified') {
     statusText.textContent = 'Verified ✓';
     statusDesc.textContent = 'Your account has been verified. You can now submit listings and send inquiries.';
@@ -731,6 +591,12 @@ function setupVerificationModal() {
   const closeBtn = document.getElementById('closeVerificationModal');
   const requestBtn = document.getElementById('requestVerificationBtn');
   const form = document.getElementById('verificationForm');
+  
+  // Exit early if required elements don't exist
+  if (!modal || !cameraModal || !closeBtn || !requestBtn || !form) {
+    console.warn('Verification modal elements not found, skipping setup');
+    return;
+  }
   
   let selfieFile = null;
   let idFile = null;
@@ -1342,13 +1208,38 @@ async function handleSuccessImageUpload(e) {
     const img = document.getElementById('successStoryImage');
     img.src = event.target.result;
     img.style.display = 'block';
-    document.getElementById('successImageMessage').textContent = 'Image uploaded successfully';
-    document.getElementById('successImageMessage').style.color = '#10b981';
-    
-    // Store image data as base64
-    window.successImageData = event.target.result;
   };
   reader.readAsDataURL(file);
+
+  // Upload file to server
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const msgEl = document.getElementById('successImageMessage');
+    msgEl.textContent = 'Uploading image...';
+    msgEl.style.color = '#3b82f6';
+
+    const response = await fetch('/api/upload-success-story-image', {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: formData
+    });
+
+    if (!response.ok) {
+      throw new Error('Upload failed');
+    }
+
+    const data = await response.json();
+    window.successImageData = data.imageUrl; // Store URL instead of base64
+    
+    msgEl.textContent = 'Image uploaded successfully';
+    msgEl.style.color = '#10b981';
+  } catch (error) {
+    document.getElementById('successImageMessage').textContent = 'Failed to upload image: ' + error.message;
+    document.getElementById('successImageMessage').style.color = '#ef4444';
+    window.successImageData = null;
+  }
 }
 
 // Handle business type selection
@@ -1484,6 +1375,7 @@ document.addEventListener('DOMContentLoaded', initProfile);
     // Wire logout button after header loads
     setTimeout(() => {
       const logoutBtn = document.querySelector('#header-import #logoutBtn');
+      const notifBtn = document.querySelector('#header-import #notifBtn');
       const profileBtn = document.getElementById('profileBtn');
       
       if (logoutBtn && !logoutBtn._wired) {
@@ -1494,6 +1386,16 @@ document.addEventListener('DOMContentLoaded', initProfile);
           }
         });
         logoutBtn._wired = true;
+      }
+
+      if (notifBtn && !notifBtn._wired) {
+        notifBtn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          if (typeof openNotifications === 'function') {
+            openNotifications();
+          }
+        });
+        notifBtn._wired = true;
       }
       
       if (profileBtn) {

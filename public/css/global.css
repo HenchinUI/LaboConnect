@@ -307,6 +307,20 @@ button.btn {
   box-shadow: 0 4px 16px rgba(45,143,90,0.15);
 }
 
+.btn-secondary {
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-secondary:hover {
+  background: var(--accent-2);
+  box-shadow: 0 4px 16px rgba(45,143,90,0.15);
+}
+
 #formMsg {
   display: none;
   background: linear-gradient(90deg,#dff7e9,#eafbf0);
@@ -513,15 +527,146 @@ button.btn {
 }
 
 /* WHY section — image cards + callout */
-.why-section { background: linear-gradient(180deg, #f1fbf3 0%, #e6f7e8 40%); padding: 42px 0 28px; border-radius: 0 0 26px 26px; }
+/* Container adjustments */
+.why-section { 
+    background: 
+      linear-gradient(180deg, #f4fbf6 0%, #eef7f1 100%);
+    padding: 80px 0;
+}
+
 .why-top { text-align:center; max-width:1100px; margin: 0 auto 18px; padding: 6px 20px; }
-.why-top .kicker-pill { display:inline-block; background:#d9903c33; color:#7a470f; padding:8px 14px; border-radius:10px; font-weight:800; margin:12px 0; letter-spacing:0.6px; }
-.why-grid { max-width:1100px; margin:18px auto 22px; display:grid; grid-template-columns:repeat(2,1fr); gap:18px; padding:0 20px; }
-.why-card { position:relative; border-radius:14px; overflow:hidden; min-height:150px; background-size:cover; background-position:center; display:flex; align-items:flex-end; box-shadow:0 10px 28px rgba(15,23,42,0.08); transition:transform .25s ease, box-shadow .25s ease; }
-.why-card:hover { transform: translateY(-6px); box-shadow:0 18px 40px rgba(15,23,42,0.14); }
-.card-overlay { width:100%; padding:20px; background:linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.36) 55%, rgba(0,0,0,0.48) 100%); color:#fff; border-radius:14px; }
-.card-title { font-weight:800; font-size:18px; margin-bottom:8px; }
-.card-desc { margin:0; font-size:14px; opacity:0.95; color:rgba(255,255,255,0.88); }
+.why-top .kicker-pill { display:inline-block; background:#3cd99a33; color:#000000; padding:8px 14px; border-radius:10px; font-weight:800; margin:12px 0; letter-spacing:0.6px; }
+
+.why-grid { 
+    max-width: 1100px; 
+    margin: 0 auto; 
+    display: grid; 
+    /* Automatic responsive grid: nag-aadjust sa mobile kusa */
+    grid-template-columns: repeat(2, 1fr); 
+    gap: 30px; 
+    padding: 20px; 
+    align-items: stretch;
+}
+
+/* Card Design */
+.why-card { 
+    background: #e8f5e9; /* Card Background */
+    border-radius: 20px; 
+    padding: 25px ; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: flex-start;
+    
+    /* Subtle Green Border & Shadow */
+    border: 1px solid rgba(46, 125, 50, 0.1);
+    box-shadow: 0 10px 30px -10px rgba(20, 83, 45, 0.05);
+    
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+    position: relative;
+    overflow: hidden;
+    height: 100%;
+}
+
+/* Green Side Accent Bar */
+.why-card::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 6px;
+    height: 100%;
+    /* Gradient from Dark Green to Light Green */
+    background: linear-gradient(180deg, #2e7d32, #81c784);
+    opacity: 0.7;
+    transition: width 0.3s ease, opacity 0.3s ease;
+}
+
+/* Hover State for Card */
+.why-card:hover { 
+    transform: translateY(-8px); 
+    box-shadow: 0 20px 40px -10px rgba(20, 83, 45, 0.15);
+    border-color: #cfe6d8;
+}
+
+.why-card:hover::after {
+    width: 8px; 
+    opacity: 1;
+}
+
+/* Decorative Background Leaf Effect */
+.why-card::before {
+    content: "";
+    position: absolute;
+    top: -50px;
+    right: -50px;
+    width: 140px;
+    height: 140px;
+    background: radial-gradient(circle, rgba(46, 125, 50, 0.06) 0%, transparent 70%);
+    border-radius: 50%;
+    transition: transform 0.5s ease;
+    z-index: 0;
+}
+
+.why-card:hover::before {
+    transform: scale(1.2);
+}
+
+/* Icon Container */
+.icon-box {
+    width: 55px;
+    height: 55px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+    
+    /* Default State: Light Green BG, Dark Green Icon */
+    background: #e6f4ea;
+    color: #2e7d32;
+    
+    position: relative;
+    z-index: 1;
+    transition: all 0.3s ease;
+}
+
+/* Icon Hover State */
+.why-card:hover .icon-box {
+    background: #2e7d32; /* Turns Dark Green */
+    color: #ffffff;      /* Icon turns White */
+    transform: rotate(-5deg) scale(1.1);
+    box-shadow: 0 8px 20px rgba(46, 125, 50, 0.2);
+}
+
+/* Typography */
+.card-content {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+}
+
+.card-title { 
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 12px; 
+    color: #1f3b2d; /* Dark Forest Green Text */
+    letter-spacing: -0.01em;
+}
+
+.card-desc { 
+    margin: 0; 
+    font-size: 15px; 
+    line-height: 1.7;
+    color: #5f6f66; /* Muted Green-Grey Text */
+}
+
+/* Mobile Responsiveness: Kapag sa phone, magiging 1 column na lang */
+@media (max-width: 768px) {
+    .why-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 
 /* callout block */
 .why-callout { max-width:980px; margin:26px auto 6px; background:#fff; padding:22px; border-radius:14px; box-shadow:0 18px 40px rgba(15,23,42,0.06); text-align:center; }
@@ -748,167 +893,150 @@ ease;
   font-size: 1.1rem;
 }
 
-/* 2. FIX THE GRID */
+/* STORIES GRID */
 .stories-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr); /* 3 Columns side-by-side */
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 30px;
   max-width: 1200px;
-  margin: 0 auto; /* Centers the grid container itself */
+  margin: 0 auto;
 }
 
-/* 3. MODERNIZE THE CARDS */
-/* ---- CLEAN MODERN CARD ---- */
+/* CARD DESIGN */
 .story-card {
-  position: relative;
-  height: 320px;
+  background: #fff;
   border-radius: 16px;
   overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
   cursor: pointer;
-  background: #fff;
-  
-  /* 1. THE GREEN ACCENT (Top Strip) */
-  /* Ito ay manipis na green line sa taas. Simple pero elegante. */
-  border-top: 5px solid var(--accent, #10b981);
-  
-  /* Standard Shadow */
-  box-shadow: 0 10px 20px rgba(0,0,0,0.05);
-  
-  transition: all 0.3s ease;
+  border: 1px solid rgba(0,0,0,0.05);
 }
-
-/* HOVER EFFECT: Green Glow + Lift */
 .story-card:hover {
   transform: translateY(-8px);
-  /* 2. GREEN GLOW SHADOW */
-  /* Nagiging green ang shadow pag hover para mukhang "active" */
-  box-shadow: 0 20px 40px -10px rgba(16, 185, 129, 0.3); 
+  box-shadow: 0 20px 40px rgba(45, 143, 90, 0.15);
+  border-color: var(--accent);
 }
 
-.card-media {
+.card-img-wrapper {
+  position: relative;
+  height: 220px;
+  overflow: hidden;
+}
+.card-img-wrapper img {
   width: 100%;
   height: 100%;
-  background-size: cover;
-  background-position: center;
-  transition: transform 0.6s ease;
-}
-
-/* Zoom effect sa picture */
-.story-card:hover .card-media {
-  transform: scale(1.1);
-}
-
-/* TEXT OVERLAY */
-.card-caption {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  padding: 30px 20px 20px;
-  
-  /* Mas modernong gradient: Transparent to Dark */
-  background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 40%, transparent 100%);
-  color: white;
-  z-index: 2;
-}
-
-.card-title {
-  font-size: 1.3rem;
-  font-weight: 700;
-  margin-bottom: 4px;
-  color: #fff;
-}
-
-.story-card:hover .card-title {
-  /* Optional: Magiging Green ang text pag hover */
-  color: var(--accent, #10b981);
-  text-shadow: 0 2px 10px rgba(0,0,0,0.8);
-}
-
-.card-sub {
-  font-size: 0.9rem;
-  opacity: 0.9;
-  font-weight: 400;
-  color: #e2e8f0;
-}
-
-/* The Image Background */
-.card-media {
-  width: 100%;
-  height: 100%;
-  background-size: cover;
-  background-position: center;
+  object-fit: cover;
   transition: transform 0.5s ease;
 }
-
-/* Zoom effect on hover */
-.story-card:hover .card-media {
-  transform: scale(1.1);
+.story-card:hover .card-img-wrapper img {
+  transform: scale(1.05);
 }
 
-/* 4. THE CAPTION (Text Overlay) */
-.card-caption {
+.card-badge {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  padding: 25px 20px;
-  /* Dark Gradient so white text is readable */
-  background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
-  color: white;
-  text-align: left; /* Keep card text left-aligned for better reading */
+  top: 15px; right: 15px;
+  background: rgba(255,255,255,0.95);
+  color: var(--accent);
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
   z-index: 2;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
 }
 
+.card-content {
+  padding: 25px;
+}
 .card-title {
   font-size: 1.25rem;
-  font-weight: 700;
-  margin-bottom: 4px;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  font-weight: 800;
+  margin: 0 0 8px 0;
+  color: #1f2937;
 }
-
 .card-sub {
+  color: #6b7280;
   font-size: 0.9rem;
-  opacity: 0.9;
-  font-weight: 400;
+  margin: 0;
 }
 
-/* Mobile Responsiveness */
-@media (max-width: 900px) {
-  .stories-grid {
-    grid-template-columns: repeat(2, 1fr); /* 2 cols on tablet */
-  }
+/* MODAL STYLES */
+.story-modal {
+  display: none; /* Hidden by default */
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.story-modal.open {
+  display: flex; /* Shown when JS adds .open class */
 }
 
-@media (max-width: 600px) {
-  .stories-grid {
-    grid-template-columns: 1fr; /* 1 col on phone */
-  }
-  .story-card {
-    height: 250px; /* Shorter cards on phone */
-  }
+.story-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
 }
 
-/* responsive */
-@media (max-width:1100px) { .stories-grid { grid-template-columns:repeat(2,1fr); } }
-@media (max-width:700px) { .stories-grid { grid-template-columns:1fr; } }
-
-/* Modal for story details */
-.story-modal { display:none; position:fixed; inset:0; z-index:1400; align-items:center; justify-content:center; padding:20px; }
-.story-modal.open { display:flex; }
-.story-modal-backdrop { position:absolute; inset:0; background:rgba(8,12,10,0.5); }
-.story-modal-panel { position:relative; width:100%; max-width:980px; background:var(--card); border-radius:12px; overflow:hidden; box-shadow:0 24px 60px rgba(2,6,23,0.4); display:flex; gap:0; }
-.story-modal-media { width:45%; min-height:260px; background-size:cover; background-position:center; }
-.story-modal-body { padding:20px; width:55%; }
-.story-modal-body h3 { margin:0 0 6px; font-size:20px; font-weight:800; }
-.story-modal-body .muted { color:var(--muted); font-size:14px; }
-.modal-close { position:absolute; right:12px; top:12px; background:transparent; border:none; font-size:18px; cursor:pointer; color:var(--muted); padding:6px; }
-@media (max-width:860px) {
-  .story-modal-panel { flex-direction:column; }
-  .story-modal-media, .story-modal-body { width:100%; }
-  .story-modal-media { min-height:200px; }
+.story-modal-panel {
+  position: relative;
+  background: #fff;
+  width: 100%;
+  max-width: 800px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+  display: flex;
+  flex-direction: row;
+  animation: slideUp 0.3s ease-out;
 }
 
+.story-modal-media {
+  width: 45%;
+  background: #f3f4f6;
+}
+.story-modal-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.story-modal-body {
+  width: 55%;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.modal-close {
+  position: absolute;
+  top: 15px; left: 15px; /* Moved to left for better UX on images */
+  background: rgba(255,255,255,0.8);
+  border: none;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #333;
+  z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .story-modal-panel { flex-direction: column; max-height: 90vh; overflow-y: auto; }
+  .story-modal-media, .story-modal-body { width: 100%; }
+  .story-modal-media { height: 250px; }
+  .story-modal-body { padding: 25px; }
+}
+
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 /* Notification bell */
 .labo-notif{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:transparent;border:none;cursor:pointer;color:var(--muted)}
 .labo-notif .bell{font-size:18px}

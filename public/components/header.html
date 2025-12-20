@@ -23,11 +23,23 @@
       <button id="guestLoginBtn" class="btn btn-primary" style="display:none" onclick="console.log('Guest Login clicked'); openGuest(); return false;">Login / Sign Up</button>
 
       <!-- LOGGED IN STATE: Three buttons -->
-      <div id="loggedInSection" style="display:none; gap:8px; align-items:center;">
-        <button id="notifBtn" class="btn btn-ghost" title="Notifications" aria-label="Notifications" style="position:relative;" onclick="openNotifications(); return false;">
-          🔔 <span id="notifLabel"></span>
-          <span id="unreadDot" class="unread-dot" style="display:none;"></span>
-        </button>
+      <div id="loggedInSection" style="display:none; flex-direction: row; gap:8px; align-items:center;">
+        <a id="dashboardBtn" href="/components/user-dashboard.html" class="btn btn-secondary" title="Dashboard">Dashboard</a>
+
+        <!-- Notifications Button with Dropdown -->
+        <div style="position: relative;">
+          <button id="notifBtn" class="btn btn-ghost" title="Notifications" aria-label="Notifications" style="position:relative;">
+            🔔 <span id="notifLabel"></span>
+            <span id="unreadDot" class="unread-dot" style="display:none;"></span>
+          </button>
+          
+          <!-- Notifications Dropdown Modal -->
+          <div id="notificationsDropdown" style="display: none; position: fixed; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15); width: 420px; max-height: 500px; overflow-y: auto; z-index: 9999; margin-top: 8px;">
+            <div id="notificationsDropdownContent" style="max-height: 450px; overflow-y: auto;">
+              <!-- Notifications will load here -->
+            </div>
+          </div>
+        </div>
 
         <button id="profileBtn" class="btn btn-ghost" title="Account" style="display:flex;align-items:center;gap:8px;font-size:18px;">
           👤
@@ -43,7 +55,6 @@
   <div class="labo-row-2">
     <a href="#why" class="labo-btn">Why Labo</a>
     <a href="#opportunities" class="labo-btn" onclick="handleOpportunitiesClick(event)">Opportunities</a>
-    <a id="submitListingBtn" href="/components/index.html#submitListing" class="labo-btn business-only" style="display:none">Sell or Rent Your Property</a>
     <a href="#process" class="labo-btn">Business Process</a>
     <a href="#stories" class="labo-btn">Success Stories</a>
     <a href="#faq" class="labo-btn">FAQ</a>
