@@ -1357,10 +1357,13 @@ app.get('/api/inquiries', async (req, res) => {
     let base = `SELECT 
       i.*,
       u.username as sender_username,
-      owner.username as owner_username
+      owner.username as owner_username,
+      l.title as listing_title,
+      l.sold_to_user_id as listing_sold_to_user_id
     FROM inquiries i
     LEFT JOIN users u ON i.sender_user_id = u.id
-    LEFT JOIN users owner ON i.owner_id = owner.id`;
+    LEFT JOIN users owner ON i.owner_id = owner.id
+    LEFT JOIN listings l ON i.listing_id = l.id`;
     
     const params = [];
     const clauses = [];
@@ -3639,13 +3642,13 @@ app.post('/api/listings/:listingId/mark-sold', requireAuth, async (req, res) => 
     const userId = req.session.user.id;
     const { buyerId, inquiryId, salePrice } = req.body;
     
-    if (!buyerId || !salePrice) {
+    if (!buyerId || salePrice === undefined || salePrice === null) {
       return res.status(400).json({ error: 'Buyer ID and sale price are required' });
     }
     
     // Verify the listing exists and belongs to the current user
     const { rows: listings } = await db.query(
-      'SELECT id, owner_id, price FROM listings WHERE id = $1',
+      'SELECT id, owner_id, price, sold_to_user_id, title FROM listings WHERE id = $1',
       [listingId]
     );
     
@@ -3655,6 +3658,11 @@ app.post('/api/listings/:listingId/mark-sold', requireAuth, async (req, res) => 
     
     if (listings[0].owner_id !== userId) {
       return res.status(403).json({ error: 'You can only mark your own listings as sold' });
+    }
+    
+    // Check if listing is already marked as sold
+    if (listings[0].sold_to_user_id) {
+      return res.status(400).json({ error: 'This listing is already marked as sold. Mark as available first to change this.' });
     }
     
     // Create sales transaction
@@ -3671,9 +3679,16 @@ app.post('/api/listings/:listingId/mark-sold', requireAuth, async (req, res) => 
        WHERE id = $2`,
       [buyerId, listingId]
     );
-    
-    // Note: inquiries table doesn't have a status column, so we can't mark them as completed/closed
-    // The mark as sold functionality will be tracked through the listing_status field and sales_transactions table
+
+    // Create success_stories record for the investor (with pending status)
+    // This allows the investor to share their success story
+    await db.query(
+      `INSERT INTO public.success_stories 
+       (investor_id, listing_id, location, business_name, description, business_type, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW(), NOW())
+       ON CONFLICT DO NOTHING`,
+      [buyerId, listingId, 'Labo, Camarines Norte', 'Business', 'Investment made in ' + listings[0].title, 'Investment', ]
+    );
     
     res.json({ 
       message: 'Listing marked as sold',
@@ -3681,6 +3696,55 @@ app.post('/api/listings/:listingId/mark-sold', requireAuth, async (req, res) => 
     });
   } catch (err) {
     console.error('Error marking listing as sold:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST: Mark listing as available (undo the sale)
+app.post('/api/listings/:listingId/mark-available', requireAuth, async (req, res) => {
+  try {
+    const listingId = req.params.listingId;
+    const userId = req.session.user.id;
+    
+    // Verify the listing exists and belongs to the current user
+    const { rows: listings } = await db.query(
+      'SELECT id, owner_id, sold_to_user_id FROM listings WHERE id = $1',
+      [listingId]
+    );
+    
+    if (listings.length === 0) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    
+    if (listings[0].owner_id !== userId) {
+      return res.status(403).json({ error: 'You can only manage your own listings' });
+    }
+    
+    // Check if listing is actually sold
+    if (!listings[0].sold_to_user_id) {
+      return res.status(400).json({ error: 'This listing is not marked as sold' });
+    }
+
+    const buyerId = listings[0].sold_to_user_id;
+    
+    // Delete the success_stories record for this investor/listing
+    await db.query(
+      'DELETE FROM public.success_stories WHERE investor_id = $1 AND listing_id = $2',
+      [buyerId, listingId]
+    );
+    
+    // Update listing as available
+    await db.query(
+      `UPDATE listings SET listing_status = 'active', sold_to_user_id = NULL, sold_date = NULL
+       WHERE id = $1`,
+      [listingId]
+    );
+    
+    res.json({ 
+      message: 'Listing marked as available. The buyer can no longer access the success story feature for this listing.'
+    });
+  } catch (err) {
+    console.error('Error marking listing as available:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -3795,6 +3859,21 @@ app.get('/api/investor/dashboard/bought-listings', requireAuth, async (req, res)
   }
 });
 
+// POST: Upload success story image
+app.post('/api/upload-success-story-image', requireAuth, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const imageUrl = `/uploads/${req.file.filename}`;
+    res.json({ imageUrl });
+  } catch (err) {
+    console.error('Error uploading success story image:', err);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
+});
+
 // POST: Upload success story
 app.post('/api/success-stories', requireAuth, async (req, res) => {
   try {
@@ -3821,14 +3900,22 @@ app.post('/api/success-stories', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'You can only share stories for listings you have purchased' });
     }
 
-    // Check if a published success story already exists for this listing
+    // Check if a story already exists for this listing (unless rejected)
     const { rows: existingStory } = await db.query(
-      'SELECT id FROM public.success_stories WHERE investor_id = $1 AND listing_id = $2 AND status = $3',
-      [userId, listingId, 'published']
+      `SELECT id, status FROM public.success_stories 
+       WHERE investor_id = $1 AND listing_id = $2 AND status != $3`,
+      [userId, listingId, 'rejected']
     );
 
     if (existingStory && existingStory.length > 0) {
-      return res.status(409).json({ error: 'You have already published a success story for this listing' });
+      const story = existingStory[0];
+      if (story.status === 'published') {
+        return res.status(409).json({ error: 'You have already published a success story for this listing. You cannot upload another one.' });
+      } else if (story.status === 'pending') {
+        return res.status(409).json({ error: 'You have already submitted a success story for this listing that is pending approval. Please wait for review or it will be rejected.' });
+      } else if (story.status === 'system_admin_approved') {
+        return res.status(409).json({ error: 'Your success story for this listing is under review by head admin. Please wait for final approval.' });
+      }
     }
 
     // Insert success story with pending status
@@ -3888,6 +3975,41 @@ app.get('/api/success-stories', async (req, res) => {
 });
 
 // GET: Success story by listing ID for investor
+// GET: Investor's success stories
+app.get('/api/investor/success-stories', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+
+    // Get all success stories created by this investor
+    const { rows: stories } = await db.query(
+      `SELECT 
+        ss.id,
+        ss.investor_id,
+        ss.listing_id,
+        ss.image_url,
+        ss.business_name,
+        ss.description,
+        ss.business_type,
+        ss.established_year,
+        ss.key_achievement,
+        ss.contact_email,
+        ss.status,
+        ss.created_at,
+        l.title as listing_title
+      FROM public.success_stories ss
+      JOIN public.listings l ON ss.listing_id = l.id
+      WHERE ss.investor_id = $1
+      ORDER BY ss.created_at DESC`,
+      [userId]
+    );
+
+    res.json({ stories });
+  } catch (err) {
+    console.error('Error fetching investor success stories:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/investor/success-story/:listingId', requireAuth, async (req, res) => {
   try {
     const listingId = req.params.listingId;
@@ -3922,6 +4044,43 @@ app.get('/api/investor/success-story/:listingId', requireAuth, async (req, res) 
     res.json(story[0]);
   } catch (err) {
     console.error('Error fetching success story by listing:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Check if investor can upload success story for a listing
+app.get('/api/investor/success-story-status/:listingId', requireAuth, async (req, res) => {
+  try {
+    const listingId = req.params.listingId;
+    const userId = req.session.user.id;
+
+    // Get success story status for this listing created by the investor
+    const { rows: story } = await db.query(
+      `SELECT id, status FROM public.success_stories 
+       WHERE listing_id = $1 AND investor_id = $2`,
+      [listingId, userId]
+    );
+
+    if (!story || story.length === 0) {
+      // No story exists, investor can upload
+      return res.json({ canUpload: true, status: null, message: 'You can upload a success story for this listing' });
+    }
+
+    const storyStatus = story[0].status;
+    
+    if (storyStatus === 'published') {
+      return res.json({ canUpload: false, status: storyStatus, message: 'You have already published a success story for this listing' });
+    } else if (storyStatus === 'pending') {
+      return res.json({ canUpload: false, status: storyStatus, message: 'You have a success story pending approval for this listing' });
+    } else if (storyStatus === 'system_admin_approved') {
+      return res.json({ canUpload: false, status: storyStatus, message: 'Your success story is under review by head admin' });
+    } else if (storyStatus === 'rejected') {
+      return res.json({ canUpload: true, status: storyStatus, message: 'Your previous story was rejected. You can upload a new one' });
+    }
+    
+    res.json({ canUpload: false, status: storyStatus, message: 'You cannot upload another story at this time' });
+  } catch (err) {
+    console.error('Error checking success story status:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -3962,6 +4121,39 @@ app.get('/api/success-stories/:storyId', async (req, res) => {
     res.json(story[0]);
   } catch (err) {
     console.error('Error fetching success story:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE: Investor success story
+app.delete('/api/investor/success-stories/:storyId', requireAuth, async (req, res) => {
+  try {
+    const storyId = req.params.storyId;
+    const userId = req.session.user.id;
+
+    // Verify the story belongs to the investor
+    const { rows: story } = await db.query(
+      `SELECT id, investor_id FROM public.success_stories WHERE id = $1`,
+      [storyId]
+    );
+
+    if (!story || story.length === 0) {
+      return res.status(404).json({ error: 'Success story not found' });
+    }
+
+    if (story[0].investor_id !== userId) {
+      return res.status(403).json({ error: 'You can only delete your own success stories' });
+    }
+
+    // Delete the story
+    await db.query(
+      `DELETE FROM public.success_stories WHERE id = $1`,
+      [storyId]
+    );
+
+    res.json({ message: 'Success story deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting success story:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -4556,9 +4748,556 @@ app.delete('/api/admin/delete-admin/:adminId', requireAuth, async (req, res) => 
   }
 });
 
+// ==================== USER MANAGEMENT (HEAD ADMIN) ====================
+
+// GET: Get all users (for head admin)
+app.get('/api/admin/users', requireRole('head_admin'), async (req, res) => {
+  try {
+    console.log('[API] GET /api/admin/users - Head admin fetching all users');
+    console.log('[API] User session:', req.session.user);
+    
+    const query = `SELECT id, username, email, user_type, is_verified, created_at
+       FROM users 
+       WHERE role IS NULL OR role != $1
+       ORDER BY created_at DESC`;
+    
+    console.log('[API] Executing query:', query);
+    
+    const { rows } = await db.query(query, ['admin']);
+
+    console.log(`[API] Found ${rows.length} users`);
+    res.json(rows);
+  } catch (err) {
+    console.error('[API] Error fetching users:', err.message);
+    console.error('[API] Full error:', err);
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  }
+});
+
+// PUT: Edit user info (for head admin)
+app.put('/api/admin/users/:userId', requireRole('head_admin'), async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const { username, email, user_type, password, reason, notifyUser } = req.body;
+    const headAdminId = req.session.user.id;
+
+    if (!username || !email || !reason) {
+      return res.status(400).json({ error: 'Username, email, and reason are required' });
+    }
+
+    // Check if username/email already taken by another user
+    const { rows: existingCheck } = await db.query(
+      'SELECT id FROM users WHERE (username = $1 OR email = $2) AND id != $3',
+      [username, email, userId]
+    );
+
+    if (existingCheck.length > 0) {
+      return res.status(400).json({ error: 'Username or email already in use' });
+    }
+
+    // Get current user info before update
+    const { rows: userBefore } = await db.query(
+      'SELECT username, email, user_type FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userBefore.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const oldUsername = userBefore[0].username;
+    const oldEmail = userBefore[0].email;
+    const oldUserType = userBefore[0].user_type;
+
+    // Hash password if provided
+    let hashedPassword = null;
+    let passwordChanged = false;
+    if (password && password.trim().length > 0) {
+      if (password.length < 6) {
+        return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+      }
+      hashedPassword = await bcrypt.hash(password, 10);
+      passwordChanged = true;
+    }
+
+    // Build UPDATE query dynamically based on what's being changed
+    let updateQuery = 'UPDATE users SET username = $1, email = $2, user_type = $3';
+    let queryParams = [username, email, user_type || oldUserType, userId];
+    
+    if (hashedPassword) {
+      updateQuery += ', password = $4';
+      queryParams = [username, email, user_type || oldUserType, hashedPassword, userId];
+    }
+    
+    // Update the WHERE clause parameter index
+    updateQuery += ` WHERE id = $${queryParams.length} RETURNING id, username, email, user_type, is_verified, created_at`;
+
+    // Update user
+    const { rows: updated } = await db.query(updateQuery, queryParams);
+
+    // Build change description
+    let changes = [];
+    if (oldUsername !== username) changes.push(`username from ${oldUsername} to ${username}`);
+    if (oldEmail !== email) changes.push(`email from ${oldEmail} to ${email}`);
+    if (oldUserType !== (user_type || oldUserType)) changes.push(`account type from ${oldUserType} to ${user_type || oldUserType}`);
+    if (passwordChanged) changes.push('password');
+    
+    const changeDescription = changes.length > 0 ? changes.join(', ') : 'No changes';
+
+    // Log the action
+    await logAction(headAdminId, 'edited_user_info', 'users', userId, null, 
+      `Changed ${changeDescription}. Reason: ${reason}`, req);
+
+    // Send notification to user if requested
+    if (notifyUser) {
+      try {
+        await sendUserEditNotification(updated[0], reason, oldUsername, oldEmail, oldUserType, passwordChanged);
+      } catch (notifErr) {
+        console.warn('Could not send notification to user:', notifErr.message);
+        // Don't fail the request if notification fails
+      }
+    }
+
+    // Create account_notifications table if it doesn't exist
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS account_notifications (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL,
+          change_type TEXT NOT NULL,
+          change_description TEXT,
+          reason TEXT,
+          admin_id INTEGER,
+          is_read BOOLEAN DEFAULT false,
+          created_at TIMESTAMP DEFAULT NOW(),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (admin_id) REFERENCES users(id)
+        )
+      `);
+
+      // Insert notification for account change if changes were made
+      const changeList = [];
+      if (oldUsername !== username) changeList.push(`username from ${oldUsername} to ${username}`);
+      if (oldEmail !== email) changeList.push(`email from ${oldEmail} to ${email}`);
+      if (oldUserType !== (user_type || oldUserType)) changeList.push(`account type from ${oldUserType} to ${user_type || oldUserType}`);
+      if (passwordChanged) changeList.push('password');
+      
+      if (changeList.length > 0) {
+        await db.query(
+          `INSERT INTO account_notifications (user_id, change_type, change_description, reason, admin_id, created_at)
+           VALUES ($1, $2, $3, $4, $5, NOW())`,
+          [userId, 'account_changed', changeList.join(', '), reason, headAdminId]
+        );
+      }
+    } catch (tableErr) {
+      console.warn('Could not create/insert account notification:', tableErr.message);
+    }
+
+    res.json({
+      message: 'User updated successfully',
+      user: updated[0],
+      notificationSent: notifyUser
+    });
+  } catch (err) {
+    console.error('Error updating user:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE: Delete user account (for head admin)
+app.delete('/api/admin/users/:userId', requireRole('head_admin'), async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const headAdminId = req.session.user.id;
+
+    // Prevent deleting yourself
+    if (parseInt(userId) === headAdminId) {
+      return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+
+    // Get user info before deletion
+    const { rows: userRows } = await db.query(
+      'SELECT username, email, user_type FROM users WHERE id = $1 AND role != $2',
+      [userId, 'admin']
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: 'User not found or cannot delete admin users this way' });
+    }
+
+    const userInfo = userRows[0];
+
+    // Delete the user
+    await db.query('DELETE FROM users WHERE id = $1', [userId]);
+
+    // Log the action
+    await logAction(headAdminId, 'deleted_user', 'users', userId, null, 
+      `${userInfo.username} (${userInfo.email}) - Type: ${userInfo.user_type}`, req);
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting user:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Helper function: Send email notification when user is edited
+async function sendUserEditNotification(user, reason, oldUsername, oldEmail, oldUserType, passwordChanged = false) {
+  try {
+    if (!user || !user.email) return;
+
+    const emailContent = `
+      <h2>Your Account Information Was Updated</h2>
+      <p>Hello ${user.username},</p>
+      <p>We're writing to inform you that a head administrator has updated your account information.</p>
+      
+      <h3>Changes Made:</h3>
+      <ul>
+        ${oldUsername !== user.username ? `<li><strong>Username:</strong> ${oldUsername} → ${user.username}</li>` : ''}
+        ${oldEmail !== user.email ? `<li><strong>Email:</strong> ${oldEmail} → ${user.email}</li>` : ''}
+        ${oldUserType !== user.user_type ? `<li><strong>Account Type:</strong> ${oldUserType} → ${user.user_type}</li>` : ''}
+        ${passwordChanged ? `<li><strong>Password:</strong> Your password has been changed</li>` : ''}
+      </ul>
+
+      <h3>Reason for Update:</h3>
+      <p>${reason}</p>
+
+      ${passwordChanged ? `<p><strong>Important:</strong> Your password has been changed. You will need to use your new password to log in. If you did not request this change or have any questions, please contact our support team immediately.</p>` : ''}
+      ${oldUserType !== user.user_type ? `<p><strong>Important:</strong> Your account type has been changed to <strong>${user.user_type}</strong>. Your dashboard will update on your next login to reflect your new account type.</p>` : ''}
+
+      <p>If you did not authorize these changes or have any questions, please contact our support team immediately.</p>
+      <p>Your account security is important to us.</p>
+
+      <br>
+      <p>Best regards,<br>LaboConnect Administration Team</p>
+    `;
+
+    // Use the sendVerificationEmail or create a simple nodemailer call
+    // For now, we'll just log it as a placeholder
+    console.log(`[NOTIFICATION] User edit notification sent to ${user.email}`);
+    
+    // You can uncomment this to actually send emails:
+    // await sendVerificationEmail(user.email, 'Account Information Updated', emailContent);
+  } catch (err) {
+    console.error('Error sending user edit notification:', err);
+    throw err;
+  }
+}
+
 // -------------------
 // System Admin Content Management
 // -------------------
+
+// ==================== DASHBOARD ENDPOINTS ====================
+
+// GET: User stats (business users)
+app.get('/api/user/:userId/stats', requireAuth, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    
+    // Verify ownership
+    if (req.session.user.id !== userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Get listing count
+    const { rows: listingStats } = await db.query(
+      `SELECT COUNT(*) as count FROM listings WHERE owner_id = $1`,
+      [userId]
+    );
+
+    // Get inquiries count
+    const { rows: inquiryStats } = await db.query(
+      `SELECT COUNT(*) as count FROM inquiries WHERE owner_id = $1`,
+      [userId]
+    );
+
+    // Get sold listings count
+    const { rows: soldStats } = await db.query(
+      `SELECT COUNT(*) as count FROM listings WHERE owner_id = $1 AND sold_date IS NOT NULL`,
+      [userId]
+    );
+
+    // Get total earnings
+    const { rows: earningsStats } = await db.query(
+      `SELECT COALESCE(SUM(price), 0) as total FROM listings WHERE owner_id = $1 AND sold_date IS NOT NULL`,
+      [userId]
+    );
+
+    // Get last sale date
+    const { rows: lastSaleStats } = await db.query(
+      `SELECT sold_date FROM listings WHERE owner_id = $1 AND sold_date IS NOT NULL ORDER BY sold_date DESC LIMIT 1`,
+      [userId]
+    );
+
+    // Get user creation date
+    const { rows: userStats } = await db.query(
+      `SELECT created_at FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    res.json({
+      listingsCount: parseInt(listingStats[0].count),
+      inquiriesCount: parseInt(inquiryStats[0].count),
+      totalSold: parseInt(soldStats[0].count),
+      totalEarnings: parseFloat(earningsStats[0].total),
+      lastSaleDate: lastSaleStats[0]?.sold_date || null,
+      createdAt: userStats[0]?.created_at
+    });
+  } catch (err) {
+    console.error('Error fetching user stats:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Investor stats
+app.get('/api/investor/:userId/stats', requireAuth, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    
+    // Verify ownership
+    if (req.session.user.id !== userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Get inquiries count (investments made by this investor)
+    const { rows: inquiryStats } = await db.query(
+      `SELECT COUNT(*) as count FROM inquiries WHERE sender_user_id = $1`,
+      [userId]
+    );
+
+    // Get purchased properties count (listings marked as sold to this investor)
+    const { rows: purchaseStats } = await db.query(
+      `SELECT COUNT(*) as count FROM listings WHERE sold_to_user_id = $1`,
+      [userId]
+    );
+
+    // Get total spent on inquiries
+    const { rows: spentStats } = await db.query(
+      `SELECT COALESCE(SUM(l.price), 0) as total FROM inquiries i
+       JOIN listings l ON i.listing_id = l.id
+       WHERE i.sender_user_id = $1`,
+      [userId]
+    );
+
+    // Get last investment date
+    const { rows: lastInvestStats } = await db.query(
+      `SELECT created_at FROM inquiries WHERE sender_user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [userId]
+    );
+
+    // Get user creation date
+    const { rows: userStats } = await db.query(
+      `SELECT created_at FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    res.json({
+      inquiriesCount: parseInt(inquiryStats[0].count),
+      totalBought: parseInt(purchaseStats[0].count),
+      totalSpent: parseFloat(spentStats[0].total),
+      lastInvestmentDate: lastInvestStats[0]?.created_at || null,
+      createdAt: userStats[0]?.created_at
+    });
+  } catch (err) {
+    console.error('Error fetching investor stats:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: My listings (all, with filters)
+app.get('/api/my-listings', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { status } = req.query;
+
+    let query = `
+      SELECT id, title, description, price, size_sqm, image_url, 
+             status, created_at, updated_at, type, owner_first_name, owner_last_name, 
+             latitude, longitude, rejection_reason 
+      FROM listings 
+      WHERE owner_id = $1
+    `;
+    const params = [userId];
+
+    if (status && ['approved', 'pending', 'rejected'].includes(status)) {
+      query += ` AND status = $${params.length + 1}`;
+      params.push(status);
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const { rows: listings } = await db.query(query, params);
+    res.json(listings);
+  } catch (err) {
+    console.error('Error fetching user listings:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: My investments (investor-specific)
+app.get('/api/my-investments', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+
+    let query = `
+      SELECT i.id, i.listing_id, i.created_at,
+             l.title, l.price, l.image_url, l.type, l.size_sqm, l.sold_to_user_id,
+             u.username as owner_name
+      FROM inquiries i
+      JOIN listings l ON i.listing_id = l.id
+      JOIN users u ON i.owner_id = u.id
+      WHERE i.sender_user_id = $1
+    `;
+    const params = [userId];
+
+    query += ` ORDER BY i.created_at DESC`;
+
+    const { rows: investments } = await db.query(query, params);
+    res.json(investments);
+  } catch (err) {
+    console.error('Error fetching investments:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Dashboard notifications
+app.get('/api/notifications', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { limit = 10 } = req.query;
+
+    // Get user type
+    const { rows: userRows } = await db.query(
+      `SELECT user_type FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    if (!userRows[0]) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const userType = userRows[0].user_type;
+    let notifications = [];
+
+    // Get account change notifications (for all users)
+    try {
+      const { rows: accountNotifs } = await db.query(
+        `SELECT id, 'Account Updated' as title, change_description as status, reason, created_at as updated_at, 'account' as type
+         FROM account_notifications
+         WHERE user_id = $1
+         ORDER BY created_at DESC
+         LIMIT $2`,
+        [userId, parseInt(limit)]
+      );
+      notifications = [...notifications, ...accountNotifs];
+    } catch (err) {
+      // Table might not exist yet, that's okay
+      console.warn('account_notifications table check:', err.message);
+    }
+
+    if (userType === 'business') {
+      // Business notifications: listing approvals/rejections and inquiries
+      const { rows: listingNotifs } = await db.query(
+        `SELECT id, title, status, rejection_reason, updated_at, 'listing' as type
+         FROM listings
+         WHERE owner_id = $1 AND status IN ('approved', 'rejected')
+         ORDER BY updated_at DESC
+         LIMIT $2`,
+        [userId, parseInt(limit)]
+      );
+
+      const { rows: inquiryNotifs } = await db.query(
+        `SELECT i.id, l.title, 'inquiry' as status, i.created_at as updated_at, 'inquiry' as type
+         FROM inquiries i
+         JOIN listings l ON i.listing_id = l.id
+         WHERE l.owner_id = $1
+         ORDER BY i.created_at DESC
+         LIMIT $2`,
+        [userId, parseInt(limit)]
+      );
+
+      notifications = [...notifications, ...listingNotifs, ...inquiryNotifs].sort((a, b) => 
+        new Date(b.updated_at) - new Date(a.updated_at)
+      ).slice(0, parseInt(limit));
+    } else if (userType === 'investor') {
+      // Investor notifications: inquiry status updates, success story approvals, and new listings
+      const { rows: inquiryNotifs } = await db.query(
+        `SELECT i.id, l.title, CASE WHEN i.is_read THEN 'read' ELSE 'unread' END as status, i.created_at as updated_at, 'inquiry' as type
+         FROM inquiries i
+         JOIN listings l ON i.listing_id = l.id
+         WHERE i.sender_user_id = $1
+         ORDER BY i.created_at DESC
+         LIMIT $2`,
+        [userId, parseInt(limit)]
+      );
+
+      // Success story notifications for investors
+      const { rows: successStoryNotifs } = await db.query(
+        `SELECT id, 'Success Story: ' || business_name as title, status, updated_at, 'success_story' as type
+         FROM success_stories
+         WHERE investor_id = $1 AND status IN ('listing_admin_approved', 'approved', 'rejected')
+         ORDER BY updated_at DESC
+         LIMIT $2`,
+        [userId, parseInt(limit)]
+      );
+
+      notifications = [...notifications, ...inquiryNotifs, ...successStoryNotifs].sort((a, b) => 
+        new Date(b.updated_at) - new Date(a.updated_at)
+      ).slice(0, parseInt(limit));
+    }
+
+    res.json(notifications);
+  } catch (err) {
+    console.error('Error fetching notifications:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET: Unread notifications count
+app.get('/api/notifications/unread', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+
+    // Get user type
+    const { rows: userRows } = await db.query(
+      `SELECT user_type FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    if (!userRows[0]) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const userType = userRows[0].user_type;
+    let unreadCount = 0;
+
+    if (userType === 'business') {
+      // Count unread inquiries
+      const { rows: countRows } = await db.query(
+        `SELECT COUNT(*) as count FROM inquiries i
+         JOIN listings l ON i.listing_id = l.id
+         WHERE l.owner_id = $1 AND i.is_read = false`,
+        [userId]
+      );
+      unreadCount = parseInt(countRows[0].count);
+    } else if (userType === 'investor') {
+      // Count unread inquiries
+      const { rows: countRows } = await db.query(
+        `SELECT COUNT(*) as count FROM inquiries
+         WHERE sender_user_id = $1 AND is_read = false`,
+        [userId]
+      );
+      unreadCount = parseInt(countRows[0].count);
+    }
+
+    res.json({ unreadCount });
+  } catch (err) {
+    console.error('Error fetching unread count:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET: Fetch current index.html content
 app.get('/api/system-admin/content/index', requireRole('system_admin'), async (req, res) => {
   try {
