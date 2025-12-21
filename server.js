@@ -3713,16 +3713,6 @@ app.post('/api/listings/:listingId/mark-sold', requireAuth, async (req, res) => 
        WHERE id = $2`,
       [buyerId, listingId]
     );
-
-    // Create success_stories record for the investor (with pending status)
-    // This allows the investor to share their success story
-    await db.query(
-      `INSERT INTO public.success_stories 
-       (investor_id, listing_id, location, business_name, description, business_type, status, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW(), NOW())
-       ON CONFLICT DO NOTHING`,
-      [buyerId, listingId, 'Labo, Camarines Norte', 'Business', 'Investment made in ' + listings[0].title, 'Investment', ]
-    );
     
     res.json({ 
       message: 'Listing marked as sold',
