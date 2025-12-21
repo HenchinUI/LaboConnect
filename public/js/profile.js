@@ -1264,9 +1264,13 @@ function handleBusinessTypeChange(e) {
   }
 }
 
-// Submit success story
+// Submit success story (create or update)
 async function submitSuccessStory(e) {
   e.preventDefault();
+
+  const form = document.getElementById('successStoryForm');
+  const storyId = form.getAttribute('data-story-id');
+  const isEdit = !!storyId;
 
   const listingId = document.getElementById('successListingSelect').value;
   const businessName = document.getElementById('successBusinessName').value;
@@ -1312,7 +1316,8 @@ async function submitSuccessStory(e) {
     return;
   }
 
-  if (!window.successImageData) {
+  // For create mode, require image. For edit mode, image is optional
+  if (!isEdit && !window.successImageData) {
     showMessage('Please upload an image', 'error');
     return;
   }
@@ -1321,43 +1326,56 @@ async function submitSuccessStory(e) {
     const msgDiv = document.getElementById('successFormMessage');
     msgDiv.style.display = 'block';
     msgDiv.className = '';
-    msgDiv.textContent = 'Uploading your success story...';
+    msgDiv.textContent = isEdit ? 'Updating your success story...' : 'Uploading your success story...';
 
-    const res = await fetch('/api/success-stories', {
-      method: 'POST',
+    const url = isEdit ? `/api/success-stories/${storyId}` : '/api/success-stories';
+    const method = isEdit ? 'PUT' : 'POST';
+
+    const body = {
+      listingId: parseInt(listingId),
+      location,
+      businessName,
+      description,
+      businessType,
+      category,
+      establishedYear: establishedYear ? parseInt(establishedYear) : null,
+      keyAchievement,
+      contactEmail
+    };
+
+    // Only include image if it's new data (create mode or user uploaded new image)
+    if (window.successImageData) {
+      body.imageUrl = window.successImageData;
+    }
+
+    const res = await fetch(url, {
+      method: method,
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({
-        listingId: parseInt(listingId),
-        imageUrl: window.successImageData,
-        location,
-        businessName,
-        description,
-        businessType,
-        category,
-        establishedYear: establishedYear ? parseInt(establishedYear) : null,
-        keyAchievement,
-        contactEmail
-      })
+      body: JSON.stringify(body)
     });
 
     if (!res.ok) {
       const error = await res.json();
-      throw new Error(error.error || 'Failed to upload success story');
+      throw new Error(error.error || `Failed to ${isEdit ? 'update' : 'upload'} success story`);
     }
 
     msgDiv.className = 'success-message';
-    msgDiv.textContent = 'Success story uploaded! 🎉';
+    msgDiv.textContent = isEdit ? 'Success story updated! 🎉' : 'Success story uploaded! 🎉';
     
     setTimeout(() => {
       closeSuccessStoryModal();
-      showMessage('Your success story has been shared!', 'success');
+      showMessage(isEdit ? 'Your success story has been updated!' : 'Your success story has been shared!', 'success');
+      // Reload success stories
+      if (window.loadSuccessStories) {
+        loadSuccessStories();
+      }
     }, 1500);
   } catch (e) {
-    console.error('Error submitting success story:', e);
+    console.error(`Error ${isEdit ? 'updating' : 'submitting'} success story:`, e);
     const msgDiv = document.getElementById('successFormMessage');
     msgDiv.className = 'error-message';
-    msgDiv.textContent = e.message || 'Failed to upload success story';
+    msgDiv.textContent = e.message || `Failed to ${isEdit ? 'update' : 'upload'} success story`;
     msgDiv.style.display = 'block';
   }
 }

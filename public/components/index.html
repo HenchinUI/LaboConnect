@@ -250,76 +250,7 @@
       </div>
     </section>
 
-    <section id="submitListing" class="reveal" style="margin-top: 18px; margin-bottom: 40px; display: block;">
-      <div style="text-align:center;margin-bottom:20px;">
-        <h2 class="section-title" style="cursor: pointer;">Submit Property Listing</h2>
-        <p class="lead" style="max-width: 800px; margin: 0px auto; cursor: pointer;">Share your property with potential investors. Fill out the form below and our team will review your listing.</p>
-      </div>
 
-      <div style="margin-top:0; max-width: 900px; margin-left: auto; margin-right: auto;">
-        <div id="submitFormWrap" class="submit-wrap visible">
-        <div class="contact-form-card">
-          <div class="form-card-inner">
-
-            <form id="listingForm" enctype="multipart/form-data" aria-label="Property Listing Form" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-              
-              <!-- LEFT COLUMN: Property Details -->
-              <div style="display:flex;flex-direction:column;gap:12px;">
-                <div class="field"><label for="owner_name">Owner Name *</label><input id="owner_name" type="text" name="owner_name" placeholder="Full name of property owner" required=""></div>
-
-                <div class="field"><label for="title">Property Title *</label><input id="title" type="text" name="title" placeholder="e.g., Commercial Lot in Downtown Labo" required=""></div>
-
-                <div class="form-row" style="display:flex;gap:12px;">
-                  <div class="field" style="flex:1;"><label for="type">Property Type *</label><select id="type" name="type" required=""><option value="">-- Select --</option><option value="For Lease">For Lease</option><option value="For Sale">For Sale</option><option value="For Rent">Property For Rent</option></select></div>
-                  <div class="field" style="flex:1;"><label for="price">Price *</label><input id="price" type="number" name="price" step="0.01" required="" placeholder="e.g., 1000000"></div>
-                </div>
-
-                <div class="form-row" style="display:flex;gap:12px;">
-                  <div class="field" style="flex:1;"><label for="size_sqm">Size (Square Meters)</label><input id="size_sqm" type="number" name="size_sqm" step="0.01" placeholder="e.g., 500"></div>
-                </div>
-
-                <div class="form-row" style="display:flex;gap:12px;">
-                  <div class="field" style="flex:1;"><label for="latitude">Latitude (optional)</label><input id="latitude" type="number" name="latitude" step="0.00000001" placeholder="14.117507"></div>
-                  <div class="field" style="flex:1;"><label for="longitude">Longitude (optional)</label><input id="longitude" type="number" name="longitude" step="0.00000001" placeholder="122.350692"></div>
-                </div>
-
-                <button type="button" id="selectLocationBtn" class="btn btn-secondary" style="width: 100%;">📍 Select Location on Map</button>
-
-                <div class="field"><label for="description">Description *</label><textarea id="description" name="description" rows="4" placeholder="Describe the property details, location, amenities, etc." required=""></textarea></div>
-              </div>
-
-              <!-- RIGHT COLUMN: File Uploads -->
-              <div style="display:flex;flex-direction:column;gap:12px;">
-                <div class="field"><label for="image">Property Image</label><input id="image" type="file" name="image" accept="image/*"></div>
-
-                <div class="field"><label for="oct_tct">OCT or TCT *</label><input id="oct_tct" type="file" name="oct_tct" accept=".pdf,.jpg,.jpeg,.png" required=""></div>
-
-                <div class="field"><label for="tax_declaration">Tax Declaration *</label><input id="tax_declaration" type="file" name="tax_declaration" accept=".pdf,.jpg,.jpeg,.png" required=""></div>
-
-                <div style="margin-top:auto;padding-top:12px;">
-                  <div class="small muted" style="margin-bottom:12px;">* Required fields</div>
-                  <div style="display:flex;gap:12px;">
-                    <button class="btn btn-primary" type="submit">Submit Listing</button>
-                    <button type="button" class="btn btn-ghost" onclick="document.getElementById('listingForm').reset()">Reset</button>
-                  </div>
-                </div>
-              </div>
-            </form>
-
-            <p id="listingMessage" style="text-align: center; font-weight: bold; margin-top: 10px; cursor: pointer;"></p>
-          </div>
-        </div>
-        </div>
-
-        <div id="submitCTA" class="submit-cta" style="display:none;">
-          <div id="submitCTAText">Please log in to submit a listing.</div>
-          <div style="margin-top:12px">
-            <button class="btn btn-primary" id="submitCTALogin">Log in / Sign up</button>
-            <button class="btn btn-ghost" id="submitCTAProfile" style="display:none">Go to Profile</button>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- PROCESS -->
     <section id="process" class="reveal process-section">
@@ -392,7 +323,7 @@
 
                     <div style="font-size:0.95em;">
                       🏛️ <strong>Walk-In:</strong> Municipal Hall<br>
-                      <span style="font-size: 0.85em; opacity: 0.8; margin-left: 24px; cursor: pointer;">(Jan 2 - Jan 20, 2025)</span>
+                      <span style="font-size: 0.85em; opacity: 0.8; margin-left: 24px; cursor: pointer;">(Jan 2 - Jan 20, 2025-2026)</span>
                     </div>
                   </div>
                 </div>
@@ -475,8 +406,7 @@
     
     <button class="modal-close" aria-label="Close">✕</button>
 
-    <div class="story-modal-media">
-      <img id="modalImage" src="" alt="Story Image">
+    <div class="story-modal-media" id="modalImage">
     </div>
 
     <div class="story-modal-body">

@@ -729,8 +729,8 @@
 
 <!-- SUCCESS STORY MODAL -->
 <div id="successStoryModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
-  <div style="background: #ffffff; max-width: 600px; margin: 40px auto; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+  <div style="background: #ffffff; max-width: 600px; margin: 40px auto; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); max-height: 90vh; overflow-y: auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; position: sticky; top: 0; background: #ffffff; z-index: 10; padding-bottom: 10px;">
       <h3 style="margin: 0; font-size: 22px;">Upload Your Success Story</h3>
       <button id="closeSuccessModal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);">×</button>
     </div>
@@ -835,6 +835,62 @@
       <div style="display: flex; gap: 10px;">
         <button type="submit" class="btn btn-primary" style="flex: 1;">Share Success Story</button>
         <button type="button" id="cancelSuccessBtn" class="btn btn-ghost" style="flex: 1;">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- EDIT LISTING MODAL -->
+<div id="editListingModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+  <div style="background: #ffffff; max-width: 600px; margin: 40px auto; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); max-height: 90vh; overflow-y: auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; position: sticky; top: 0; background: #ffffff; z-index: 10; padding-bottom: 10px;">
+      <h3 style="margin: 0; font-size: 22px;">Edit Listing</h3>
+      <button id="closeEditListingModal" type="button" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);">×</button>
+    </div>
+
+    <form id="editListingForm" style="display: flex; flex-direction: column; gap: 15px;">
+      <!-- Listing Title -->
+      <div>
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Property Title</label>
+        <input type="text" id="editListingTitle" placeholder="e.g., Beachfront Cottage" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" required />
+      </div>
+
+      <!-- Listing Type -->
+      <div>
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Type</label>
+        <select id="editListingType" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" required>
+          <option value="">Select type</option>
+          <option value="For Sale">For Sale</option>
+          <option value="For Lease">For Lease</option>
+          <option value="For Rent">For Rent</option>
+        </select>
+      </div>
+
+      <!-- Listing Price -->
+      <div>
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Price (₱)</label>
+        <input type="number" id="editListingPrice" placeholder="e.g., 25000" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" required />
+      </div>
+
+      <!-- Listing Size -->
+      <div>
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Size (sq m)</label>
+        <input type="number" id="editListingSize" placeholder="e.g., 250" step="0.01" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;" />
+      </div>
+
+      <!-- Listing Description -->
+      <div>
+        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Description</label>
+        <textarea id="editListingDescription" placeholder="Describe the property..." style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; min-height: 100px;" required></textarea>
+      </div>
+
+      <!-- Status Message -->
+      <div id="editListingMessage" style="padding: 10px; border-radius: 6px; display: none; text-align: center;"></div>
+
+      <!-- Submit Buttons -->
+      <div style="display: flex; gap: 10px;">
+        <button type="submit" class="btn btn-primary" style="flex: 1;">Update Listing</button>
+        <button type="button" id="cancelEditBtn" class="btn btn-ghost" style="flex: 1;">Cancel</button>
       </div>
     </form>
   </div>
@@ -1237,7 +1293,35 @@
   }
 
   function editListing(listingId) {
-    window.location.href = `/components/profile.html?edit=${listingId}`;
+    const modal = document.getElementById('editListingModal');
+    const form = document.getElementById('editListingForm');
+    
+    try {
+      // Fetch listing details
+      fetch(`/api/my-listings/details/${listingId}`, {
+        credentials: 'same-origin'
+      })
+      .then(res => res.json())
+      .then(listing => {
+        // Populate form fields
+        document.getElementById('editListingTitle').value = listing.title || '';
+        document.getElementById('editListingType').value = listing.type || '';
+        document.getElementById('editListingPrice').value = listing.price || '';
+        document.getElementById('editListingSize').value = listing.size_sqm || '';
+        document.getElementById('editListingDescription').value = listing.description || '';
+        
+        // Store listing ID for submission
+        form.setAttribute('data-listing-id', listingId);
+        
+        // Open modal
+        modal.style.display = 'flex';
+      })
+      .catch(err => {
+        alert('Error loading listing: ' + err.message);
+      });
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
   }
 
   function viewListing(listingId) {
@@ -1647,6 +1731,37 @@
 
   // Open success story modal (wrapper that redirects to profile page)
   function openSuccessStoryModal(listingId, listingTitle, listingImage, inquiryId) {
+    // Reset form for creation mode
+    document.getElementById('successStoryForm').removeAttribute('data-story-id');
+    
+    // Reset form fields
+    document.getElementById('successBusinessName').value = '';
+    document.getElementById('successLocation').value = '';
+    document.getElementById('successBusinessType').value = '';
+    document.getElementById('successCustomBusinessType').value = '';
+    document.getElementById('successDescription').value = '';
+    document.getElementById('successEstablished').value = '';
+    document.getElementById('successAchievement').value = '';
+    document.getElementById('successContactEmail').value = '';
+    document.getElementById('successCategory').value = '';
+    
+    // Reset image
+    document.getElementById('successStoryImage').style.display = 'none';
+    window.successImageData = null;
+    
+    // Reset modal title and button
+    const modalTitle = document.querySelector('#successStoryModal h3');
+    if (modalTitle) {
+      modalTitle.textContent = 'Upload Your Success Story';
+    }
+    const submitBtn = document.getElementById('submitSuccessBtn');
+    if (submitBtn) {
+      submitBtn.textContent = 'Upload Success Story';
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+      submitBtn.style.cursor = 'pointer';
+    }
+
     // Open the embedded modal locally
     const modal = document.getElementById('successStoryModal');
     if (modal) {
@@ -1748,8 +1863,83 @@
 
   // Editor for existing success stories
   async function openSuccessStoryEditor(storyId, listingId, listingTitle, listingImage, inquiryId) {
-    // For now, open the same modal as creation since it handles both
-    openSuccessStoryModal(listingId, listingTitle, listingImage, inquiryId);
+    try {
+      // First, load the listings into the select dropdown
+      const select = document.getElementById('successListingSelect');
+      const listingsRes = await fetch('/api/investor/dashboard/bought-listings', {
+        credentials: 'same-origin'
+      });
+
+      if (!listingsRes.ok) {
+        alert('Error loading your listings');
+        return;
+      }
+
+      const listingsData = await listingsRes.json();
+      
+      // Populate dropdown with purchased listings
+      select.innerHTML = '<option value="">Choose a listing you\'ve purchased</option>';
+      if (listingsData.boughtListings && listingsData.boughtListings.length > 0) {
+        listingsData.boughtListings.forEach(listing => {
+          const option = document.createElement('option');
+          option.value = listing.listing_id;
+          option.textContent = listing.title;
+          select.appendChild(option);
+        });
+      }
+
+      // Fetch the existing success story details
+      const res = await fetch(`/api/investor/success-stories/${storyId}`, {
+        credentials: 'same-origin'
+      });
+
+      if (!res.ok) {
+        alert('Error loading success story details');
+        return;
+      }
+
+      const story = await res.json();
+
+      // Populate the form with existing data
+      document.getElementById('successListingSelect').value = story.listing_id;
+      document.getElementById('successBusinessName').value = story.business_name;
+      document.getElementById('successLocation').value = story.location;
+      document.getElementById('successBusinessType').value = story.business_type;
+      document.getElementById('successDescription').value = story.description;
+      document.getElementById('successEstablishedYear').value = story.established_year;
+      document.getElementById('successAchievement').value = story.key_achievement;
+      document.getElementById('successContactEmail').value = story.contact_email;
+      document.getElementById('successCategory').value = story.category;
+
+      // Show existing image if available
+      if (story.image_url) {
+        const imgEl = document.getElementById('successStoryImage');
+        imgEl.src = story.image_url;
+        imgEl.style.display = 'block';
+      }
+
+      // Change modal title to "Edit"
+      const modalTitle = document.querySelector('#successStoryModal h3');
+      if (modalTitle) {
+        modalTitle.textContent = 'Edit Success Story';
+      }
+
+      // Change button text to "Update"
+      const submitBtn = document.getElementById('submitSuccessBtn');
+      if (submitBtn) {
+        submitBtn.textContent = 'Update Success Story';
+      }
+
+      // Store the story ID for update operation
+      document.getElementById('successStoryForm').setAttribute('data-story-id', storyId);
+
+      // Open the modal
+      const modal = document.getElementById('successStoryModal');
+      modal.style.display = 'flex';
+    } catch (err) {
+      console.error('Error loading success story:', err);
+      alert('Error loading success story');
+    }
   }
 
   // Delete success story
@@ -1819,6 +2009,90 @@
     window.addEventListener('click', function(event) {
       if (event.target === modal) {
         modal.style.display = 'none';
+      }
+    });
+
+    // Edit Listing Modal Event Listeners
+    const editModal = document.getElementById('editListingModal');
+    const closeEditBtn = document.getElementById('closeEditListingModal');
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    const editForm = document.getElementById('editListingForm');
+
+    if (closeEditBtn) {
+      closeEditBtn.addEventListener('click', function() {
+        editModal.style.display = 'none';
+      });
+    }
+
+    if (cancelEditBtn) {
+      cancelEditBtn.addEventListener('click', function() {
+        editModal.style.display = 'none';
+      });
+    }
+
+    if (editForm) {
+      editForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const listingId = editForm.getAttribute('data-listing-id');
+        const title = document.getElementById('editListingTitle').value.trim();
+        const type = document.getElementById('editListingType').value.trim();
+        const price = document.getElementById('editListingPrice').value.trim();
+        const size = document.getElementById('editListingSize').value.trim();
+        const description = document.getElementById('editListingDescription').value.trim();
+        const msgEl = document.getElementById('editListingMessage');
+
+        if (!title || !type || !price || !description) {
+          msgEl.textContent = '❌ Please fill in all required fields';
+          msgEl.style.color = '#dc2626';
+          msgEl.style.display = 'block';
+          return;
+        }
+
+        try {
+          const response = await fetch(`/api/my-listings/${listingId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+              title,
+              type,
+              price: parseFloat(price),
+              size_sqm: size ? parseFloat(size) : null,
+              description
+            })
+          });
+
+          if (response.ok) {
+            msgEl.textContent = '✓ Listing updated successfully';
+            msgEl.style.color = '#059669';
+            msgEl.style.display = 'block';
+            
+            // Reload listings
+            loadBusinessListings('approved');
+            
+            // Close modal after delay
+            setTimeout(() => {
+              editModal.style.display = 'none';
+            }, 1500);
+          } else {
+            const error = await response.json();
+            msgEl.textContent = '❌ ' + (error.message || 'Failed to update listing');
+            msgEl.style.color = '#dc2626';
+            msgEl.style.display = 'block';
+          }
+        } catch (e) {
+          msgEl.textContent = '❌ Error: ' + e.message;
+          msgEl.style.color = '#dc2626';
+          msgEl.style.display = 'block';
+        }
+      });
+    }
+
+    // Close edit modal when clicking outside
+    window.addEventListener('click', function(event) {
+      if (event.target === editModal) {
+        editModal.style.display = 'none';
       }
     });
   });

@@ -999,6 +999,9 @@ ease;
 .story-modal-media {
   width: 45%;
   background: #f3f4f6;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 .story-modal-media img {
   width: 100%;

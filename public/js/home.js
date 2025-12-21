@@ -308,49 +308,49 @@ const storiesData = {
   lcc: {
     title: 'LCC',
     sub: 'Supermarket — Maharlika Highway, Pinyahan',
-    img: 'assets/img/success/lcc.jpg',
+    img: 'assets/img/success/lcc.png',
     desc: 'LCC is one of Labo’s established retail anchors, offering employment and steady foot traffic that supports many nearby businesses. Opened in 20XX, LCC continues to expand its local services and outreach.'
   },
   jfm: {
     title: 'J&F MALL',
     sub: 'Mall — Dalis, Labo, Camarines Norte',
-    img: 'assets/img/success/jf-mall.jpg',
+    img: 'assets/img/success/j&f.png',
     desc: 'A modern retail center providing shopping, dining and entertainment. The mall supports local suppliers and attracts visitors from neighboring towns.'
   },
   mrdiy: {
     title: 'Mr. DIY',
     sub: 'Retail — Maharlika Highway',
-    img: 'assets/img/success/mr-diy.jpg',
+    img: 'assets/img/success/diy.png',
     desc: 'A major retail chain that chose Labo for its accessibility and growing market.'
   },
   maria: {
     title: 'Maria Fatima',
     sub: 'Farm Resort — Purok 2, Bautista',
-    img: 'assets/img/success/maria-fatima.jpg',
+    img: 'assets/img/success/fatima.png',
     desc: 'A successful agritourism resort that highlights local produce and creates seasonal employment.'
   },
   villa: {
     title: 'Villa Asuncion',
     sub: 'Resort — Purok 4, San Antonio',
-    img: 'assets/img/success/villa-asuncion.jpg',
+    img: 'assets/img/success/vila.png',
     desc: 'Popular event venue and resort supporting tourism growth in the municipality.'
   },
   hutspot: {
     title: 'HutSpot',
     sub: 'Hotel & Restaurant — Tulay na Lipa',
-    img: 'assets/img/success/hutspot.jpg',
+    img: 'assets/img/success/hutspot.png',
     desc: 'Local hospitality business that grew rapidly thanks to steady tourist flows.'
   },
   munichall: {
     title: 'Municipal Hall (New)',
     sub: 'Government Project — Dalis',
-    img: 'assets/img/success/munhall.jpg',
+    img: 'assets/img/success/munichall.png',
     desc: 'A strategic public investment that will improve services and civic access.'
   },
   centralplaza: {
     title: 'Central Plaza',
     sub: 'Mall — Dalis, Labo',
-    img: 'assets/img/success/central-plaza.jpg',
+    img: 'assets/img/success/central-plaza.png',
     desc: 'New commercial development designed to expand retail and service options.'
   }
 };
@@ -363,7 +363,7 @@ function openStoryModal(id) {
   document.getElementById('storyModalSub').textContent = data.sub;
   document.getElementById('storyModalDesc').textContent = data.desc;
   const imgEl = document.getElementById('modalImage');
-  imgEl.style.backgroundImage = `url('${data.img}')`;
+  imgEl.style.backgroundImage = `url('/${data.img}')`;
   modal.classList.add('open');
   modal.setAttribute('aria-hidden', 'false');
   // focus first actionable element
