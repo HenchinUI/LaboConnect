@@ -1,0 +1,348 @@
+═══════════════════════════════════════════════════════════════════════════════
+                    LABOCONNECT SYSTEM ARCHITECTURE
+                         Visual Diagram
+═══════════════════════════════════════════════════════════════════════════════
+
+OVERALL STRUCTURE: User → Frontend → Backend → Database
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                    USER / CLIENT LAYER                                      │
+│                    (Web Browser)                                            │
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                                                                      │  │
+│  │  📱 Desktop / Mobile Browser                                        │  │
+│  │  ├─ index.html (homepage, submit listing)                          │  │
+│  │  ├─ listings.html (browse & search)                                │  │
+│  │  ├─ listing-detail.html (single listing view)                      │  │
+│  │  ├─ inquiries.html (real-time chat)                                │  │
+│  │  ├─ admin-dashboard.html (admin panel)                             │  │
+│  │  └─ authModal.html (login/register popup)                          │  │
+│  │                                                                      │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                          │                                                  │
+│                          │ HTTP/HTTPS + WebSocket (Socket.IO)              │
+│                          │                                                  │
+│                          ▼                                                  │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                                                                      │  │
+│  │  🎨 Frontend JavaScript & CSS                                       │  │
+│  │  ├─ global.js (auth, header, session)                              │  │
+│  │  ├─ home.js (map, listings, filters)                               │  │
+│  │  ├─ admin.js (dashboard, bulk actions)                             │  │
+│  │  ├─ business.js (business owner dashboard)                         │  │
+│  │  ├─ global.css (responsive design)                                 │  │
+│  │  └─ home.css (listing cards, grid layout)                          │  │
+│  │                                                                      │  │
+│  │  • Form validation & submission                                    │  │
+│  │  • Session management (check /api/session)                         │  │
+│  │  • localStorage for user state                                     │  │
+│  │  • Fetch API for REST calls                                        │  │
+│  │  • Socket.IO client for real-time messaging                        │  │
+│  │                                                                      │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ Request/Response
+                                    │ (JSON, HTML, WebSocket)
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                    BACKEND / SERVER LAYER                                   │
+│                    (Node.js + Express)                                      │
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                                                                      │  │
+│  │  🔧 Express Application (server.js, port 3000)                      │  │
+│  │                                                                      │  │
+│  │  ┌──────────────────────────────────────────────────────────────┐  │  │
+│  │  │ MIDDLEWARE STACK                                             │  │  │
+│  │  ├─ express.json() [parse JSON bodies]                          │  │  │
+│  │  ├─ express.urlencoded() [parse form data]                      │  │  │
+│  │  ├─ session middleware [express-session]                        │  │  │
+│  │  ├─ multer [file upload handling]                               │  │  │
+│  │  ├─ express.static() [serve static files]                       │  │  │
+│  │  └─ admin protection [auth check for /admin-dashboard]          │  │  │
+│  │  └─────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                      │  │
+│  │  ┌──────────────────────────────────────────────────────────────┐  │  │
+│  │  │ AUTHENTICATION & SESSION ROUTES                              │  │  │
+│  │  ├─ POST /register [create user, validate admin token]          │  │  │
+│  │  ├─ POST /login [verify credentials, set session]               │  │  │
+│  │  ├─ POST /logout [destroy session]                              │  │  │
+│  │  ├─ GET /api/session [fetch current user]                       │  │  │
+│  │  └─────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                      │  │
+│  │  ┌──────────────────────────────────────────────────────────────┐  │  │
+│  │  │ LISTINGS & APPROVALS (Core Business Logic)                   │  │  │
+│  │  ├─ POST /submit-listing [create listing, upload files]         │  │  │
+│  │  ├─ GET /admin/listings [fetch pending/approved/rejected]       │  │  │
+│  │  ├─ GET /admin/listings/:id [single listing details]            │  │  │
+│  │  ├─ POST /admin/approve-listing/:id [approve]                   │  │  │
+│  │  ├─ POST /admin/listings/:id/reject [reject]                    │  │  │
+│  │  ├─ DELETE /admin/listings/:id [delete + cleanup files]         │  │  │
+│  │  ├─ GET /admin/stats [dashboard stats]                          │  │  │
+│  │  └─────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                      │  │
+│  │  ┌──────────────────────────────────────────────────────────────┐  │  │
+│  │  │ INQUIRIES & MESSAGING (Real-time)                            │  │  │
+│  │  ├─ POST /api/inquiries [send inquiry]                          │  │  │
+│  │  ├─ GET /api/inquiries [fetch user's inquiries]                 │  │  │
+│  │  ├─ Socket.IO message events [real-time chat]                   │  │  │
+│  │  ├─ Email notifications [SendGrid / Nodemailer]                 │  │  │
+│  │  └─────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                      │  │
+│  │  ┌──────────────────────────────────────────────────────────────┐  │  │
+│  │  │ ADMIN TOKEN SYSTEM                                           │  │  │
+│  │  ├─ POST /api/admin/tokens [generate token (admin-only)]        │  │  │
+│  │  ├─ Token validation on /register [if role='admin']             │  │  │
+│  │  └─────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                      │  │
+│  │  ┌──────────────────────────────────────────────────────────────┐  │  │
+│  │  │ ROLE-BASED ACCESS CONTROL (RBAC)                             │  │  │
+│  │  ├─ 'guest' → browse listings only                              │  │  │
+│  │  ├─ 'user' → register, browse, send inquiries                   │  │  │
+│  │  ├─ 'business' → submit listings, manage own listings           │  │  │
+│  │  └─ 'admin' → full admin dashboard, approvals, token gen        │  │  │
+│  │  └─────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                      │  │
+│  │  ┌──────────────────────────────────────────────────────────────┐  │  │
+│  │  │ FILE UPLOAD & STORAGE                                        │  │  │
+│  │  ├─ Multer processes multipart form data                        │  │  │
+│  │  ├─ Files saved to public/uploads/                              │  │  │
+│  │  ├─ Metadata stored in uploads_meta table                       │  │  │
+│  │  ├─ Static route /uploads serves files to browser               │  │  │
+│  │  └─────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                      │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ✓ Security: Bcrypt password hashing, httpOnly session cookies             │
+│  ✓ Validation: Required fields, file type checks, user authorization      │
+│  ✓ Error Handling: Try/catch, transaction rollback on failure             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ SQL Queries
+                                    │ (pg library connection pool)
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                    DATABASE LAYER                                           │
+│                    (PostgreSQL)                                             │
+│                                                                             │
+│  🗄️  Database: db_4c25                                                     │
+│  📍 Host: dpg-d4oou9idbo4c73f984rg-a.singapore-postgres.render.com        │
+│  🔌 Connection: pg (Node Postgres) - connection pool (min 1, max 20)      │
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │ TABLE: users                                                         │  │
+│  ├─ id (PK), username, email (UNIQUE), password (hashed), role         │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                          ▲                                                  │
+│                          │ 1:N                                              │
+│  ┌───────────────────────┴─────────────────────────────────────────────┐   │
+│  │                       │                       │                     │   │
+│  ├─ listings            ├─ inquiries            ├─ messages            ├─  │
+│  │  (PK: id)            │  (PK: id)             │  (PK: id)            │   │
+│  │  owner_id (FK)       │  owner_id (FK)        │  inquiry_id (FK)     │   │
+│  │  status              │  listing_id (FK)      │  sender_user_id (FK) │   │
+│  │  title               │  is_read              │  body                │   │
+│  │  type                │  created_at           │  is_read             │   │
+│  │  price               │                       │  created_at          │   │
+│  │  image_url           │                       │                      │   │
+│  │  ...docs...          │                       │                      │   │
+│  └──────────────────────┴───────────────────────┴──────────────────────┘   │
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │ Supporting Tables:                                                   │  │
+│  ├─ admin_tokens (token, created_by, used, used_by, expires_at)        │  │
+│  ├─ user_listings (user_id, listing_id) [join table]                   │  │
+│  ├─ uploads_meta (listing_id, field_name, stored_filename, ...)        │  │
+│  ├─ notification_preferences (user_id, email_new_inquiry, ...)         │  │
+│  ├─ email_logs (user_id, inquiry_id, status, sent_at, ...)            │  │
+│  └─ locations (title, latitude, longitude, price, ...)                 │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ✓ Total: 10 tables                                                         │
+│  ✓ Foreign keys enforce referential integrity                              │
+│  ✓ Transactions used for critical operations (delete listing + cleanup)   │
+│  ✓ Indexes on frequently queried columns (status, owner_id, created_at)   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ File I/O (delete, read)
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                    FILE SYSTEM LAYER                                        │
+│                    (Local Disk / Server Storage)                            │
+│                                                                             │
+│  📁 public/uploads/                                                         │
+│  ├─ [unique-id].png / .jpg / .jpeg / .gif [listing images]                │
+│  ├─ [unique-id]-tax.pdf [tax documents]                                    │
+│  ├─ [unique-id]-id.pdf [government IDs]                                    │
+│  └─ [unique-id]-doas.pdf [DOAS / other docs]                              │
+│                                                                             │
+│  • Files referenced by URLs in 'listings' table                            │
+│  • Original filenames stored in 'uploads_meta' table                       │
+│  • Cleanup: files deleted from disk when listing is deleted               │
+│  • Access: served via static route /uploads (public, unprotected)         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+                            REQUEST/RESPONSE FLOW
+═══════════════════════════════════════════════════════════════════════════════
+
+EXAMPLE 1: Browse Listings
+───────────────────────────────────────────────────────────────────────────────
+User clicks "Browse Listings" 
+  ↓
+Browser loads listings.html 
+  ↓
+JavaScript (home.js) calls: GET /listings (or static JSON)
+  ↓
+Express route handler queries: SELECT * FROM listings WHERE status='approved'
+  ↓
+PostgreSQL returns matching listings
+  ↓
+Server sends JSON response to browser
+  ↓
+JavaScript renders HTML with listing cards (images, prices, titles)
+  ↓
+Browser displays responsive grid of listings
+
+EXAMPLE 2: Submit & Approve a Listing
+───────────────────────────────────────────────────────────────────────────────
+Business User fills form (title, type, price, images, docs)
+  ↓
+JavaScript validates, calls: POST /submit-listing (multipart/form-data)
+  ↓
+Multer middleware saves files to public/uploads/
+  ↓
+Express handler verifies: is user logged in? role = 'business'?
+  ↓
+Creates listing row: INSERT INTO listings (owner_id, title, ..., status='pending')
+  ↓
+Creates upload metadata: INSERT INTO uploads_meta (listing_id, ...)
+  ↓
+Returns success response to browser
+  ↓
+Admin views admin-dashboard → clicks "Pending" tab
+  ↓
+JavaScript calls: GET /admin/listings?status=pending
+  ↓
+Express queries: SELECT * FROM listings WHERE status='pending'
+  ↓
+Server returns list of pending listings
+  ↓
+Admin reviews details, clicks "Approve"
+  ↓
+JavaScript calls: POST /admin/approve-listing/:id
+  ↓
+Express updates: UPDATE listings SET status='approved', approved=TRUE
+  ↓
+Listing moves from Pending to Approved tab (browser refreshes view)
+  ↓
+Listing now visible to public when they browse listings
+
+EXAMPLE 3: Real-time Messaging
+───────────────────────────────────────────────────────────────────────────────
+Investor views listing, clicks "Send Inquiry"
+  ↓
+JavaScript opens inquiry form modal, submits: POST /api/inquiries
+  ↓
+Express creates: INSERT INTO inquiries (listing_id, first_name, email, ...)
+  ↓
+Sends email notification to listing owner (async job)
+  ↓
+Browser shows success: "Inquiry sent!"
+  ↓
+Listing owner receives email: "New inquiry on your listing"
+  ↓
+Owner clicks link → views inquiries.html
+  ↓
+JavaScript loads inquiry thread (messages)
+  ↓
+Owner types reply message, hits Send
+  ↓
+JavaScript calls: Socket.IO emit('message', {body, inquiry_id, ...})
+  ↓
+Socket.IO server broadcasts to all connected clients in that inquiry
+  ↓
+Investor's browser receives WebSocket message in real-time
+  ↓
+JavaScript updates DOM with new message (no page refresh needed)
+  ↓
+Both parties see updated conversation in real-time
+
+═══════════════════════════════════════════════════════════════════════════════
+                        TECHNOLOGY STACK SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+
+FRONTEND (Client-side)
+├─ HTML5 (semantic markup)
+├─ CSS3 (responsive design, flexbox, grid)
+├─ Vanilla JavaScript (ES6+)
+├─ Fetch API (HTTP requests)
+├─ Socket.IO client (WebSocket)
+├─ localStorage (client-side state)
+└─ No frameworks (jQuery, React, Vue, Angular) — vanilla approach
+
+BACKEND (Server-side)
+├─ Node.js (runtime)
+├─ Express.js (web framework)
+├─ express-session (session management)
+├─ bcryptjs (password hashing)
+├─ multer (file uploads)
+├─ pg (PostgreSQL driver)
+├─ Socket.IO (real-time messaging)
+├─ nodemailer / SendGrid (email)
+└─ dotenv (environment configuration)
+
+DATABASE
+├─ PostgreSQL (relational DB)
+├─ Render.com hosted (cloud)
+├─ 10 tables with foreign keys
+├─ Connection pooling (pg library)
+└─ Full ACID compliance
+
+DEPLOYMENT
+├─ Frontend: static files served by Express (or could be CDN)
+├─ Backend: Node.js server (localhost:3000 or cloud)
+├─ Database: PostgreSQL (Render.com or self-hosted)
+├─ Files: local disk (public/uploads/) or could use S3/cloud storage
+└─ HTTPS/SSL recommended for production
+
+═══════════════════════════════════════════════════════════════════════════════
+                              TRAFFIC FLOW
+═══════════════════════════════════════════════════════════════════════════════
+
+                        User's Browser
+                             │
+                             │ (HTTPS)
+                             │
+                    ┌────────┴────────┐
+                    │                 │
+              HTTP/REST          WebSocket (Socket.IO)
+         (JSON, multipart)       (real-time events)
+                    │                 │
+                    ▼                 ▼
+          ┌─────────────────┐  ┌─────────────────┐
+          │  Express        │  │  Socket.IO      │
+          │  REST Routes    │  │  Event Handler  │
+          └─────────────────┘  └─────────────────┘
+                    │                 │
+                    └────────┬────────┘
+                             │
+                        Database Driver (pg)
+                             │
+                             ▼
+                      PostgreSQL DB
+                    (SELECT, INSERT, UPDATE, DELETE)
+
+═══════════════════════════════════════════════════════════════════════════════
+END OF SYSTEM ARCHITECTURE DIAGRAM
+═══════════════════════════════════════════════════════════════════════════════

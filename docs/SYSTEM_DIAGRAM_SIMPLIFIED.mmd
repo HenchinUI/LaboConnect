@@ -1,0 +1,53 @@
+graph TB
+    subgraph Client["🖥️ CLIENT LAYER"]
+        Browser["Browser<br/>HTML/CSS/JavaScript"]
+        Maps["Leaflet Map<br/>OpenStreetMap"]
+    end
+
+    subgraph Server["🔧 SERVER LAYER - Express.js"]
+        Auth["Authentication<br/>Login/Register/Session"]
+        API["REST API<br/>40+ Endpoints"]
+        Upload["File Upload<br/>Multer"]
+        Realtime["Real-time Events<br/>Socket.io"]
+    end
+
+    subgraph Data["💾 DATA LAYER - PostgreSQL"]
+        Users["Users Table<br/>Profiles & Auth"]
+        Listings["Listings Table<br/>Properties"]
+        Messages["Messages Table<br/>Inquiries"]
+        Sessions["Sessions Table<br/>Active Users"]
+        Notifications["Notifications<br/>Events"]
+    end
+
+    subgraph External["🌐 EXTERNAL SERVICES"]
+        Email["Email Service<br/>SendGrid/Nodemailer"]
+        FileStorage["File Storage<br/>public/uploads"]
+        Maps2["Map Tiles<br/>OpenStreetMap"]
+    end
+
+    Browser -->|HTTP/HTTPS| API
+    Browser -->|WebSocket| Realtime
+    Maps -->|Leaflet JS| Browser
+    
+    API -->|CRUD Operations| Users
+    API -->|CRUD Operations| Listings
+    API -->|CRUD Operations| Messages
+    API -->|Session Check| Sessions
+    API -->|Create/Update| Notifications
+    
+    Auth -->|Verify Credentials| Users
+    Auth -->|Store Session| Sessions
+    
+    Upload -->|Save Files| FileStorage
+    API -->|Link Files| Listings
+    
+    Realtime -->|Notify Users| Notifications
+    Realtime -->|Send Events| Browser
+    
+    Email -->|Send Notifications| Users
+    FileStorage -->|Serve| Browser
+
+    style Client fill:#e1f5ff
+    style Server fill:#f3e5f5
+    style Data fill:#e8f5e9
+    style External fill:#fff3e0

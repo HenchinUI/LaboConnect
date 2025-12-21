@@ -1,0 +1,75 @@
+graph TB
+    subgraph CLIENT["👤 CLIENT LAYER (Browser)"]
+        HTML["HTML Templates<br/>index.html<br/>listings.html<br/>admin-dashboard.html<br/>authModal.html"]
+        JS["JavaScript<br/>global.js<br/>home.js<br/>admin.js<br/>Socket.IO client"]
+        CSS["CSS<br/>global.css<br/>home.css<br/>Responsive Design"]
+    end
+
+    subgraph FRONTEND["🎨 FRONTEND"]
+        HTML
+        JS
+        CSS
+    end
+
+    subgraph SERVER["🔧 BACKEND SERVER (Node.js + Express)"]
+        AUTH["Authentication<br/>POST /register<br/>POST /login<br/>POST /logout<br/>GET /api/session"]
+        LISTINGS["Listings Management<br/>POST /submit-listing<br/>GET /admin/listings<br/>POST /approve<br/>DELETE /listings/:id"]
+        INQUIRIES["Inquiries & Messages<br/>POST /api/inquiries<br/>Socket.IO events<br/>Email notifications"]
+        TOKENS["Admin Tokens<br/>POST /api/admin/tokens<br/>Token validation"]
+        MIDDLEWARE["Middleware<br/>Session<br/>Multer (uploads)<br/>RBAC checks<br/>Protection"]
+    end
+
+    subgraph DATABASE_LAYER["🗄️ DATABASE LAYER (PostgreSQL)"]
+        USERS["users<br/>(id, email, password, role)"]
+        LISTINGS_DB["listings<br/>(id, owner_id, status, title, price...)"]
+        INQUIRIES_DB["inquiries<br/>(id, listing_id, sender_user_id)"]
+        MESSAGES_DB["messages<br/>(id, inquiry_id, body)"]
+        TOKENS_DB["admin_tokens<br/>(id, token, used, used_by)"]
+        OTHER_TABLES["user_listings<br/>uploads_meta<br/>notification_preferences<br/>email_logs<br/>locations"]
+    end
+
+    subgraph FILES["📁 FILE SYSTEM"]
+        UPLOADS["public/uploads/<br/>(images, documents)"]
+    end
+
+    USER["👥 End User"]
+    
+    USER -->|Types in browser| FRONTEND
+    FRONTEND -->|HTTP/REST<br/>WebSocket| SERVER
+    SERVER -->|SQL Queries<br/>Connection Pool| DATABASE_LAYER
+    SERVER -->|File I/O<br/>Read/Write| FILES
+    DATABASE_LAYER -->|Query Results| SERVER
+    SERVER -->|JSON Response<br/>WebSocket Events| FRONTEND
+    FRONTEND -->|Render Page| USER
+
+    AUTH --> USERS
+    LISTINGS --> LISTINGS_DB
+    LISTINGS --> USERS
+    INQUIRIES --> INQUIRIES_DB
+    INQUIRIES --> MESSAGES_DB
+    INQUIRIES --> USERS
+    TOKENS --> TOKENS_DB
+    TOKENS --> USERS
+    LISTINGS --> TOKENS
+    MIDDLEWARE -->|Protects| AUTH
+    MIDDLEWARE -->|Protects| LISTINGS
+    MIDDLEWARE -->|Handles| UPLOADS
+
+    style USER fill:#e1f5ff
+    style CLIENT fill:#fff3e0
+    style FRONTEND fill:#fff3e0
+    style SERVER fill:#f3e5f5
+    style AUTH fill:#f3e5f5
+    style LISTINGS fill:#f3e5f5
+    style INQUIRIES fill:#f3e5f5
+    style TOKENS fill:#f3e5f5
+    style MIDDLEWARE fill:#f3e5f5
+    style DATABASE_LAYER fill:#e8f5e9
+    style USERS fill:#e8f5e9
+    style LISTINGS_DB fill:#e8f5e9
+    style INQUIRIES_DB fill:#e8f5e9
+    style MESSAGES_DB fill:#e8f5e9
+    style TOKENS_DB fill:#e8f5e9
+    style OTHER_TABLES fill:#e8f5e9
+    style FILES fill:#fce4ec
+    style UPLOADS fill:#fce4ec
