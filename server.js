@@ -778,6 +778,35 @@ app.get('/api/my-listings/:status', async (req, res) => {
   }
 });
 
+// Get single listing by ID (for editing)
+app.get('/api/my-listings/details/:listingId', async (req, res) => {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { listingId } = req.params;
+
+  try {
+    const { rows: listing } = await db.query(
+      `SELECT id, title, description, price, size_sqm, image_url, status, type, 
+              owner_id, latitude, longitude, created_at, updated_at
+       FROM listings 
+       WHERE id = $1 AND owner_id = $2`,
+      [listingId, sessionUser.id]
+    );
+
+    if (!listing.length) {
+      return res.status(404).json({ error: 'Listing not found or you do not own it' });
+    }
+
+    res.json(listing[0]);
+  } catch (e) {
+    console.error('Error fetching listing:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Update listing details
 app.put('/api/my-listings/:listingId', async (req, res) => {
   const sessionUser = req.session && req.session.user;
@@ -867,11 +896,16 @@ app.delete('/api/my-listings/:listingId', async (req, res) => {
       return res.status(403).json({ error: 'You do not own this listing' });
     }
 
-    // Delete related records first
+    // Delete related records first (in order of dependencies)
+    try { await db.query('DELETE FROM email_logs WHERE inquiry_id IN (SELECT id FROM inquiries WHERE listing_id = $1)', [listingId]); } catch (e) { console.warn('Could not delete email_logs:', e.message); }
     try { await db.query('DELETE FROM messages WHERE inquiry_id IN (SELECT id FROM inquiries WHERE listing_id = $1)', [listingId]); } catch (e) { console.warn('Could not delete messages:', e.message); }
     try { await db.query('DELETE FROM inquiries WHERE listing_id = $1', [listingId]); } catch (e) { console.warn('Could not delete inquiries:', e.message); }
     try { await db.query('DELETE FROM uploads_meta WHERE listing_id = $1', [listingId]); } catch (e) { console.warn('Could not delete uploads_meta:', e.message); }
     try { await db.query('DELETE FROM user_listings WHERE listing_id = $1', [listingId]); } catch (e) { console.warn('Could not delete user_listings:', e.message); }
+    try { await db.query('DELETE FROM sales_transactions WHERE listing_id = $1', [listingId]); } catch (e) { console.warn('Could not delete sales_transactions:', e.message); }
+    try { await db.query('DELETE FROM listing_approvals WHERE listing_id = $1', [listingId]); } catch (e) { console.warn('Could not delete listing_approvals:', e.message); }
+    try { await db.query('DELETE FROM listing_notifications WHERE listing_id = $1', [listingId]); } catch (e) { console.warn('Could not delete listing_notifications:', e.message); }
+    try { await db.query('DELETE FROM success_stories WHERE listing_id = $1', [listingId]); } catch (e) { console.warn('Could not delete success_stories:', e.message); }
 
     // Delete the listing
     await db.query('DELETE FROM listings WHERE id = $1', [listingId]);
@@ -4010,6 +4044,47 @@ app.get('/api/investor/success-stories', requireAuth, async (req, res) => {
   }
 });
 
+// GET: Investor's specific success story by ID (for editing)
+app.get('/api/investor/success-stories/:storyId', requireAuth, async (req, res) => {
+  try {
+    const storyId = req.params.storyId;
+    const userId = req.session.user.id;
+
+    // Get success story if it belongs to the current investor
+    const { rows: story } = await db.query(
+      `SELECT 
+        ss.id,
+        ss.investor_id,
+        ss.listing_id,
+        ss.image_url,
+        ss.location,
+        ss.business_name,
+        ss.description,
+        ss.business_type,
+        ss.established_year,
+        ss.key_achievement,
+        ss.contact_email,
+        ss.status,
+        ss.category,
+        ss.created_at,
+        l.title as listing_title
+      FROM public.success_stories ss
+      JOIN public.listings l ON ss.listing_id = l.id
+      WHERE ss.id = $1 AND ss.investor_id = $2`,
+      [storyId, userId]
+    );
+
+    if (!story || story.length === 0) {
+      return res.status(404).json({ error: 'Success story not found' });
+    }
+
+    res.json(story[0]);
+  } catch (err) {
+    console.error('Error fetching investor success story:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/investor/success-story/:listingId', requireAuth, async (req, res) => {
   try {
     const listingId = req.params.listingId;
@@ -4122,6 +4197,55 @@ app.get('/api/success-stories/:storyId', async (req, res) => {
   } catch (err) {
     console.error('Error fetching success story:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT: Update investor success story
+app.put('/api/success-stories/:storyId', requireAuth, async (req, res) => {
+  try {
+    const storyId = req.params.storyId;
+    const userId = req.session.user.id;
+    const { listingId, imageUrl, location, businessName, description, businessType, category, establishedYear, keyAchievement, contactEmail } = req.body;
+
+    // Verify the story belongs to the investor
+    const { rows: story } = await db.query(
+      `SELECT id, investor_id FROM public.success_stories WHERE id = $1`,
+      [storyId]
+    );
+
+    if (!story || story.length === 0) {
+      return res.status(404).json({ error: 'Success story not found' });
+    }
+
+    if (story[0].investor_id !== userId) {
+      return res.status(403).json({ error: 'You can only edit your own success stories' });
+    }
+
+    // Update the success story
+    const updateQuery = imageUrl
+      ? `UPDATE public.success_stories 
+         SET listing_id = $1, image_url = $2, location = $3, business_name = $4, 
+             description = $5, business_type = $6, category = $7, established_year = $8, 
+             key_achievement = $9, contact_email = $10, updated_at = NOW()
+         WHERE id = $11
+         RETURNING *`
+      : `UPDATE public.success_stories 
+         SET listing_id = $1, location = $2, business_name = $3, 
+             description = $4, business_type = $5, category = $6, established_year = $7, 
+             key_achievement = $8, contact_email = $9, updated_at = NOW()
+         WHERE id = $10
+         RETURNING *`;
+
+    const params = imageUrl
+      ? [listingId, imageUrl, location, businessName, description, businessType, category, establishedYear, keyAchievement, contactEmail, storyId]
+      : [listingId, location, businessName, description, businessType, category, establishedYear, keyAchievement, contactEmail, storyId];
+
+    const { rows: updated } = await db.query(updateQuery, params);
+
+    res.json({ message: 'Success story updated successfully', story: updated[0] });
+  } catch (err) {
+    console.error('Error updating success story:', err);
+    res.status(500).json({ error: 'Server error: ' + err.message });
   }
 });
 
@@ -4736,6 +4860,17 @@ app.delete('/api/admin/delete-admin/:adminId', requireAuth, async (req, res) => 
 
     const adminInfo = adminRows[0];
 
+    // Delete related records first (cascade manually)
+    await db.query('DELETE FROM audit_logs WHERE admin_id = $1', [adminId]);
+    await db.query('DELETE FROM account_notifications WHERE admin_id = $1', [adminId]);
+    await db.query('UPDATE listing_approvals SET admin_approved_by = NULL WHERE admin_approved_by = $1', [adminId]);
+    await db.query('UPDATE listing_approvals SET head_admin_approved_by = NULL WHERE head_admin_approved_by = $1', [adminId]);
+    await db.query('UPDATE listing_approvals SET submitted_by = NULL WHERE submitted_by = $1', [adminId]);
+    await db.query('UPDATE success_stories SET approved_by_system_admin_id = NULL WHERE approved_by_system_admin_id = $1', [adminId]);
+    await db.query('UPDATE success_stories SET approved_by_head_admin_id = NULL WHERE approved_by_head_admin_id = $1', [adminId]);
+    await db.query('UPDATE verification_requests SET verified_by = NULL WHERE verified_by = $1', [adminId]);
+    await db.query('UPDATE economic_data SET updated_by = NULL WHERE updated_by = $1', [adminId]);
+    
     // Delete the admin user
     await db.query('DELETE FROM users WHERE id = $1', [adminId]);
 
@@ -4744,7 +4879,7 @@ app.delete('/api/admin/delete-admin/:adminId', requireAuth, async (req, res) => 
     res.json({ message: 'Admin account deleted successfully' });
   } catch (err) {
     console.error('Error deleting admin user:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + err.message });
   }
 });
 
@@ -4927,6 +5062,34 @@ app.delete('/api/admin/users/:userId', requireRole('head_admin'), async (req, re
 
     const userInfo = userRows[0];
 
+    // Delete related records first (cascade manually)
+    // Get listing IDs owned by this user
+    const { rows: listings } = await db.query('SELECT id FROM listings WHERE owner_id = $1', [userId]);
+    const listingIds = listings.map(l => l.id);
+
+    if (listingIds.length > 0) {
+      // Delete from tables related to listings
+      await db.query('DELETE FROM messages WHERE inquiry_id IN (SELECT id FROM inquiries WHERE listing_id = ANY($1))', [listingIds]);
+      await db.query('DELETE FROM inquiries WHERE listing_id = ANY($1)', [listingIds]);
+      await db.query('DELETE FROM sales_transactions WHERE listing_id = ANY($1)', [listingIds]);
+      await db.query('DELETE FROM listing_approvals WHERE listing_id = ANY($1)', [listingIds]);
+      await db.query('DELETE FROM listing_notifications WHERE listing_id = ANY($1)', [listingIds]);
+      await db.query('DELETE FROM uploads_meta WHERE listing_id = ANY($1)', [listingIds]);
+      await db.query('DELETE FROM success_stories WHERE listing_id = ANY($1)', [listingIds]);
+      await db.query('DELETE FROM listings WHERE owner_id = $1', [userId]);
+    }
+
+    // Delete user-related records
+    await db.query('DELETE FROM messages WHERE sender_user_id = $1', [userId]);
+    await db.query('DELETE FROM inquiries WHERE sender_user_id = $1', [userId]);
+    await db.query('DELETE FROM account_notifications WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM notification_preferences WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM verification_requests WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM user_listings WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM sales_transactions WHERE buyer_id = $1 OR seller_id = $1', [userId]);
+    await db.query('DELETE FROM success_stories WHERE investor_id = $1', [userId]);
+    await db.query('DELETE FROM email_logs WHERE user_id = $1', [userId]);
+
     // Delete the user
     await db.query('DELETE FROM users WHERE id = $1', [userId]);
 
@@ -4937,7 +5100,7 @@ app.delete('/api/admin/users/:userId', requireRole('head_admin'), async (req, re
     res.json({ message: 'User deleted successfully' });
   } catch (err) {
     console.error('Error deleting user:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + err.message });
   }
 });
 
